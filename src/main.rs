@@ -3,8 +3,8 @@ use std::io::BufReader;
 use std::io::Read;
 
 macro_rules! enum_load {
-    ($vis:vis enum $name:ident { $($variant:ident = $value:expr),+ $(,)? }) => {
-        #[derive(Debug)]
+    ($(#[$derives:meta])* $vis:vis enum $name:ident { $($variant:ident = $value:expr),+ $(,)? }) => {
+        $(#[$derives])*        
         $vis enum $name {
             $($variant = $value),+
         }
@@ -24,7 +24,8 @@ macro_rules! enum_load {
 
 
 enum_load! {
-    enum PrimitiveType {
+    #[derive(Debug)]    
+    pub enum PrimitiveType {
         Triangles      = 0,
         Quads          = 1,
         TriangleStrip  = 2,
@@ -125,16 +126,126 @@ void read_batch_from_file(FILE* file, Batch& batch) {
     else batch.indices = NULL;
 }
 */
+/*
+fn read_enum_from_file<P: AsRef<Path>>(path: P) -> io::Result<MyEnum> {
+    let mut file = File::open(path)?;
+    let mut buf = [0; 4];
+    file.read_exact(&mut buf)?;
+    let value = u32::from_le_bytes(buf);
+    MyEnum::try_from(value).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid enum value"))
+}
+
+use std::convert::TryFrom;
+use std::fs::File;
+use std::io::{self, BufReader, Read};
+use std::path::Path;
+
+macro_rules! my_enum {
+    // The enum name and possible visibility modifier
+    ($vis:vis enum $name:ident { $($variant:ident),+ $(,)? }) => {
+        #[derive(Debug)]
+        $vis enum $name {
+            $($variant),+
+        }
+
+        impl TryFrom<u32> for $name {
+            type Error = ();
+
+            fn try_from(value: u32) -> Result<Self, Self::Error> {
+                match value {
+                    $(x if x == $name::$variant as u32 => Ok($name::$variant),)+
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+
+// Using the macro
+my_enum! {
+    pub enum MyEnum {
+        Variant1,
+        Variant2,
+        Variant3,
+    }
+}
+
+fn read_enums_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<MyEnum>> {
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let mut values = Vec::new();
+    for chunk in reader.bytes().chunks(4) {
+        let bytes = chunk?;
+        if bytes.len() == 4 {
+            let value = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+            match MyEnum::try_from(value) {
+                Ok(e) => values.push(e),
+                Err(_) => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid enum value")),
+            }
+        } else if !bytes.is_empty() {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid data length"));
+        }
+    }
+    Ok(values)
+}
+
+fn read_enums_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<MyEnum>> {
+    let mut file = File::open(path)?;
+    let mut reader = BufReader::new(&mut file);
+    let mut values = Vec::new();
+    let mut buffer = [0u8; 4];
+    loop {
+        match reader.read_exact(&mut buffer) {
+            Ok(_) => {
+                let value = u32::from_le_bytes(buffer);
+                match MyEnum::try_from(value) {
+                    Ok(e) => values.push(e),
+                    Err(_) => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid enum value")),
+                }
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(values)
+}
+
+
+/// https://stackoverflow.com/a/64678145/10854888
+macro_rules! iterable_enum {
+    ($(#[$derives:meta])* $(vis $visibility:vis)? enum $name:ident { $($(#[$nested_meta:meta])* $member:ident),* }) => {
+        const count_members:usize = $crate::count!($($member)*);
+        $(#[$derives])*
+        $($visibility)? enum $name {
+            $($(#[$nested_meta])* $member),*
+        }
+        impl $name {
+            pub const fn iter() -> [$name; count_members] {
+                [$($name::$member,)*]
+            }
+        }
+    };
+}
+
+*/
 
 fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
     let mut file = File::open(filename)?;
     let mut buf_reader = BufReader::with_capacity(64 * 1024, file);
 
+    //buf_reader.bytes().array_chunks();//.chunks(4);
+    buf_reader.buffer();
+
     //buf_reader.read_vectored(bufs)
 
     //buf_reader.read_buf_exact(cursor)
 
-    let test3 = PrimitiveType::PRIM_TRIANGLES as u32;
+    let mut buf = [0; 4];
+    buf_reader.read_exact(&mut buf)?;
+
+    let a = u32::from_le_bytes(buf);
+
+    let test3 = PrimitiveType::Triangles as u32;
     //let test4 = test3 as PrimitiveType;
 
     let test : u32 = 4;
@@ -193,5 +304,8 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
 fn main() {
     println!("Hello, world!");
 
-    //println!("MyEnum: {:?}", my_enum);
+    let test : u32 = 1;
+    let test2 : PrimitiveType = PrimitiveType::try_from(test).unwrap();
+
+    println!("MyEnum: {:?}", test2);
 }
