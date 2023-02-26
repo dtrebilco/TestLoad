@@ -24,7 +24,7 @@ macro_rules! enum_load {
 
 
 enum_load! {
-    #[derive(Debug)]    
+    #[derive(Debug)]
     pub enum PrimitiveType {
         Triangles      = 0,
         Quads          = 1,
@@ -78,7 +78,7 @@ struct Format {
     offset : u32,
     index  : u32,
 }
-  
+
 struct Batch
 {
     vertices : Vec<u8>,
@@ -230,9 +230,78 @@ macro_rules! iterable_enum {
 */
 
 fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
-    let mut file = File::open(filename)?;
+    let file = File::open(filename)?;
     let mut buf_reader = BufReader::with_capacity(64 * 1024, file);
 
+    let mut buf = [0; 4];
+    let mut read_u32 = || -> std::io::Result<u32> {
+        buf_reader.read_exact(&mut buf)?;        
+        Ok(u32::from_le_bytes(buf))
+    };
+
+    let version = read_u32()?;
+    let nBatches = read_u32()?;
+
+    let mut outModel : Model = Model { batches : Vec::with_capacity(nBatches as usize) };
+    for  _ in 0..nBatches {
+        let nVertices  = read_u32()?;
+        let nIndices   = read_u32()?;
+        let vertexSize = read_u32()?;
+        let indexSize  = read_u32()?;
+
+        let primType  = read_u32()?;
+        let nFormats  = read_u32()?;
+
+        let primitiveType = match PrimitiveType::try_from(primType) {
+            Ok(e) => e,
+            Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,"")),
+        };
+
+        let mut newBatch = Batch {
+            vertices : Vec::with_capacity(vertexSize as usize * nVertices as usize),
+            indices  : Vec::with_capacity(indexSize as usize * nIndices as usize),
+          
+            nVertices,
+            nIndices,
+            vertexSize,
+            indexSize,
+          
+            formats : Vec::with_capacity(nFormats as usize),
+            primitiveType, 
+
+        };
+        //DT_TODO:  Use non resizable arrays for the data storage    
+        outModel.batches.push(newBatch);
+
+        //Batch newBatch = Batch {};
+/*
+        fread(&batch.nVertices, sizeof(batch.nVertices), 1, file);
+        fread(&batch.nIndices, sizeof(batch.nIndices), 1, file);
+        fread(&batch.vertexSize, sizeof(batch.vertexSize), 1, file);
+        fread(&batch.indexSize, sizeof(batch.indexSize), 1, file);
+      
+        fread(&batch.primitiveType, sizeof(batch.primitiveType), 1, file);
+      
+        unsigned int nFormats;
+        fread(&nFormats, sizeof(nFormats), 1, file);
+        batch.formats.resize(nFormats);
+        fread(batch.formats.data(), nFormats * sizeof(Format), 1, file);
+      
+        batch.vertices = new char[batch.nVertices * batch.vertexSize];
+        fread(batch.vertices, batch.nVertices * batch.vertexSize, 1, file);
+      
+        if (batch.nIndices > 0) {
+          batch.indices = new char[batch.nIndices * batch.indexSize];
+          fread(batch.indices, batch.nIndices * batch.indexSize, 1, file);
+        }
+        else batch.indices = NULL;
+*/
+
+    }
+
+
+
+/*
     //buf_reader.bytes().array_chunks();//.chunks(4);
     buf_reader.buffer();
 
@@ -240,8 +309,6 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
 
     //buf_reader.read_buf_exact(cursor)
 
-    let mut buf = [0; 4];
-    buf_reader.read_exact(&mut buf)?;
 
     let a = u32::from_le_bytes(buf);
 
@@ -250,8 +317,6 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
 
     let test : u32 = 4;
     let test2 : PrimitiveType = PrimitiveType::try_from(test).unwrap();
-
-    let mut outModel : Model = Model { batches : Vec::with_capacity(10) };
 
     let mut version: u32 = 0;
     let mut n_batches: u32 = 0;
@@ -275,7 +340,7 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
         std::slice::from_raw_parts_mut(ptr, 4)
     };
     buf_reader.read_exact(s)?;
-
+*/
 /*
   FILE* file = fopen(fileName, "rb");
   if (file == NULL) return false;
@@ -303,6 +368,12 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
 
 fn main() {
     println!("Hello, world!");
+
+    if let Ok(model) = load_model_from_file("data/room0.hmdl") {
+        for batch in model.batches {
+            println!("Vertices {} Indices {}", batch.nVertices, batch.nIndices);
+        }
+    }
 
     let test : u32 = 1;
     let test2 : PrimitiveType = PrimitiveType::try_from(test).unwrap();
