@@ -3,10 +3,10 @@ use std::io::BufReader;
 use std::io::Read;
 
 macro_rules! enum_load {
-    ($(#[$derives:meta])* $vis:vis enum $name:ident { $($variant:ident = $value:expr),+ $(,)? }) => {
+    ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $variant:ident = $value:expr),+ $(,)? }) => {
         $(#[$derives])*        
         $vis enum $name {
-            $($variant = $value),+
+            $($(#[$nested_meta])* $variant = $value),+
         }
 
         impl TryFrom<u32> for $name {
@@ -234,27 +234,30 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
     let mut buf_reader = BufReader::with_capacity(64 * 1024, file);
 
     let mut buf = [0; 4];
-    let mut read_u32 = || -> std::io::Result<u32> {
+    let mut read_u32 = | buf_reader : &mut BufReader<File> | -> std::io::Result<u32> {
         buf_reader.read_exact(&mut buf)?;        
         Ok(u32::from_le_bytes(buf))
     };
 
-    let version = read_u32()?;
-    let nBatches = read_u32()?;
+    let version = read_u32(&mut buf_reader)?;
+    if version != 1 {
+        return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
+    }
+    let nBatches = read_u32(&mut buf_reader)?;
 
     let mut outModel : Model = Model { batches : Vec::with_capacity(nBatches as usize) };
     for  _ in 0..nBatches {
-        let nVertices  = read_u32()?;
-        let nIndices   = read_u32()?;
-        let vertexSize = read_u32()?;
-        let indexSize  = read_u32()?;
+        let nVertices  = read_u32(&mut buf_reader)?;
+        let nIndices   = read_u32(&mut buf_reader)?;
+        let vertexSize = read_u32(&mut buf_reader)?;
+        let indexSize  = read_u32(&mut buf_reader)?;
 
-        let primType  = read_u32()?;
-        let nFormats  = read_u32()?;
+        let primType  = read_u32(&mut buf_reader)?;
+        let nFormats  = read_u32(&mut buf_reader)?;
 
         let primitiveType = match PrimitiveType::try_from(primType) {
             Ok(e) => e,
-            Err(_) => return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,"")),
+            Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
         };
 
         let mut newBatch = Batch {
@@ -270,96 +273,48 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
             primitiveType, 
 
         };
+
+        // Read formats
+        for _ in 0..nFormats {
+
+            let attType = read_u32(&mut buf_reader)?;
+            let attType = match AttributeType::try_from(attType) {
+                Ok(e) => e,
+                Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
+            };
+    
+            let attFormat = read_u32(&mut buf_reader)?;
+            let attFormat = match AttributeFormat::try_from(attFormat) {
+                Ok(e) => e,
+                Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
+            };
+
+            let mut newFormat = Format {
+                attType,
+                attFormat,
+                size   : read_u32(&mut buf_reader)?,
+                offset : read_u32(&mut buf_reader)?,
+                index  : read_u32(&mut buf_reader)?,
+            };
+            newBatch.formats.push(newFormat);
+        }
+
+        // Read vertices
+        newBatch.vertices.resize(newBatch.vertices.capacity(), 0);
+        buf_reader.read_exact(newBatch.vertices.as_mut_slice())?;
+
+        // Read indices
+        if newBatch.nIndices > 0 {
+            newBatch.indices.resize(newBatch.indices.capacity(), 0);
+            buf_reader.read_exact(newBatch.indices.as_mut_slice())?;
+        }
+
         //DT_TODO:  Use non resizable arrays for the data storage    
         outModel.batches.push(newBatch);
-
-        //Batch newBatch = Batch {};
-/*
-        fread(&batch.nVertices, sizeof(batch.nVertices), 1, file);
-        fread(&batch.nIndices, sizeof(batch.nIndices), 1, file);
-        fread(&batch.vertexSize, sizeof(batch.vertexSize), 1, file);
-        fread(&batch.indexSize, sizeof(batch.indexSize), 1, file);
-      
-        fread(&batch.primitiveType, sizeof(batch.primitiveType), 1, file);
-      
-        unsigned int nFormats;
-        fread(&nFormats, sizeof(nFormats), 1, file);
-        batch.formats.resize(nFormats);
-        fread(batch.formats.data(), nFormats * sizeof(Format), 1, file);
-      
-        batch.vertices = new char[batch.nVertices * batch.vertexSize];
-        fread(batch.vertices, batch.nVertices * batch.vertexSize, 1, file);
-      
-        if (batch.nIndices > 0) {
-          batch.indices = new char[batch.nIndices * batch.indexSize];
-          fread(batch.indices, batch.nIndices * batch.indexSize, 1, file);
-        }
-        else batch.indices = NULL;
-*/
-
     }
-
-
-
-/*
-    //buf_reader.bytes().array_chunks();//.chunks(4);
-    buf_reader.buffer();
-
-    //buf_reader.read_vectored(bufs)
-
-    //buf_reader.read_buf_exact(cursor)
-
-
-    let a = u32::from_le_bytes(buf);
-
-    let test3 = PrimitiveType::Triangles as u32;
-    //let test4 = test3 as PrimitiveType;
-
-    let test : u32 = 4;
-    let test2 : PrimitiveType = PrimitiveType::try_from(test).unwrap();
-
-    let mut version: u32 = 0;
-    let mut n_batches: u32 = 0;
-
-    //file.read_exact(std::slice::from_mut(&mut version))?;
-
-    unsafe fn slice_to_u8_mut<T: Copy>(slice: &mut [T]) -> &mut [u8] {
-        use std::mem::size_of;
-    
-        let len = size_of::<T>() * slice.len();
-        std::slice::from_raw_parts_mut(slice.as_mut_ptr() as *mut u8, len)
-    }
-
-    let s: &mut [u8] = unsafe {
-
-        std::slice::from_mut(&mut version).as_mut_ptr();
-
-        // get a mut ptr to the start of the slice where data will be copied into
-        let ptr = (&mut version as *mut _ as *mut u8);
-        // form a u8 slice of the desired length, starting at `ptr`
-        std::slice::from_raw_parts_mut(ptr, 4)
-    };
-    buf_reader.read_exact(s)?;
-*/
-/*
-  FILE* file = fopen(fileName, "rb");
-  if (file == NULL) return false;
-
-  uint32_t version;
-  fread(&version, sizeof(version), 1, file);
-  uint32_t nBatches;
-  fread(&nBatches, sizeof(nBatches), 1, file);
-
-  for (unsigned int i = 0; i < nBatches; i++) {
-    Batch batch = {};
-    read_batch_from_file(file, batch);
-    ret_model.batches.push_back(batch);
-  }
-  fclose(file);
- */
 
     Ok(outModel)
-    //None
+
 }
 
 //bool make_model_renderable(Model& ret_model);
@@ -373,6 +328,9 @@ fn main() {
         for batch in model.batches {
             println!("Vertices {} Indices {}", batch.nVertices, batch.nIndices);
         }
+    }
+    else {
+        println!("Failure to read file!");
     }
 
     let test : u32 = 1;
