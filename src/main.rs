@@ -88,32 +88,33 @@ enum_load! {
     }
 }
   
-struct Format {
-    attType   : AttributeType,
-    attFormat : AttributeFormat,
+pub struct Format {
+    attrib_type   : AttributeType,
+    attrib_format : AttributeFormat,
     size   : u32,
     offset : u32,
     index  : u32,
 }
 
-struct Batch
+pub struct Batch
 {
+    num_vertices  : u32,
+    num_indices   : u32,
+    vertex_size : u32,
+    index_size  : u32,
+
+    primitive_type : PrimitiveType, 
+
+    formats : Vec<Format>,
+
     vertices : Vec<u8>,
     indices  : Vec<u8>,
-  
-    nVertices  : u32,
-    nIndices   : u32,
-    vertexSize : u32,
-    indexSize  : u32,
-  
-    formats : Vec<Format>,
-    primitiveType : PrimitiveType, 
-  
+    
     //sg_buffer render_index;
     //sg_buffer render_vertex;
 }
   
-struct Model
+pub struct Model
 {
     batches : Vec<Batch>, 
 }
@@ -132,77 +133,75 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
     if version != 1 {
         return Err(std::io::Error::from(std::io::ErrorKind::InvalidData));
     }
-    let nBatches = read_u32(&mut buf_reader)?;
+    let num_batches = read_u32(&mut buf_reader)?;
 
-    let mut outModel : Model = Model { batches : Vec::with_capacity(nBatches as usize) };
-    for  _ in 0..nBatches {
-        let nVertices  = read_u32(&mut buf_reader)?;
-        let nIndices   = read_u32(&mut buf_reader)?;
-        let vertexSize = read_u32(&mut buf_reader)?;
-        let indexSize  = read_u32(&mut buf_reader)?;
+    let mut out_model : Model = Model { batches : Vec::with_capacity(num_batches as usize) };
+    for  _ in 0..num_batches {
+        let num_vertices = read_u32(&mut buf_reader)?;
+        let num_indices  = read_u32(&mut buf_reader)?;
+        let vertex_size  = read_u32(&mut buf_reader)?;
+        let index_size   = read_u32(&mut buf_reader)?;
 
-        let primType  = read_u32(&mut buf_reader)?;
-        let nFormats  = read_u32(&mut buf_reader)?;
+        let primitive_type  = read_u32(&mut buf_reader)?;
+        let num_formats  = read_u32(&mut buf_reader)?;
 
-        let primitiveType = match PrimitiveType::try_from(primType) {
+        let primitive_type = match PrimitiveType::try_from(primitive_type) {
             Ok(e) => e,
             Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
         };
 
-        let mut newBatch = Batch {
-            vertices : Vec::with_capacity(vertexSize as usize * nVertices as usize),
-            indices  : Vec::with_capacity(indexSize as usize * nIndices as usize),
-          
-            nVertices,
-            nIndices,
-            vertexSize,
-            indexSize,
-          
-            formats : Vec::with_capacity(nFormats as usize),
-            primitiveType, 
+        let mut new_batch = Batch {
+            num_vertices,
+            num_indices,
+            vertex_size,
+            index_size,
+            primitive_type, 
 
+            formats : Vec::with_capacity(num_formats as usize),
+            vertices : Vec::with_capacity(vertex_size as usize * num_vertices as usize),
+            indices  : Vec::with_capacity(index_size as usize * num_indices as usize),
         };
 
         // Read formats
-        for _ in 0..nFormats {
+        for _ in 0..num_formats {
 
-            let attType = read_u32(&mut buf_reader)?;
-            let attType = match AttributeType::try_from(attType) {
+            let attrib_type = read_u32(&mut buf_reader)?;
+            let attrib_type = match AttributeType::try_from(attrib_type) {
                 Ok(e) => e,
                 Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
             };
     
-            let attFormat = read_u32(&mut buf_reader)?;
-            let attFormat = match AttributeFormat::try_from(attFormat) {
+            let attrib_format = read_u32(&mut buf_reader)?;
+            let attrib_format = match AttributeFormat::try_from(attrib_format) {
                 Ok(e) => e,
                 Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
             };
 
-            let mut newFormat = Format {
-                attType,
-                attFormat,
+            let new_format = Format {
+                attrib_type,
+                attrib_format,
                 size   : read_u32(&mut buf_reader)?,
                 offset : read_u32(&mut buf_reader)?,
                 index  : read_u32(&mut buf_reader)?,
             };
-            newBatch.formats.push(newFormat);
+            new_batch.formats.push(new_format);
         }
 
         // Read vertices
-        newBatch.vertices.resize(newBatch.vertices.capacity(), 0);
-        buf_reader.read_exact(newBatch.vertices.as_mut_slice())?;
+        new_batch.vertices.resize(new_batch.vertices.capacity(), 0);
+        buf_reader.read_exact(new_batch.vertices.as_mut_slice())?;
 
         // Read indices
-        if newBatch.nIndices > 0 {
-            newBatch.indices.resize(newBatch.indices.capacity(), 0);
-            buf_reader.read_exact(newBatch.indices.as_mut_slice())?;
+        if new_batch.num_indices > 0 {
+            new_batch.indices.resize(new_batch.indices.capacity(), 0);
+            buf_reader.read_exact(new_batch.indices.as_mut_slice())?;
         }
 
         //DT_TODO:  Use non resizable arrays for the data storage    
-        outModel.batches.push(newBatch);
+        out_model.batches.push(new_batch);
     }
 
-    Ok(outModel)
+    Ok(out_model)
 
 }
 
@@ -211,7 +210,7 @@ fn main() {
 
     if let Ok(model) = load_model_from_file("data/room0.hmdl") {
         for batch in model.batches {
-            println!("Vertices {} Indices {}", batch.nVertices, batch.nIndices);
+            println!("Vertices {} Indices {}", batch.num_vertices, batch.num_indices);
         }
     }
     else {
