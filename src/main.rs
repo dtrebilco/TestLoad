@@ -3,10 +3,10 @@ use std::io::BufReader;
 use std::io::Read;
 
 macro_rules! enum_load {
-    ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $variant:ident = $value:expr),+ $(,)? }) => {
+    ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $member:ident = $value:expr),+ $(,)? }) => {
         $(#[$derives])*        
         $vis enum $name {
-            $($(#[$nested_meta])* $variant = $value),+
+            $($(#[$nested_meta])* $member = $value),+
         }
 
         impl TryFrom<u32> for $name {
@@ -14,7 +14,7 @@ macro_rules! enum_load {
 
             fn try_from(value: u32) -> Result<Self, Self::Error> {
                 match value {
-                    $($value => Ok($name::$variant),)+
+                    $($value => Ok($name::$member),)+
                     _ => Err(()),
                 }
             }
@@ -22,6 +22,42 @@ macro_rules! enum_load {
     };
 }
 
+macro_rules! enum_sequential {
+    ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $member:ident),+ $(,)? }) => {
+
+        $(#[$derives])*
+        $vis enum $name {
+            $($(#[$nested_meta])* $member),+
+        }
+
+        impl TryFrom<u32> for $name {
+            type Error = ();
+
+            fn try_from(value: u32) -> Result<Self, Self::Error> {
+                match value {
+                    $(x if x == $name::$member as u32 => Ok($name::$member),)+
+                    _ => Err(()),
+                }
+            }
+        }
+
+        impl $name {
+            const fn len() -> usize {
+                [$($name::$member),+].len()
+            }
+        }
+    };
+}
+
+enum_sequential! {
+    #[derive(Debug)]
+    pub enum PrimitiveType2 {
+        Triangles    ,
+        Quads        ,
+        TriangleStrip,
+        Lines        ,
+    }
+}
 
 enum_load! {
     #[derive(Debug)]
@@ -48,28 +84,6 @@ enum_load! {
         UnsignedByte = 1,
     }
 }
-
-
-/*
-impl TryFrom<u32> for PrimitiveType {
-    //type Error = &'static str;
-    type Error = ();//std::io::Error;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-           0 => Ok(PrimitiveType::PRIM_TRIANGLES),
-           1 => Ok(PrimitiveType::PRIM_QUADS),
-           2 => Ok(PrimitiveType::PRIM_TRIANGLE_STRIP),
-           3 => Ok(PrimitiveType::PRIM_LINES),
-           _ => Err(())
-           //_ => Err("Bad primitive type conversion")
-        }
-    }
-}
-*/
-
-  
-
   
 struct Format {
     attType   : AttributeType,
@@ -333,8 +347,14 @@ fn main() {
         println!("Failure to read file!");
     }
 
+    [1,2,3].len();
+
     let test : u32 = 1;
     let test2 : PrimitiveType = PrimitiveType::try_from(test).unwrap();
 
-    println!("MyEnum: {:?}", test2);
+    let test3 = test2 as u32;
+    let test4 = PrimitiveType2::len();
+
+    //println!("MyEnum: {:?} {test3}", test2);
+    println!("MyEnum: {test3} {}", PrimitiveType2::len());
 }
