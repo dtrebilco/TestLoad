@@ -18,6 +18,16 @@ macro_rules! enum_load {
                 }
             }
         }
+
+        impl $name {
+            pub const fn count() -> usize {
+                [$($name::$member),+].len()
+            }
+
+            pub const fn iter() -> [$name; Self::count()] {
+                [$($name::$member),+]
+            }            
+        }
     };
 }
 
@@ -50,16 +60,6 @@ macro_rules! enum_sequential {
             }            
         }
     };
-}
-
-enum_sequential! {
-    #[derive(Debug)]
-    pub enum PrimitiveType2 {
-        Triangles      ,
-        Quads          ,
-        TriangleStrip  ,
-        Lines          ,
-    }
 }
 
 enum_load! {
@@ -218,7 +218,7 @@ fn main() {
         println!("Failure to read file!");
     }
 
-    for p in PrimitiveType2::iter() {
+    for p in PrimitiveType::iter() {
         println!("{:?}", p);
     }
 
