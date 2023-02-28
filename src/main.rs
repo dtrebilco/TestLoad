@@ -142,13 +142,11 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
         let vertex_size  = read_u32(&mut buf_reader)?;
         let index_size   = read_u32(&mut buf_reader)?;
 
-        let primitive_type  = read_u32(&mut buf_reader)?;
-        let num_formats  = read_u32(&mut buf_reader)?;
-
-        let primitive_type = match PrimitiveType::try_from(primitive_type) {
+        let primitive_type = match PrimitiveType::try_from(read_u32(&mut buf_reader)?) {
             Ok(e) => e,
             Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
         };
+        let num_formats  = read_u32(&mut buf_reader)?;
 
         let mut new_batch = Batch {
             num_vertices,
@@ -157,7 +155,7 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
             index_size,
             primitive_type, 
 
-            formats : Vec::with_capacity(num_formats as usize),
+            formats  : Vec::with_capacity(num_formats as usize),
             vertices : Vec::with_capacity(vertex_size as usize * num_vertices as usize),
             indices  : Vec::with_capacity(index_size as usize * num_indices as usize),
         };
@@ -165,14 +163,12 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
         // Read formats
         for _ in 0..num_formats {
 
-            let attrib_type = read_u32(&mut buf_reader)?;
-            let attrib_type = match AttributeType::try_from(attrib_type) {
+            let attrib_type = match AttributeType::try_from(read_u32(&mut buf_reader)?) {
                 Ok(e) => e,
                 Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
             };
     
-            let attrib_format = read_u32(&mut buf_reader)?;
-            let attrib_format = match AttributeFormat::try_from(attrib_format) {
+            let attrib_format = match AttributeFormat::try_from(read_u32(&mut buf_reader)?) {
                 Ok(e) => e,
                 Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
             };
