@@ -1,6 +1,16 @@
 use std::fs::File;
 use std::io::{BufReader, Read};
 
+pub enum EnumLoadError {
+    InvalidData,
+}
+
+impl From<EnumLoadError> for std::io::Error {
+    fn from(_: EnumLoadError) -> std::io::Error {
+        std::io::Error::from(std::io::ErrorKind::InvalidData)
+    }
+}
+
 macro_rules! enum_load {
     ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $member:ident = $value:expr),+ $(,)? }) => {
         $(#[$derives])*        
@@ -9,12 +19,12 @@ macro_rules! enum_load {
         }
 
         impl TryFrom<u32> for $name {
-            type Error = ();
+            type Error = EnumLoadError;
 
             fn try_from(value: u32) -> Result<Self, Self::Error> {
                 match value {
                     $($value => Ok($name::$member),)+
-                    _ => Err(()),
+                    _ => Err(EnumLoadError::InvalidData),
                 }
             }
         }
@@ -40,12 +50,12 @@ macro_rules! enum_sequential {
         }
 
         impl TryFrom<u32> for $name {
-            type Error = ();
+            type Error = EnumLoadError;
 
             fn try_from(value: u32) -> Result<Self, Self::Error> {
                 match value {
                     $(x if x == $name::$member as u32 => Ok($name::$member),)+
-                    _ => Err(()),
+                    _ => Err(EnumLoadError::InvalidData),
                 }
             }
         }
@@ -120,6 +130,10 @@ pub struct Model
 }
 
 fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
+
+    // DT_TODO: Use non resizable arrays for the data storage RawVec / Unique<T> ? use buf_reader.read_buf_exact()
+    // DT_TODO: Optimize by accessing the internal buffer directly fo small reads? buf_reader.buffer()
+
     let file = File::open(filename)?;
     let mut buf_reader = BufReader::with_capacity(64 * 1024, file);
 
@@ -142,10 +156,7 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
         let vertex_size  = read_u32(&mut buf_reader)?;
         let index_size   = read_u32(&mut buf_reader)?;
 
-        let primitive_type = match PrimitiveType::try_from(read_u32(&mut buf_reader)?) {
-            Ok(e) => e,
-            Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
-        };
+        let primitive_type = PrimitiveType::try_from(read_u32(&mut buf_reader)?)?;
         let num_formats  = read_u32(&mut buf_reader)?;
 
         let mut new_batch = Batch {
@@ -162,20 +173,9 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
 
         // Read formats
         for _ in 0..num_formats {
-
-            let attrib_type = match AttributeType::try_from(read_u32(&mut buf_reader)?) {
-                Ok(e) => e,
-                Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
-            };
-    
-            let attrib_format = match AttributeFormat::try_from(read_u32(&mut buf_reader)?) {
-                Ok(e) => e,
-                Err(_) => return Err(std::io::Error::from(std::io::ErrorKind::InvalidData)),
-            };
-
             let new_format = Format {
-                attrib_type,
-                attrib_format,
+                attrib_type   : AttributeType::try_from(read_u32(&mut buf_reader)?)?,
+                attrib_format : AttributeFormat::try_from(read_u32(&mut buf_reader)?)?,
                 size   : read_u32(&mut buf_reader)?,
                 offset : read_u32(&mut buf_reader)?,
                 index  : read_u32(&mut buf_reader)?,
@@ -193,7 +193,6 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
             buf_reader.read_exact(new_batch.indices.as_mut_slice())?;
         }
 
-        //DT_TODO:  Use non resizable arrays for the data storage    
         out_model.batches.push(new_batch);
     }
 
