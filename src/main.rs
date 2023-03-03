@@ -234,6 +234,7 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
 // const Uint64 a = 487198574; // for SEED_COUNT=16, period approx  2^540
 const SEED_COUNT : u32 = 8;
 
+/// A random number generator that is deterministic and suitable for games.
 pub struct GameRand {
 	ParamQ : [u32; SEED_COUNT as usize],
 	ParamC : u32,
@@ -242,8 +243,8 @@ pub struct GameRand {
 
 impl GameRand {
 
-	/// \brief Constructor that sets a random seed value on the number generator
-	/// \param Seed The seed value to use (not 0)
+	/// Constructor that sets a random seed value on the number generator
+	/// * `seed` - The seed value to use
     fn new(seed : u32) -> GameRand {
         let mut ret = GameRand {
             ParamQ : [0; SEED_COUNT as usize],
@@ -254,12 +255,10 @@ impl GameRand {
         ret
     }
 
-	/// \brief Set a random seed value on the number generator (not necessary to call)
-	/// \param Seed The seed value to use (not 0)
+	/// Reset the random seed value on the number generator (not necessary to call)
+	/// * `seed` - The seed value to use
     fn seed_random(&mut self, seed : u32)
     {
-        // Simple pseudo-random to reseed the seeds.
-        // Suggested by the above article.
         let mut j = seed;
         if j == 0 {
             j = 12345; // 0 is a terrible seed (probably the only bad choice), substitute something else:
@@ -275,8 +274,7 @@ impl GameRand {
         self.ParamI = SEED_COUNT - 1;
     }
 
-	/// \brief Return the next pseudo-random number in the sequence.
-	/// \return The next pseudo-random number is returned
+	/// Return the next pseudo-random number in the sequence.
     fn next_random(&mut self) -> u32 {
         let r : u32 = 0xFFFFFFFE;
         let a : u64 = 716514398; // for SEED_COUNT=8, period approx 2^285
@@ -297,11 +295,11 @@ impl GameRand {
         return val;
     }
 
-	/// \brief Generate a pseudo-random number within a given bounds.
-	/// \param min The minimum bound of the random number, inclusive.
-	/// \param max The maximum bound of the random number, inclusive.
-	/// \returns A pseudo-random number that falls within the specified bounds.
-	/// \precondition Max >= Min.
+	/// Generate a pseudo-random number within a given bounds. Does not guarantee an exact even distribution 
+    /// of values in the range, but if the range is small (<10000's) it is close to even.
+	/// * `min` - The minimum bound of the random number, inclusive.
+	/// * `max` - The maximum bound of the random number, inclusive.
+	/// \precondition max >= min.
     fn rand_range(&mut self, min : u32, max : u32) -> u32
     {
         let mut val = self.next_random();
