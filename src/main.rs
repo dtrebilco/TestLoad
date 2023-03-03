@@ -318,6 +318,7 @@ impl GameRand {
 
 
 fn main() {
+    /*
     println!("Hello, world!");
 
     if let Ok(model) = load_model_from_file("data/room0.hmdl") {
@@ -332,15 +333,13 @@ fn main() {
     for p in PrimitiveType::iter() {
         println!("{:?}", p);
     }
-    
+    */
     let mut rand = GameRand::new(12345);
 
-    loop {
+    for _ in 0..1_000_000 {
 
-        if rand.next_random() == 0 {
-            break;
-        }
-        break;
+        println!("{}", rand.next_random());
+        println!("{}", rand.rand_range(5, 1067));
     }
 
     //let val = rand.rand_range(&(0u32..=3));
