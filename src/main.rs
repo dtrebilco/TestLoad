@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{BufReader, Read};
+use core::ops::RangeInclusive;
 
 pub enum EnumLoadError {
     InvalidData,
@@ -312,7 +313,16 @@ impl GameRand {
     
         return val;
     }
+}
 
+trait GameRandRange<T, Y> {
+    fn rand_range2(&mut self, r: &T) -> Y;
+}
+
+impl GameRandRange<RangeInclusive<u32>, u32> for GameRand {
+    fn rand_range2(&mut self, r : &RangeInclusive<u32>) -> u32 {
+        self.rand_range(*r.start(), *r.end())
+    }
 }
 
 
@@ -331,6 +341,9 @@ fn main() {
     for p in PrimitiveType::iter() {
         println!("{:?}", p);
     }
+    
+    let mut rand = GameRand::new(12345);
+    let val = rand.rand_range2(&(0u32..=3));
 
     //println!("MyEnum: {:?} {test3}", test2);
 }
