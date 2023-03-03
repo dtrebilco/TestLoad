@@ -237,9 +237,9 @@ const SEED_COUNT : u32 = 8;
 
 /// A random number generator that is deterministic and suitable for games.
 pub struct GameRand {
-	ParamQ : [u32; SEED_COUNT as usize],
-	ParamC : u32,
-	ParamI : u32,    
+	param_q : [u32; SEED_COUNT as usize],
+	param_c : u32,
+	param_i : u32,    
 }
 
 impl GameRand {
@@ -248,9 +248,9 @@ impl GameRand {
 	/// * `seed` - The seed value to use
     fn new(seed : u32) -> GameRand {
         let mut ret = GameRand {
-            ParamQ : [0; SEED_COUNT as usize],
-            ParamC : 0,
-            ParamI : 0,
+            param_q : [0; SEED_COUNT as usize],
+            param_c : 0,
+            param_i : 0,
         };
         ret.seed_random(seed);
         ret
@@ -264,15 +264,15 @@ impl GameRand {
         if j == 0 {
             j = 12345; // 0 is a terrible seed (probably the only bad choice), substitute something else:
         }
-        for param in &mut self.ParamQ {
+        for param in &mut self.param_q {
             j = j ^ (j << 13);
             j = j ^ (j >> 17);
             j = j ^ (j << 5);
             *param = j;
         }
     
-        self.ParamC = 362436;
-        self.ParamI = SEED_COUNT - 1;
+        self.param_c = 362436;
+        self.param_i = SEED_COUNT - 1;
     }
 
 	/// Return the next pseudo-random number in the sequence.
@@ -280,19 +280,19 @@ impl GameRand {
         let r : u32 = 0xFFFFFFFE;
         let a : u64 = 716514398; // for SEED_COUNT=8, period approx 2^285
     
-        self.ParamI = (self.ParamI + 1) & (SEED_COUNT - 1);
+        self.param_i = (self.param_i + 1) & (SEED_COUNT - 1);
         
-        let t : u64 = a * (self.ParamQ[self.ParamI as usize] as u64) + (self.ParamC as u64);
-        self.ParamC = (t >> 32) as u32;
+        let t : u64 = a * (self.param_q[self.param_i as usize] as u64) + (self.param_c as u64);
+        self.param_c = (t >> 32) as u32;
 
-        let mut x : u32 = (t + self.ParamC as u64) as u32;
-        if x < self.ParamC {
-            x = x + 1;
-            self.ParamC = self.ParamC + 1;
+        let mut x : u32 = (t + self.param_c as u64) as u32;
+        if x < self.param_c {
+            x += 1;
+            self.param_c = self.param_c.wrapping_add(1);
         }
     
-        let val : u32 = r - x;
-        self.ParamQ[self.ParamI as usize] = val;
+        let val : u32 = r.wrapping_sub(x);
+        self.param_q[self.param_i as usize] = val;
         return val;
     }
 
@@ -315,16 +315,6 @@ impl GameRand {
     }
 }
 
-trait GameRandRange<T, Y> {
-    fn rand_range2(&mut self, r: &T) -> Y;
-}
-
-impl GameRandRange<RangeInclusive<u32>, u32> for GameRand {
-    fn rand_range2(&mut self, r : &RangeInclusive<u32>) -> u32 {
-        self.rand_range(*r.start(), *r.end())
-    }
-}
-
 
 fn main() {
     println!("Hello, world!");
@@ -343,7 +333,16 @@ fn main() {
     }
     
     let mut rand = GameRand::new(12345);
-    let val = rand.rand_range2(&(0u32..=3));
+
+    loop {
+
+        if rand.next_random() == 0 {
+            break;
+        }
+
+    }
+
+    //let val = rand.rand_range(&(0u32..=3));
 
     //println!("MyEnum: {:?} {test3}", test2);
 }
