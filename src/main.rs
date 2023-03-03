@@ -282,17 +282,18 @@ impl GameRand {
     
         self.param_i = (self.param_i + 1) & (SEED_COUNT - 1);
         
-        let t : u64 = a * (self.param_q[self.param_i as usize] as u64) + (self.param_c as u64);
+        let q = &mut self.param_q[self.param_i as usize];
+        let t : u64 = a * (*q as u64) + (self.param_c as u64);
         self.param_c = (t >> 32) as u32;
 
-        let mut x : u32 = (t + self.param_c as u64) as u32;
+        let mut x = (t + self.param_c as u64) as u32;
         if x < self.param_c {
             x += 1;
             self.param_c = self.param_c.wrapping_add(1);
         }
-    
-        let val : u32 = r.wrapping_sub(x);
-        self.param_q[self.param_i as usize] = val;
+
+        let val = r.wrapping_sub(x);
+        *q = val;
         return val;
     }
 
@@ -339,7 +340,7 @@ fn main() {
         if rand.next_random() == 0 {
             break;
         }
-
+        break;
     }
 
     //let val = rand.rand_range(&(0u32..=3));
