@@ -5,9 +5,6 @@ use model::*;
 use game_rand::GameRand;
 
 
-
-
-
 fn main() {
 
     if let Ok(model) = model::Model::new("data/room0.hmdl") {
