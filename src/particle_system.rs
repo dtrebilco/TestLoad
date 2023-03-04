@@ -1,4 +1,23 @@
 
+#[repr(C)]
+#[allow(non_snake_case)]
+#[derive(PartialEq, Copy, Clone)]
+pub struct vec3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[repr(C)]
+#[allow(non_snake_case)]
+#[derive(PartialEq, Copy, Clone)]
+pub struct vec4 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub w: f32,	
+}
+
 enum ColorScheme {
 	Fire,
 	Ice,
@@ -7,10 +26,10 @@ enum ColorScheme {
 }
 
 struct Particle {
-	//vec3 pos;
+	pos: vec3,
 	size: f32,
 
-	//vec3 dir;
+	dir: vec3,
 	life: f32,
     invInitialLife: f32,
 
@@ -21,22 +40,22 @@ struct Particle {
 }
 
 struct PointForce {
-	//vec3 pos;
+	pos: vec3,
 	strength: f32,
 	linearAttenuation: f32, 
 	quadraticAttenuation: f32,
 }
 
 struct ParticleSystem {
-	particles: std::Vec<Particle>, 
-	pointForces: std::Vec<PointForce>, 
-	//vec3 directionalForce;
+	particles: Vec<Particle>, 
+	pointForces: Vec<PointForce>, 
+	directionalForce: vec3, 
 	
 	lastTime: f32, 
     particleCredit : f32,
 
-	//vec4 colors[12];
-	//vec3 pos;
+	colors: [vec4; 12],
+	pos: vec3,
 
 	spawnRate: f32,
 	speed: f32,

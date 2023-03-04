@@ -1,5 +1,6 @@
 mod game_rand;
 mod model;
+mod particle_system;
 
 use model::*;
 use game_rand::GameRand;
