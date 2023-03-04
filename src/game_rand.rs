@@ -94,6 +94,16 @@ impl GameRand {
         return val;
     }
 
+	/// Return the next pseudo-random number in the 0..1 range.
+    pub fn next_random01(&mut self) -> f32
+    {
+        const DIV : f32 = 1.0 / (u32::MAX as f32);
+        let val = self.next_random();
+        let val_f  = (val as f32) * DIV;
+    
+        return val_f;
+    }
+
 	/// Generate a pseudo-random number within a given bounds. Does not guarantee an exact even distribution 
     /// of values in the range, but if the range is small (<10000's) it is close to even.
 	/// * `min` - The minimum bound of the random number, inclusive.

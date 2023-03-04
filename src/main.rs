@@ -27,6 +27,7 @@ fn main() {
     for _ in 0..1_000_000 {
 
         println!("{}", rand.next_random());
+        println!("{}", rand.next_random01());
         println!("{}", rand.rand_range(5, 1067));
         break;
     }
