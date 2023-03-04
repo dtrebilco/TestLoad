@@ -8,6 +8,9 @@ pub struct vec3 {
     pub y: f32,
     pub z: f32,
 }
+fn vec3(x:f32, y:f32, z:f32) -> vec3{
+    vec3 { x, y, z, }
+}
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -17,6 +20,10 @@ pub struct vec4 {
     pub y: f32,
     pub z: f32,
     pub w: f32,	
+}
+
+fn vec4(x:f32, y:f32, z:f32, w:f32) -> vec4{
+    vec4 { x, y, z, w, }
 }
 
 enum ColorScheme {
@@ -75,7 +82,7 @@ struct ParticleSystem {
     //unsigned short *indexArray;
     indexArraySize : u32,
 
-    rand: GameRand,
+    rand: GameRand, // DT_TODO: Pass this as a parameter?
 }
 
 impl ParticleSystem {
@@ -83,40 +90,66 @@ impl ParticleSystem {
         let r: f32 = 2.0 * self.rand.next_random01() - 1.0;
         return mean + r * r.abs() * diff;
     }
+
+    fn get_position(&self) -> &vec3 {
+        &self.pos
+    }
+
+    fn get_particle_count(&self) -> u32 {
+        self.particles.len() as u32
+    }
+
+    fn set_position(&mut self, position: &vec3) {
+        self.pos = *position;
+    }
+
+    fn set_spawn_rate(&mut self, spawn_rate: f32) {
+        self.spawnRate = spawn_rate;
+    }
+    
+    fn set_speed(&mut self, meanSpeed: f32, spread: f32) {
+        self.speed = meanSpeed;
+        self.speedSpread = spread;
+    }
+    
+    fn set_life(&mut self, meanLife: f32, spread: f32) {
+        self.life = meanLife;
+        self.lifeSpread = spread;
+    }
+    
+    fn setSize(&mut self, meanSize: f32, spread: f32) {
+        self.size = meanSize;
+        self.sizeSpread = spread;
+    }
+    
+    fn set_directional_force(&mut self, df: &vec3){
+        self.directionalForce = *df;
+    }
+
+    fn add_point_force(&mut self, pf: PointForce){
+        self.pointForces.push(pf);
+    }
+
+    fn set_point_force(&mut self, force : i32, pf: PointForce){
+        self.pointForces[force as usize] = pf;
+    }
+
+    fn set_friction_factor(&mut self, friction: f32){
+        self.frictionFactor = friction;
+    }
+    
+    fn setColor(&mut self, color : i32, col : vec4) {
+        self.colors[color as usize] = col;
+    }
+
+    fn set_rotate(&mut self, rot: bool){
+        self.rotate = rot;
+    }
+
 }
 /*
-ParticleSystem();
-virtual ~ParticleSystem();
 
-const vec3 &getPosition() const { return pos; }
-unsigned int getParticleCount() const { return (int)particles.size(); }
-void setPosition(const vec3 &position){ pos = position; }
-void setSpawnRate(const float spawnrate){ spawnRate = spawnrate; }
-
-void setSpeed(const float meanSpeed, const float spread){
-    speed = meanSpeed;
-    speedSpread = spread;
-}
-
-void setLife(const float meanLife, const float spread){
-    life = meanLife;
-    lifeSpread = spread;
-}
-
-void setSize(const float meanSize, const float spread){
-    size = meanSize;
-    sizeSpread = spread;
-}
-
-void setDirectionalForce(const vec3 &df){ directionalForce = df; }
-void addPointForce(const PointForce &pf){ pointForces.push_back(pf); }
-void setPointForce(const int force, const PointForce &pf){ pointForces[force] = pf;	}
-void setFrictionFactor(const float friction){ frictionFactor = friction; }
-
-void setColor(const int color, const vec4 &col){ colors[color] = col; }
 void setColorScheme(const COLOR_SCHEME colorScheme);
-
-void setRotate(const bool rot){ rotate = rot; }
 
 void update(const float timeStamp);
 void updateTime(const float timeStamp);

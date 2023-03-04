@@ -95,6 +95,7 @@ impl GameRand {
     }
 
 	/// Return the next pseudo-random number in the 0..1 range.
+    /// DT_TODO: Test this - unsure if the distribution in the high values is equal with the float 24bit precision
     pub fn next_random01(&mut self) -> f32
     {
         const DIV : f32 = 1.0 / (u32::MAX as f32);
