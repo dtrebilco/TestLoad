@@ -146,6 +146,45 @@ impl ParticleSystem {
         self.rotate = rot;
     }
 
+    fn set_color_scheme(&mut self, colorScheme : ColorScheme){
+        
+        match(colorScheme) {
+            ColorScheme::Fire => 
+                for i  in 0..4 {
+                    let f = i as f32;
+                    self.colors[i    ] = vec4(f / 4.0, 0.0, 0.0, 0.0);
+                    self.colors[i + 4] = vec4(1.0, f / 4.0, 0.0, 0.0);
+                    self.colors[i + 8] = vec4((3.0 - f) / 3.0, (3.0 - f) / 3.0, 1.0, 0.0);
+                },
+            ColorScheme::Ice =>
+                for i in 0..6 {
+                    let f = i as f32;                    
+                    self.colors[i    ] = vec4(0.0, 0.0, f / 6.0, 0.0);
+                    self.colors[i + 6] = vec4(f / 5.0, 1.0, 1.0, 0.0);
+                },
+            ColorScheme::Smoke =>
+                for i in 0..12 {
+                    let f: f32 = i as f32 / 44.0;
+                    self.colors[i] = vec4(f, f, f, f);
+                },
+            ColorScheme::Rainbow =>
+            {
+                self.colors[0]  = vec4(0.0, 0.0, 0.0, 0.0);
+                self.colors[1]  = vec4(0.0, 0.0, 0.25,0.0);
+                self.colors[2]  = vec4(0.0, 0.0, 0.5, 0.0);
+                self.colors[3]  = vec4(0.0, 0.0, 1.0, 0.0);
+                self.colors[4]  = vec4(0.0, 0.5, 1.0, 0.0);
+                self.colors[5]  = vec4(0.0, 1.0, 1.0, 0.0);
+                self.colors[6]  = vec4(0.0, 1.0, 0.5, 0.0);
+                self.colors[7]  = vec4(0.0, 1.0, 0.0, 0.0);
+                self.colors[8]  = vec4(0.5, 1.0, 0.0, 0.0);
+                self.colors[9]  = vec4(1.0, 1.0, 0.0, 0.0);
+                self.colors[10] = vec4(1.0, 0.5, 0.0, 0.0);
+                self.colors[11] = vec4(1.0, 0.0, 0.0, 0.0);
+            },
+        }
+    }
+
 }
 /*
 
@@ -208,46 +247,7 @@ ParticleSystem::~ParticleSystem(){
     delete indexArray;
 }
 
-void ParticleSystem::setColorScheme(const COLOR_SCHEME colorScheme){
-    float f;
-    int i;
-    
-    switch(colorScheme){
-    case COLOR_SCHEME_FIRE:
-        for (i = 0; i < 4; i++){
-            colors[i    ] = vec4(i / 4.0f, 0, 0, 0);
-            colors[i + 4] = vec4(1, i / 4.0f, 0, 0);
-            colors[i + 8] = vec4((3 - i) / 3.0f, (3 - i) / 3.0f, 1, 0);
-        }
-        break;
-    case COLOR_SCHEME_ICE:
-        for (i = 0; i < 6; i++){
-            colors[i    ] = vec4(0, 0, i / 6.0f, 0);
-            colors[i + 6] = vec4(i / 5.0f, 1, 1, 0);
-        }
-        break;
-    case COLOR_SCHEME_SMOKE:
-        for (i = 0; i < 12; i++){
-            f = i / 44.0f;
-            colors[i] = vec4(f, f, f, f);
-        }
-        break;
-    case COLOR_SCHEME_RAINBOW:
-        colors[0]  = vec4(0,   0,   0,     0);
-        colors[1]  = vec4(0,   0,   0.25f, 0);
-        colors[2]  = vec4(0,   0,   0.5f,  0);
-        colors[3]  = vec4(0,   0,   1,     0);
-        colors[4]  = vec4(0,   0.5f,1,     0);
-        colors[5]  = vec4(0,   1,   1,     0);
-        colors[6]  = vec4(0,   1,   0.5f,  0);
-        colors[7]  = vec4(0,   1,   0,     0);
-        colors[8]  = vec4(0.5f,1,   0,     0);
-        colors[9]  = vec4(1,   1,   0,     0);
-        colors[10] = vec4(1,   0.5f,0,     0);
-        colors[11] = vec4(1,   0,   0,     0);
-        break;
-    }
-}
+
 
 void ParticleSystem::initParticle(Particle &p){
     p.pos = pos;
