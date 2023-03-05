@@ -134,8 +134,7 @@ struct ParticleSystem {
     //char *vertexArray;
     vertexArraySize: u32,
 
-    //unsigned short *indexArray;
-    indexArraySize: u32,
+    indexArray: Vec<u16>,
 
     rand: GameRand, // DT_TODO: Pass this as a parameter?
 }
@@ -308,6 +307,28 @@ impl ParticleSystem {
     //    // Not happy with this compare function for games - use NotNan type?
     //    self.particles.sort_unstable_by(|a, b| { a.depth.partial_cmp(&b.depth).unwrap() } );
     //}
+
+    fn getIndexArray(&mut self) -> &[u16] {
+        let old_size = self.indexArray.len();
+        let new_size = self.particles.len() * 6;
+
+        if new_size > old_size {
+            self.indexArray.reserve(new_size);
+
+            let start_index = (old_size / 6) as u16;
+            let end_index = self.particles.len() as u16;
+            for i in start_index..end_index {
+                self.indexArray.push(4 * i);
+                self.indexArray.push(4 * i + 1);
+                self.indexArray.push(4 * i + 3);
+                self.indexArray.push(4 * i + 3);
+                self.indexArray.push(4 * i + 1);
+                self.indexArray.push(4 * i + 2);
+            }
+        }
+
+        &self.indexArray
+    }
 }
 /*
 
@@ -401,20 +422,6 @@ char *ParticleSystem::getPointSpriteArray(bool useColors){
     return vertexArray;
 }
 
-unsigned short *ParticleSystem::getIndexArray(){
-    unsigned int size = (unsigned int)particles.size() * 6;
-
-    if (size > indexArraySize){
-        delete indexArray;
-        indexArray = new unsigned short[size];
-        indexArraySize = size;
-
-        fillIndexArray(indexArray);
-    }
-
-    return indexArray;
-}
-
 void ParticleSystem::fillVertexArray(char *dest, const vec3 &dx, const vec3 &dy, bool useColors, bool tex3d){
     static vec2 coords[4] = { vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 1) };
     vec3 vect[4] = { -dx + dy, dx + dy, dx - dy, -dx - dy };
@@ -502,17 +509,4 @@ void ParticleSystem::fillInstanceVertexArrayRange(vec4 *posAndSize, vec4 *color,
         part++;
     }
 }
-
-void ParticleSystem::fillIndexArray(unsigned short *dest){
-    for (unsigned int i = 0; i < particles.size(); i++){
-        *dest++ = 4 * i;
-        *dest++ = 4 * i + 1;
-        *dest++ = 4 * i + 3;
-        *dest++ = 4 * i + 3;
-        *dest++ = 4 * i + 1;
-        *dest++ = 4 * i + 2;
-    }
-}
-
-
  */
