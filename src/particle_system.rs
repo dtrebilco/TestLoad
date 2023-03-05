@@ -8,19 +8,19 @@ pub struct vec3 {
     pub y: f32,
     pub z: f32,
 }
-pub fn vec3(x:f32, y:f32, z:f32) -> vec3 {
-    vec3 { x, y, z, }
+pub fn vec3(x: f32, y: f32, z: f32) -> vec3 {
+    vec3 { x, y, z }
 }
 
 pub fn dot(a: &vec3, b: &vec3) -> f32 {
     (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
 }
 
-pub fn length(vec : &vec3) -> f32 {
+pub fn length(vec: &vec3) -> f32 {
     dot(vec, vec).sqrt()
 }
 
-pub fn normalize(vec : &vec3) -> vec3 {
+pub fn normalize(vec: &vec3) -> vec3 {
     *vec / length(vec)
 }
 
@@ -39,7 +39,6 @@ impl std::ops::Div<f32> for vec3 {
         vec3(self.x / rhs, self.y / rhs, self.z / rhs)
     }
 }
-
 
 impl std::ops::Add<vec3> for vec3 {
     type Output = vec3;
@@ -69,7 +68,6 @@ impl std::ops::MulAssign<f32> for vec3 {
     }
 }
 
-
 #[repr(C)]
 #[allow(non_snake_case)]
 #[derive(PartialEq, Copy, Clone)]
@@ -77,18 +75,18 @@ pub struct vec4 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
-    pub w: f32,	
+    pub w: f32,
 }
 
-pub fn vec4(x:f32, y:f32, z:f32, w:f32) -> vec4{
-    vec4 { x, y, z, w, }
+pub fn vec4(x: f32, y: f32, z: f32, w: f32) -> vec4 {
+    vec4 { x, y, z, w }
 }
 
 enum ColorScheme {
     Fire,
     Ice,
     Smoke,
-    Rainbow
+    Rainbow,
 }
 
 struct Particle {
@@ -98,27 +96,26 @@ struct Particle {
     dir: vec3,
     life: f32,
     invInitialLife: f32,
+    //depth: f32,
 
-    //depth: f32, 
-
-    //angle: f32, 
-    //angleSpeed: f32, 
+    //angle: f32,
+    //angleSpeed: f32,
 }
 
 struct PointForce {
     pos: vec3,
     strength: f32,
-    linearAttenuation: f32, 
+    linearAttenuation: f32,
     quadraticAttenuation: f32,
 }
 
 struct ParticleSystem {
-    particles: Vec<Particle>, 
-    pointForces: Vec<PointForce>, 
-    directionalForce: vec3, 
-    
-    lastTime: f32, 
-    particleCredit : f32,
+    particles: Vec<Particle>,
+    pointForces: Vec<PointForce>,
+    directionalForce: vec3,
+
+    lastTime: f32,
+    particleCredit: f32,
 
     colors: [vec4; 12],
     pos: vec3,
@@ -135,10 +132,10 @@ struct ParticleSystem {
     //rotate : bool,
 
     //char *vertexArray;
-    vertexArraySize : u32,
+    vertexArraySize: u32,
 
     //unsigned short *indexArray;
-    indexArraySize : u32,
+    indexArraySize: u32,
 
     rand: GameRand, // DT_TODO: Pass this as a parameter?
 }
@@ -164,39 +161,39 @@ impl ParticleSystem {
     fn set_spawn_rate(&mut self, spawn_rate: f32) {
         self.spawnRate = spawn_rate;
     }
-    
+
     fn set_speed(&mut self, meanSpeed: f32, spread: f32) {
         self.speed = meanSpeed;
         self.speedSpread = spread;
     }
-    
+
     fn set_life(&mut self, meanLife: f32, spread: f32) {
         self.life = meanLife;
         self.lifeSpread = spread;
     }
-    
+
     fn setSize(&mut self, meanSize: f32, spread: f32) {
         self.size = meanSize;
         self.sizeSpread = spread;
     }
-    
-    fn set_directional_force(&mut self, df: &vec3){
+
+    fn set_directional_force(&mut self, df: &vec3) {
         self.directionalForce = *df;
     }
 
-    fn add_point_force(&mut self, pf: PointForce){
+    fn add_point_force(&mut self, pf: PointForce) {
         self.pointForces.push(pf);
     }
 
-    fn set_point_force(&mut self, force : i32, pf: PointForce){
+    fn set_point_force(&mut self, force: i32, pf: PointForce) {
         self.pointForces[force as usize] = pf;
     }
 
-    fn set_friction_factor(&mut self, friction: f32){
+    fn set_friction_factor(&mut self, friction: f32) {
         self.frictionFactor = friction;
     }
-    
-    fn setColor(&mut self, color : i32, col : vec4) {
+
+    fn setColor(&mut self, color: i32, col: vec4) {
         self.colors[color as usize] = col;
     }
 
@@ -204,114 +201,113 @@ impl ParticleSystem {
     //    self.rotate = rot;
     //}
 
-    fn set_color_scheme(&mut self, colorScheme : ColorScheme){
-        
-        match(colorScheme) {
-            ColorScheme::Fire => 
-                for i  in 0..4 {
+    fn set_color_scheme(&mut self, colorScheme: ColorScheme) {
+        match (colorScheme) {
+            ColorScheme::Fire => {
+                for i in 0..4 {
                     let f = i as f32;
-                    self.colors[i    ] = vec4(f / 4.0, 0.0, 0.0, 0.0);
+                    self.colors[i] = vec4(f / 4.0, 0.0, 0.0, 0.0);
                     self.colors[i + 4] = vec4(1.0, f / 4.0, 0.0, 0.0);
                     self.colors[i + 8] = vec4((3.0 - f) / 3.0, (3.0 - f) / 3.0, 1.0, 0.0);
-                },
-            ColorScheme::Ice =>
+                }
+            }
+            ColorScheme::Ice => {
                 for i in 0..6 {
-                    let f = i as f32;                    
-                    self.colors[i    ] = vec4(0.0, 0.0, f / 6.0, 0.0);
+                    let f = i as f32;
+                    self.colors[i] = vec4(0.0, 0.0, f / 6.0, 0.0);
                     self.colors[i + 6] = vec4(f / 5.0, 1.0, 1.0, 0.0);
-                },
-            ColorScheme::Smoke =>
+                }
+            }
+            ColorScheme::Smoke => {
                 for i in 0..12 {
                     let f: f32 = i as f32 / 44.0;
                     self.colors[i] = vec4(f, f, f, f);
-                },
-            ColorScheme::Rainbow =>
-            {
-                self.colors[0]  = vec4(0.0, 0.0, 0.0, 0.0);
-                self.colors[1]  = vec4(0.0, 0.0, 0.25,0.0);
-                self.colors[2]  = vec4(0.0, 0.0, 0.5, 0.0);
-                self.colors[3]  = vec4(0.0, 0.0, 1.0, 0.0);
-                self.colors[4]  = vec4(0.0, 0.5, 1.0, 0.0);
-                self.colors[5]  = vec4(0.0, 1.0, 1.0, 0.0);
-                self.colors[6]  = vec4(0.0, 1.0, 0.5, 0.0);
-                self.colors[7]  = vec4(0.0, 1.0, 0.0, 0.0);
-                self.colors[8]  = vec4(0.5, 1.0, 0.0, 0.0);
-                self.colors[9]  = vec4(1.0, 1.0, 0.0, 0.0);
+                }
+            }
+            ColorScheme::Rainbow => {
+                self.colors[0] = vec4(0.0, 0.0, 0.0, 0.0);
+                self.colors[1] = vec4(0.0, 0.0, 0.25, 0.0);
+                self.colors[2] = vec4(0.0, 0.0, 0.5, 0.0);
+                self.colors[3] = vec4(0.0, 0.0, 1.0, 0.0);
+                self.colors[4] = vec4(0.0, 0.5, 1.0, 0.0);
+                self.colors[5] = vec4(0.0, 1.0, 1.0, 0.0);
+                self.colors[6] = vec4(0.0, 1.0, 0.5, 0.0);
+                self.colors[7] = vec4(0.0, 1.0, 0.0, 0.0);
+                self.colors[8] = vec4(0.5, 1.0, 0.0, 0.0);
+                self.colors[9] = vec4(1.0, 1.0, 0.0, 0.0);
                 self.colors[10] = vec4(1.0, 0.5, 0.0, 0.0);
                 self.colors[11] = vec4(1.0, 0.0, 0.0, 0.0);
-            },
+            }
         }
     }
 
-    fn update_particle(p: &mut Particle, time: f32){
+    fn update_particle(p: &mut Particle, time: f32) {
         p.pos += p.dir * time;
     }
 
-    fn update(&mut self, timeStamp : f32){
-    
+    fn update(&mut self, timeStamp: f32) {
         let time = timeStamp - self.lastTime;
         self.lastTime = timeStamp;
-    
+
         self.particleCredit += time * self.spawnRate;
         let len = self.particleCredit as u32;
-        self.particleCredit -= len;
-    
+        self.particleCredit -= len as f32;
+
         for _ in 0..len {
             let life = self.random(self.life, self.lifeSpread);
-            let p = Particle{
-                pos : self.pos,
-                dir : normalize(&vec3(self.random(0.0, 0.3),
-                                      1.0, 
-                                      self.random(0.0, 0.3))) *
-                      self.random(self.speed, self.speedSpread),
+            let p = Particle {
+                pos: self.pos,
+                dir: normalize(&vec3(self.random(0.0, 0.3), 1.0, self.random(0.0, 0.3)))
+                    * self.random(self.speed, self.speedSpread),
 
-                size : self.random(self.size, self.sizeSpread),
+                size: self.random(self.size, self.sizeSpread),
                 life,
-                invInitialLife : 1.0 / life,
+                invInitialLife: 1.0 / life,
                 //depth : 0.0,
             };
             self.particles.push(p);
         }
-    
+
         let friction = self.frictionFactor.powf(time);
-    
-        self.particles.retain_mut(|p|{
+
+        self.particles.retain_mut(|p| {
             p.life -= time;
             if p.life < 0.0 {
                 return false;
             }
 
-            let v = vec3(0.0, 0.0, 0.0);
+            let mut v = vec3(0.0, 0.0, 0.0);
             for f in &self.pointForces {
                 let dir = f.pos - p.pos;
                 let dist = dot(&dir, &dir);
-                v += dir * (f.strength / (1.0 + dist.sqrt() * f.linearAttenuation + dist * f.quadraticAttenuation));
+                v += dir
+                    * (f.strength
+                        / (1.0
+                            + dist.sqrt() * f.linearAttenuation
+                            + dist * f.quadraticAttenuation));
             }
 
             p.dir += (self.directionalForce + v) * time;
             p.dir *= friction;
             //if rotate {} p.angle += p.angleSpeed * time; }
 
-            Self::update_particle(&mut p, time);
+            Self::update_particle(p, time);
             true
         });
-
     }
 
-    fn updateTime(&mut self, timeStamp : f32){
+    fn updateTime(&mut self, timeStamp: f32) {
         self.lastTime = timeStamp;
     }
-    
+
     //fn depthSort(&mut self, pos: &vec3, depthAxis: &vec3){
     //    for p in &mut self.particles {
     //        p.depth = dot(&(p.pos - *pos), depthAxis).abs();
     //    }
-    //    
+    //
     //    // Not happy with this compare function for games - use NotNan type?
     //    self.particles.sort_unstable_by(|a, b| { a.depth.partial_cmp(&b.depth).unwrap() } );
     //}
-    
-
 }
 /*
 
@@ -329,19 +325,19 @@ void fillIndexArray(unsigned short *dest);
 ParticleSystem::ParticleSystem(){
     pos = vec3(0, 0, 0);
     directionalForce = vec3(0, 0, 0);
-    
+
     spawnRate = 10;
     speed = 100;
     speedSpread = 25;
-    
+
     size = 100;
     sizeSpread = 10;
-    
+
     life = 2.5f;
     lifeSpread = 0.5f;
-    
+
     frictionFactor = 0.7f;
-    
+
     setColorScheme(COLOR_SCHEME_FIRE);
 
     lastTime = 0;
@@ -441,7 +437,7 @@ void ParticleSystem::fillVertexArray(char *dest, const vec3 &dx, const vec3 &dy,
         if (rotate){
             float fx = 1.4142136f * cosf(particles[i].angle);
             float fy = 1.4142136f * sinf(particles[i].angle);
-        
+
             for (unsigned int k = 0; k < 4; k++){
                 vect[k] = fx * dx + fy * dy;
 

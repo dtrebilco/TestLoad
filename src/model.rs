@@ -13,7 +13,7 @@ impl From<EnumLoadError> for std::io::Error {
 
 macro_rules! enum_load {
     ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $member:ident = $value:expr),+ $(,)? }) => {
-        $(#[$derives])*        
+        $(#[$derives])*
         $vis enum $name {
             $($(#[$nested_meta])* $member = $value),+
         }
@@ -36,7 +36,7 @@ macro_rules! enum_load {
 
             pub const fn iter() -> [$name; Self::count()] {
                 [$($name::$member),+]
-            }            
+            }
         }
     };
 }
@@ -67,7 +67,7 @@ macro_rules! enum_sequential {
 
             pub const fn iter() -> [$name; Self::len()] {
                 [$($name::$member),+]
-            }            
+            }
         }
     };
 }
@@ -97,36 +97,33 @@ enum_load! {
         UnsignedByte = 1,
     }
 }
-  
+
 pub struct Format {
-    attrib_type   : AttributeType,
-    attrib_format : AttributeFormat,
-    size   : u32,
-    offset : u32,
-    index  : u32,
+    attrib_type: AttributeType,
+    attrib_format: AttributeFormat,
+    size: u32,
+    offset: u32,
+    index: u32,
 }
 
-pub struct Batch
-{
-    pub num_vertices  : u32,
-    pub num_indices   : u32,
-    pub vertex_size : u32,
-    pub index_size  : u32,
+pub struct Batch {
+    pub num_vertices: u32,
+    pub num_indices: u32,
+    pub vertex_size: u32,
+    pub index_size: u32,
 
-    pub primitive_type : PrimitiveType, 
+    pub primitive_type: PrimitiveType,
 
-    formats : Vec<Format>,
+    formats: Vec<Format>,
 
-    vertices : Vec<u8>,
-    indices  : Vec<u8>,
-    
+    vertices: Vec<u8>,
+    indices: Vec<u8>,
     //sg_buffer render_index;
     //sg_buffer render_vertex;
 }
-  
-pub struct Model
-{
-    pub batches : Vec<Batch>, 
+
+pub struct Model {
+    pub batches: Vec<Batch>,
 }
 
 impl Model {
@@ -136,7 +133,6 @@ impl Model {
 }
 
 fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
-
     // DT_TODO: Use non resizable arrays for the data storage RawVec / Unique<T> ? use buf_reader.read_buf_exact()
     // DT_TODO: Optimize by accessing the internal buffer directly fo small reads? buf_reader.buffer()
 
@@ -144,8 +140,8 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
     let mut buf_reader = BufReader::with_capacity(64 * 1024, file);
 
     let mut buf = [0; 4];
-    let mut read_u32 = | buf_reader : &mut BufReader<File> | -> std::io::Result<u32> {
-        buf_reader.read_exact(&mut buf)?;        
+    let mut read_u32 = |buf_reader: &mut BufReader<File>| -> std::io::Result<u32> {
+        buf_reader.read_exact(&mut buf)?;
         Ok(u32::from_le_bytes(buf))
     };
 
@@ -155,36 +151,38 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
     }
     let num_batches = read_u32(&mut buf_reader)?;
 
-    let mut out_model : Model = Model { batches : Vec::with_capacity(num_batches as usize) };
-    for  _ in 0..num_batches {
+    let mut out_model = Model {
+        batches: Vec::with_capacity(num_batches as usize),
+    };
+    for _ in 0..num_batches {
         let num_vertices = read_u32(&mut buf_reader)?;
-        let num_indices  = read_u32(&mut buf_reader)?;
-        let vertex_size  = read_u32(&mut buf_reader)?;
-        let index_size   = read_u32(&mut buf_reader)?;
+        let num_indices = read_u32(&mut buf_reader)?;
+        let vertex_size = read_u32(&mut buf_reader)?;
+        let index_size = read_u32(&mut buf_reader)?;
 
         let primitive_type = PrimitiveType::try_from(read_u32(&mut buf_reader)?)?;
-        let num_formats  = read_u32(&mut buf_reader)?;
+        let num_formats = read_u32(&mut buf_reader)?;
 
         let mut new_batch = Batch {
             num_vertices,
             num_indices,
             vertex_size,
             index_size,
-            primitive_type, 
+            primitive_type,
 
-            formats  : Vec::with_capacity(num_formats as usize),
-            vertices : Vec::with_capacity(vertex_size as usize * num_vertices as usize),
-            indices  : Vec::with_capacity(index_size as usize * num_indices as usize),
+            formats: Vec::with_capacity(num_formats as usize),
+            vertices: Vec::with_capacity(vertex_size as usize * num_vertices as usize),
+            indices: Vec::with_capacity(index_size as usize * num_indices as usize),
         };
 
         // Read formats
         for _ in 0..num_formats {
             let new_format = Format {
-                attrib_type   : AttributeType::try_from(read_u32(&mut buf_reader)?)?,
-                attrib_format : AttributeFormat::try_from(read_u32(&mut buf_reader)?)?,
-                size   : read_u32(&mut buf_reader)?,
-                offset : read_u32(&mut buf_reader)?,
-                index  : read_u32(&mut buf_reader)?,
+                attrib_type: AttributeType::try_from(read_u32(&mut buf_reader)?)?,
+                attrib_format: AttributeFormat::try_from(read_u32(&mut buf_reader)?)?,
+                size: read_u32(&mut buf_reader)?,
+                offset: read_u32(&mut buf_reader)?,
+                index: read_u32(&mut buf_reader)?,
             };
             new_batch.formats.push(new_format);
         }
@@ -203,5 +201,4 @@ fn load_model_from_file(filename: &str) -> std::io::Result<Model> {
     }
 
     Ok(out_model)
-
 }

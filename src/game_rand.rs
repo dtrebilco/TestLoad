@@ -30,33 +30,31 @@
 // const Uint64 a = 647535442; // for SEED_COUNT=64, period approx 2^2077
 // const Uint64 a = 547416522; // for SEED_COUNT=32, period approx 2^1053
 // const Uint64 a = 487198574; // for SEED_COUNT=16, period approx  2^540
-const SEED_COUNT : u32 = 8;
+const SEED_COUNT: u32 = 8;
 
 /// A random number generator that is deterministic and suitable for games.
 pub struct GameRand {
-	param_q : [u32; SEED_COUNT as usize],
-	param_c : u32,
-	param_i : u32,    
+    param_q: [u32; SEED_COUNT as usize],
+    param_c: u32,
+    param_i: u32,
 }
 
 impl GameRand {
-
-	/// Constructor that sets a random seed value on the number generator
-	/// * `seed` - The seed value to use
-    pub fn new(seed : u32) -> GameRand {
+    /// Constructor that sets a random seed value on the number generator
+    /// * `seed` - The seed value to use
+    pub fn new(seed: u32) -> GameRand {
         let mut ret = GameRand {
-            param_q : [0; SEED_COUNT as usize],
-            param_c : 0,
-            param_i : 0,
+            param_q: [0; SEED_COUNT as usize],
+            param_c: 0,
+            param_i: 0,
         };
         ret.seed_random(seed);
         ret
     }
 
-	/// Reset the random seed value on the number generator (not necessary to call)
-	/// * `seed` - The seed value to use
-    pub fn seed_random(&mut self, seed : u32)
-    {
+    /// Reset the random seed value on the number generator (not necessary to call)
+    /// * `seed` - The seed value to use
+    pub fn seed_random(&mut self, seed: u32) {
         let mut j = seed;
         if j == 0 {
             j = 12345; // 0 is a terrible seed (probably the only bad choice), substitute something else:
@@ -67,20 +65,20 @@ impl GameRand {
             j = j ^ (j << 5);
             *param = j;
         }
-    
+
         self.param_c = 362436;
         self.param_i = SEED_COUNT - 1;
     }
 
-	/// Return the next pseudo-random number in the sequence.
+    /// Return the next pseudo-random number in the sequence.
     pub fn next_random(&mut self) -> u32 {
-        let r : u32 = 0xFFFFFFFE;
-        let a : u64 = 716514398; // for SEED_COUNT=8, period approx 2^285
-    
+        let r: u32 = 0xFFFFFFFE;
+        let a: u64 = 716514398; // for SEED_COUNT=8, period approx 2^285
+
         self.param_i = (self.param_i + 1) & (SEED_COUNT - 1);
-        
+
         let q = &mut self.param_q[self.param_i as usize];
-        let t : u64 = a * (*q as u64) + (self.param_c as u64);
+        let t: u64 = a * (*q as u64) + (self.param_c as u64);
         self.param_c = (t >> 32) as u32;
 
         let mut x = (t + self.param_c as u64) as u32;
@@ -94,32 +92,30 @@ impl GameRand {
         return val;
     }
 
-	/// Return the next pseudo-random number in the 0..1 range.
+    /// Return the next pseudo-random number in the 0..1 range.
     /// DT_TODO: Test this - unsure if the distribution in the high values is equal with the float 24bit precision
-    pub fn next_random01(&mut self) -> f32
-    {
-        const DIV : f32 = 1.0 / (u32::MAX as f32);
+    pub fn next_random01(&mut self) -> f32 {
+        const DIV: f32 = 1.0 / (u32::MAX as f32);
         let val = self.next_random();
-        let val_f  = (val as f32) * DIV;
-    
+        let val_f = (val as f32) * DIV;
+
         return val_f;
     }
 
-	/// Generate a pseudo-random number within a given bounds. Does not guarantee an exact even distribution 
+    /// Generate a pseudo-random number within a given bounds. Does not guarantee an exact even distribution
     /// of values in the range, but if the range is small (<10000's) it is close to even.
-	/// * `min` - The minimum bound of the random number, inclusive.
-	/// * `max` - The maximum bound of the random number, inclusive.
-	/// \precondition max >= min.
-    pub fn rand_range(&mut self, min : u32, max : u32) -> u32
-    {
+    /// * `min` - The minimum bound of the random number, inclusive.
+    /// * `max` - The maximum bound of the random number, inclusive.
+    /// \precondition max >= min.
+    pub fn rand_range(&mut self, min: u32, max: u32) -> u32 {
         let mut val = self.next_random();
 
-        let range_diff : u32 = max - min;
+        let range_diff: u32 = max - min;
         if range_diff != u32::MAX {
             val %= range_diff + 1;
             val += min;
         }
-    
+
         return val;
     }
 }
