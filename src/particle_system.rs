@@ -8,8 +8,30 @@ pub struct vec3 {
     pub y: f32,
     pub z: f32,
 }
-fn vec3(x:f32, y:f32, z:f32) -> vec3{
+pub fn vec3(x:f32, y:f32, z:f32) -> vec3{
     vec3 { x, y, z, }
+}
+
+impl std::ops::Mul<f32> for vec3 {
+    type Output = vec3;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        vec3(self.x * rhs, self.y * rhs, self.z * rhs)
+    }
+}
+
+impl std::ops::Add<vec3> for vec3 {
+    type Output = vec3;
+
+    fn add(self, rhs: vec3) -> Self::Output {
+        vec3(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
+    }
+}
+
+impl std::ops::AddAssign<vec3> for vec3 {
+    fn add_assign(&mut self, rhs: vec3) {
+        *self = *self + rhs;
+    }
 }
 
 #[repr(C)]
@@ -22,7 +44,7 @@ pub struct vec4 {
     pub w: f32,	
 }
 
-fn vec4(x:f32, y:f32, z:f32, w:f32) -> vec4{
+pub fn vec4(x:f32, y:f32, z:f32, w:f32) -> vec4{
     vec4 { x, y, z, w, }
 }
 
@@ -185,10 +207,13 @@ impl ParticleSystem {
         }
     }
 
+    fn update_particle(p: &mut Particle, time: f32){
+        p.pos += p.dir * time;
+    }
+
+
 }
 /*
-
-void setColorScheme(const COLOR_SCHEME colorScheme);
 
 void update(const float timeStamp);
 void updateTime(const float timeStamp);
@@ -205,7 +230,7 @@ void fillIndexArray(unsigned short *dest);
 
 protected:
 virtual void initParticle(Particle &p);
-virtual void updateParticle(Particle &p, const float time);
+
 */
 
 
@@ -258,9 +283,7 @@ void ParticleSystem::initParticle(Particle &p){
     p.invInitialLife = 1.0f / p.life;
 }
 
-void ParticleSystem::updateParticle(Particle &p, const float time){
-    p.pos += p.dir * time;
-}
+
 
 void ParticleSystem::update(const float timeStamp){
     Particle p;

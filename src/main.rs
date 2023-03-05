@@ -4,9 +4,17 @@ mod particle_system;
 
 use model::*;
 use game_rand::GameRand;
-
+use particle_system::*;
 
 fn main() {
+
+
+    let mut test = vec3(0.0, 1.0, 0.0);
+    let test2 = test * 3.0;
+    test.x = 7.0;
+
+    drop(test);
+    test.y =8.0;
 
     if let Ok(model) = model::Model::new("data/room0.hmdl") {
         for batch in model.batches {
