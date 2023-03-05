@@ -8,8 +8,20 @@ pub struct vec3 {
     pub y: f32,
     pub z: f32,
 }
-pub fn vec3(x:f32, y:f32, z:f32) -> vec3{
+pub fn vec3(x:f32, y:f32, z:f32) -> vec3 {
     vec3 { x, y, z, }
+}
+
+pub fn dot(a: &vec3, b: &vec3) -> f32 {
+    (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
+}
+
+pub fn length(vec : &vec3) -> f32 {
+    dot(vec, vec).sqrt()
+}
+
+pub fn normalize(vec : &vec3) -> vec3 {
+    *vec / length(vec)
 }
 
 impl std::ops::Mul<f32> for vec3 {
@@ -20,6 +32,15 @@ impl std::ops::Mul<f32> for vec3 {
     }
 }
 
+impl std::ops::Div<f32> for vec3 {
+    type Output = vec3;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        vec3(self.x / rhs, self.y / rhs, self.z / rhs)
+    }
+}
+
+
 impl std::ops::Add<vec3> for vec3 {
     type Output = vec3;
 
@@ -28,11 +49,26 @@ impl std::ops::Add<vec3> for vec3 {
     }
 }
 
+impl std::ops::Sub<vec3> for vec3 {
+    type Output = vec3;
+
+    fn sub(self, rhs: vec3) -> Self::Output {
+        vec3(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
+    }
+}
+
 impl std::ops::AddAssign<vec3> for vec3 {
     fn add_assign(&mut self, rhs: vec3) {
         *self = *self + rhs;
     }
 }
+
+impl std::ops::MulAssign<f32> for vec3 {
+    fn mul_assign(&mut self, rhs: f32) {
+        *self = *self * rhs;
+    }
+}
+
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -65,8 +101,8 @@ struct Particle {
 
     depth: f32, 
 
-    angle: f32, 
-    angleSpeed: f32, 
+    //angle: f32, 
+    //angleSpeed: f32, 
 }
 
 struct PointForce {
@@ -209,6 +245,56 @@ impl ParticleSystem {
 
     fn update_particle(p: &mut Particle, time: f32){
         p.pos += p.dir * time;
+    }
+
+    fn update(&mut self, timeStamp : f32){
+    
+        let time = timeStamp - self.lastTime;
+        self.lastTime = timeStamp;
+    
+        self.particleCredit += time * self.spawnRate;
+        let len = self.particleCredit as u32;
+        self.particleCredit -= len;
+    
+        for _ in 0..len {
+            let life = self.random(self.life, self.lifeSpread);
+            let p = Particle{
+                pos : self.pos,
+                dir : normalize(&vec3(self.random(0.0, 0.3),
+                                      1.0, 
+                                      self.random(0.0, 0.3))) *
+                      self.random(self.speed, self.speedSpread),
+
+                size : self.random(self.size, self.sizeSpread),
+                life,
+                invInitialLife : 1.0 / life,
+                depth : 0.0,
+            };
+            self.particles.push(p);
+        }
+    
+        let friction = self.frictionFactor.powf(time);
+    
+        self.particles.retain_mut(|p|{
+            p.life -= time;
+            if p.life < 0.0 {
+                return false;
+            }
+
+            let v = vec3(0.0, 0.0, 0.0);
+            for f in &self.pointForces {
+                let dir = f.pos - p.pos;
+                let dist = dot(&dir, &dir);
+                v += dir * (f.strength / (1.0 + dist.sqrt() * f.linearAttenuation + dist * f.quadraticAttenuation));
+            }
+
+            p.dir += (self.directionalForce + v) * time;
+            p.dir *= friction;
+
+            Self::update_particle(&mut p, time);
+            true
+        });
+
     }
 
 
