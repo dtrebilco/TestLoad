@@ -99,7 +99,7 @@ struct Particle {
     life: f32,
     invInitialLife: f32,
 
-    depth: f32, 
+    //depth: f32, 
 
     //angle: f32, 
     //angleSpeed: f32, 
@@ -132,7 +132,7 @@ struct ParticleSystem {
     lifeSpread: f32,
     frictionFactor: f32,
 
-    rotate : bool,
+    //rotate : bool,
 
     //char *vertexArray;
     vertexArraySize : u32,
@@ -200,9 +200,9 @@ impl ParticleSystem {
         self.colors[color as usize] = col;
     }
 
-    fn set_rotate(&mut self, rot: bool){
-        self.rotate = rot;
-    }
+    //fn set_rotate(&mut self, rot: bool){
+    //    self.rotate = rot;
+    //}
 
     fn set_color_scheme(&mut self, colorScheme : ColorScheme){
         
@@ -268,7 +268,7 @@ impl ParticleSystem {
                 size : self.random(self.size, self.sizeSpread),
                 life,
                 invInitialLife : 1.0 / life,
-                depth : 0.0,
+                //depth : 0.0,
             };
             self.particles.push(p);
         }
@@ -290,6 +290,7 @@ impl ParticleSystem {
 
             p.dir += (self.directionalForce + v) * time;
             p.dir *= friction;
+            //if rotate {} p.angle += p.angleSpeed * time; }
 
             Self::update_particle(&mut p, time);
             true
@@ -297,13 +298,22 @@ impl ParticleSystem {
 
     }
 
+    fn updateTime(&mut self, timeStamp : f32){
+        self.lastTime = timeStamp;
+    }
+    
+    //fn depthSort(&mut self, pos: &vec3, depthAxis: &vec3){
+    //    for p in &mut self.particles {
+    //        p.depth = dot(&(p.pos - *pos), depthAxis).abs();
+    //    }
+    //    
+    //    // Not happy with this compare function for games - use NotNan type?
+    //    self.particles.sort_unstable_by(|a, b| { a.depth.partial_cmp(&b.depth).unwrap() } );
+    //}
+    
 
 }
 /*
-
-void update(const float timeStamp);
-void updateTime(const float timeStamp);
-void depthSort(const vec3 &pos, const vec3 &depthAxis);
 
 char *getVertexArray(const vec3 &dx, const vec3 &dy, bool useColors = true, bool tex3d = false);
 char *getPointSpriteArray(bool useColors = true);
@@ -313,17 +323,9 @@ void fillVertexArray(char *dest, const vec3 &dx, const vec3 &dy, bool useColors 
 void fillInstanceVertexArray(char *dest);
 void fillInstanceVertexArrayRange(vec4 *posAndSize, vec4 *color, const unsigned int start, unsigned int count);
 void fillIndexArray(unsigned short *dest);
-
-protected:
-virtual void initParticle(Particle &p);
-
 */
 
-
 /*
-
-
-
 ParticleSystem::ParticleSystem(){
     pos = vec3(0, 0, 0);
     directionalForce = vec3(0, 0, 0);
@@ -351,85 +353,6 @@ ParticleSystem::ParticleSystem(){
     vertexArraySize = 0;
     indexArray = NULL;
     indexArraySize = 0;
-}
-
-ParticleSystem::~ParticleSystem(){
-    delete vertexArray;
-    delete indexArray;
-}
-
-
-
-void ParticleSystem::initParticle(Particle &p){
-    p.pos = pos;
-    p.dir = normalize(vec3(random(0, 0.3f), 1, random(0, 0.3f)));
-    p.dir *= random(speed, speedSpread);
-    p.size = random(size, sizeSpread);
-    /*p.initialLife = */p.life = random(life, lifeSpread);
-    p.invInitialLife = 1.0f / p.life;
-}
-
-
-
-void ParticleSystem::update(const float timeStamp){
-    Particle p;
-    float time, dist, friction;
-    unsigned int i, j, len;
-
-    time = timeStamp - lastTime;
-    lastTime = timeStamp;
-
-    particleCredit += time * spawnRate;
-    len = (int) particleCredit;
-    particleCredit -= len;
-
-    for (i = 0; i < len; i++){
-        initParticle(p);
-        particles.push_back(p);
-    }
-
-    friction = powf(frictionFactor, time);
-
-    i = 0;
-    while (i < particles.size()){
-        if ((particles[i].life -= time) < 0){
-            particles.erase(particles.begin() + i);
-            continue;
-        }
-
-        vec3 v(0, 0, 0);
-        for (j = 0; j < pointForces.size(); j++){
-            vec3 dir = pointForces[j].pos - particles[i].pos;
-            dist = dot(dir, dir);
-            v += dir * (pointForces[j].strength / (1.0f + sqrtf(dist) * pointForces[j].linearAttenuation + dist * pointForces[j].quadraticAttenuation));
-        }
-
-        particles[i].dir += (directionalForce + v) * time;
-        particles[i].dir *= friction;
-        if (rotate) particles[i].angle += particles[i].angleSpeed * time;
-
-        //particles[i].pos += particles[i].dir * time;
-        updateParticle(particles[i], time);
-
-        i++;
-    }
-}
-
-void ParticleSystem::updateTime(const float timeStamp){
-    lastTime = timeStamp;
-}
-
-int depthComp(const Particle &elem0, const Particle &elem1){
-    return (elem0.depth < elem1.depth);
-}
-
-void ParticleSystem::depthSort(const vec3 &pos, const vec3 &depthAxis){
-    for (unsigned int i = 0; i < particles.size(); i++){
-        particles[i].depth = fabsf(dot(particles[i].pos - pos, depthAxis));
-    }
-    
-    std::sort(particles.begin(), particles.end(), depthComp);
-    //particles.sort(depthComp);
 }
 
 char *ParticleSystem::getVertexArray(const vec3 &dx, const vec3 &dy, bool useColors, bool tex3d){
