@@ -1,4 +1,13 @@
 use crate::game_rand::GameRand;
+use std::mem::size_of;
+
+#[repr(C)]
+#[allow(non_snake_case)]
+#[derive(PartialEq, Copy, Clone)]
+pub struct vec2 {
+    pub x: f32,
+    pub y: f32,
+}
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -130,10 +139,7 @@ struct ParticleSystem {
     frictionFactor: f32,
 
     //rotate : bool,
-
-    //char *vertexArray;
-    vertexArraySize: u32,
-
+    vertexArray: Vec<u8>,
     indexArray: Vec<u16>,
 
     rand: GameRand, // DT_TODO: Pass this as a parameter?
@@ -329,6 +335,25 @@ impl ParticleSystem {
 
         &self.indexArray
     }
+
+    fn getVertexArray(&mut self, dx: vec3, dy: vec3, useColors: bool, tex3d: bool) -> &[u8] {
+        let mut vertexSize = size_of::<vec3>() + size_of::<vec2>();
+        if useColors {
+            vertexSize += size_of::<vec4>();
+        }
+        if tex3d {
+            vertexSize += size_of::<f32>();
+        }
+
+        let size = self.particles.len() * vertexSize * 4;
+        if (size > self.vertexArray.len()) {
+            self.vertexArray.resize(size, 0);
+        }
+
+        //fillVertexArray(vertexArray, dx, dy, useColors, tex3d);
+
+        &self.vertexArray
+    }
 }
 /*
 
@@ -372,22 +397,7 @@ ParticleSystem::ParticleSystem(){
     indexArraySize = 0;
 }
 
-char *ParticleSystem::getVertexArray(const vec3 &dx, const vec3 &dy, bool useColors, bool tex3d){
-    unsigned int vertexSize = sizeof(vec3) + sizeof(vec2);
-    if (useColors) vertexSize += sizeof(vec4);
-    if (tex3d) vertexSize += sizeof(float);
-    unsigned int size = (unsigned int)particles.size() * vertexSize * 4;
 
-    if (size > vertexArraySize){
-        delete vertexArray;
-        vertexArray = new char[size];
-        vertexArraySize = size;
-    }
-
-    fillVertexArray(vertexArray, dx, dy, useColors, tex3d);
-
-    return vertexArray;
-}
 
 char *ParticleSystem::getPointSpriteArray(bool useColors){
     unsigned int vertexSize = sizeof(vec3) + sizeof(float);
