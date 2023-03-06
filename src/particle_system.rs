@@ -19,7 +19,7 @@ struct Particle {
     invInitialLife: f32,
 }
 
-struct PointForce {
+pub struct PointForce {
     pos: vec3,
     strength: f32,
     linearAttenuation: f32,
@@ -28,23 +28,23 @@ struct PointForce {
 
 pub struct ParticleSystem {
     particles: Vec<Particle>,
-    pointForces: Vec<PointForce>,
-    directionalForce: vec3,
+    pub pointForces: Vec<PointForce>,
+    pub directionalForce: vec3,
 
     lastTime: f32, 
     particleCredit: f32,
 
-    colors: [vec4; 12],
-    pos: vec3,
+    pub colors: [vec4; 12],
+    pub pos: vec3,
 
-    spawnRate: f32,
-    speed: f32,
-    speedSpread: f32,
-    size: f32,
-    sizeSpread: f32,
-    life: f32,
-    lifeSpread: f32,
-    frictionFactor: f32,
+    pub spawnRate: f32,
+    pub speed: f32,
+    pub speedSpread: f32,
+    pub size: f32,
+    pub sizeSpread: f32,
+    pub life: f32,
+    pub lifeSpread: f32,
+    pub frictionFactor: f32,
 
     vertexArray: Vec<u8>,
     indexArray: Vec<u16>,
@@ -55,7 +55,7 @@ pub struct ParticleSystem {
 impl ParticleSystem {
 
     pub fn new() -> ParticleSystem {
-        let mut p = ParticleSystem {
+        ParticleSystem {
             particles : Vec::with_capacity(20),
             pointForces : Vec::with_capacity(2),
             directionalForce : vec3(0.0,0.0, 0.0),
@@ -81,9 +81,7 @@ impl ParticleSystem {
             indexArray : Vec::new(),
 
             rand : GameRand::new(2356),
-        };
-        p.set_color_scheme(ColorScheme::Fire);
-        p
+        }
     }
 
     fn random(&mut self, mean: f32, diff: f32) -> f32 {
@@ -91,55 +89,8 @@ impl ParticleSystem {
         return mean + r * r.abs() * diff;
     }
 
-    fn get_position(&self) -> &vec3 {
-        &self.pos
-    }
-
     pub fn get_particle_count(&self) -> u32 {
         self.particles.len() as u32
-    }
-
-    pub fn set_position(&mut self, position: &vec3) {
-        self.pos = *position;
-    }
-
-    pub fn set_spawn_rate(&mut self, spawn_rate: f32) {
-        self.spawnRate = spawn_rate;
-    }
-
-    pub fn set_speed(&mut self, meanSpeed: f32, spread: f32) {
-        self.speed = meanSpeed;
-        self.speedSpread = spread;
-    }
-
-    pub fn set_life(&mut self, meanLife: f32, spread: f32) {
-        self.life = meanLife;
-        self.lifeSpread = spread;
-    }
-
-    pub fn setSize(&mut self, meanSize: f32, spread: f32) {
-        self.size = meanSize;
-        self.sizeSpread = spread;
-    }
-
-    pub fn set_directional_force(&mut self, df: &vec3) {
-        self.directionalForce = *df;
-    }
-
-    pub fn add_point_force(&mut self, pf: PointForce) {
-        self.pointForces.push(pf);
-    }
-
-    pub fn set_point_force(&mut self, force: i32, pf: PointForce) {
-        self.pointForces[force as usize] = pf;
-    }
-
-    pub fn set_friction_factor(&mut self, friction: f32) {
-        self.frictionFactor = friction;
-    }
-
-    pub fn setColor(&mut self, color: i32, col: vec4) {
-        self.colors[color as usize] = col;
     }
 
     pub fn set_color_scheme(&mut self, colorScheme: ColorScheme) {
@@ -182,10 +133,6 @@ impl ParticleSystem {
         }
     }
 
-    fn update_particle(p: &mut Particle, time: f32) {
-        p.pos += p.dir * time;
-    }
-
     pub fn update(&mut self, timeStamp: f32) {
         let time = timeStamp - self.lastTime;
         self.lastTime = timeStamp;
@@ -204,7 +151,6 @@ impl ParticleSystem {
                 size: self.random(self.size, self.sizeSpread),
                 life,
                 invInitialLife: 1.0 / life,
-                //depth : 0.0,
             };
             self.particles.push(p);
         }
@@ -231,7 +177,7 @@ impl ParticleSystem {
             p.dir += (self.directionalForce + v) * time;
             p.dir *= friction;
 
-            Self::update_particle(p, time);
+            p.pos += p.dir * time;
             true
         });
     }
