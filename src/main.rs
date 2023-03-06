@@ -9,12 +9,29 @@ use vector::*;
 use particle_system::*;
 
 fn main() {
-    let mut test = vec3(0.0, 1.0, 0.0);
-    let test2 = test * 3.0;
-    test.x = 7.0;
+    let mut p = ParticleSystem::new();
+    p.set_color_scheme(ColorScheme::Rainbow);
 
-    drop(test);
-    test.y = 8.0;
+    let mut rand = GameRand::new(1235);
+
+    p.update(0.1, &mut rand);
+    p.update(0.2, &mut rand);
+    p.update(0.5, &mut rand);    
+
+    println!("Particle count {}", p.get_particle_count());
+    let ia = p.get_index_array();
+    println!("Index array size {}", ia.len());
+    let va = p.get_vertex_array(vec3(0.0,1.0,2.0), vec3(0.0,1.0,2.0), true, false);
+    println!("Vertex array size {}", va.len());
+
+    p.spawn_rate = 0.0;
+    p.update(50.0, &mut rand);
+    println!("Particle count {}", p.get_particle_count());
+    let ia = p.get_index_array();
+    println!("Index array size {}", ia.len());
+    let va = p.get_vertex_array(vec3(0.0,1.0,2.0), vec3(0.0,1.0,2.0), true, false);
+    println!("Vertex array size {}", va.len());
+
 
     if let Ok(model) = model::Model::new("data/room0.hmdl") {
         for batch in model.batches {
@@ -30,7 +47,7 @@ fn main() {
     for p in PrimitiveType::iter() {
         println!("{:?}", p);
     }
-
+/*/
     let mut rand = GameRand::new(12345);
 
     for _ in 0..1_000_000 {
@@ -39,7 +56,7 @@ fn main() {
         println!("{}", rand.rand_range(5, 1067));
         break;
     }
-
+*/
     //let val = rand.rand_range(&(0u32..=3));
 
     //println!("MyEnum: {:?} {test3}", test2);

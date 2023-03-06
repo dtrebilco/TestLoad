@@ -198,7 +198,7 @@ impl ParticleSystem {
             }
         }
 
-        &self.index_array
+        &self.index_array[..new_size] // Only return up to the used size
     }
 
     unsafe fn copy_to_buffer<T>(buffer: *mut u8, data: T) -> *mut u8 {
@@ -262,7 +262,7 @@ impl ParticleSystem {
         }
         debug_assert!(dest_ptr <= dest_range.end);
 
-        &self.vertex_array
+        &self.vertex_array[..size] // Only return up to the used size
     }
 }
 
