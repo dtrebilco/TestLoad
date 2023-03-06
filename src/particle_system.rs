@@ -1,176 +1,9 @@
 use crate::game_rand::GameRand;
+use crate::vector::*;
 
-use std::{mem::*, ops::RangeBounds};
-#[macro_export]
-macro_rules! static_assert {
-    ($condition:expr) => {
-        const _: () = core::assert!($condition);
-    }
-}
+use std::mem::size_of;
 
-#[repr(C)]
-#[allow(non_snake_case)]
-#[derive(PartialEq, Copy, Clone)]
-pub struct vec2 {
-    pub x: f32,
-    pub y: f32,
-}
-static_assert!(size_of::<vec2>() == 8);
-
-pub const fn vec2(x: f32, y: f32) -> vec2 {
-    vec2 { x, y }
-}
-
-#[repr(C)]
-#[allow(non_snake_case)]
-#[derive(PartialEq, Copy, Clone)]
-pub struct vec3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-static_assert!(size_of::<vec3>() == 12);
-
-pub const fn vec3(x: f32, y: f32, z: f32) -> vec3 {
-    vec3 { x, y, z }
-}
-
-pub fn dot(a: &vec3, b: &vec3) -> f32 {
-    (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
-}
-
-pub fn length(vec: &vec3) -> f32 {
-    dot(vec, vec).sqrt()
-}
-
-pub fn normalize(vec: &vec3) -> vec3 {
-    *vec / length(vec)
-}
-
-impl std::ops::Mul<f32> for vec3 {
-    type Output = vec3;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        vec3(self.x * rhs, self.y * rhs, self.z * rhs)
-    }
-}
-
-impl std::ops::Div<f32> for vec3 {
-    type Output = vec3;
-
-    fn div(self, rhs: f32) -> Self::Output {
-        vec3(self.x / rhs, self.y / rhs, self.z / rhs)
-    }
-}
-
-impl std::ops::Add<vec3> for vec3 {
-    type Output = vec3;
-
-    fn add(self, rhs: vec3) -> Self::Output {
-        vec3(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
-    }
-}
-
-impl std::ops::Sub<vec3> for vec3 {
-    type Output = vec3;
-
-    fn sub(self, rhs: vec3) -> Self::Output {
-        vec3(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
-    }
-}
-
-impl std::ops::Neg for vec3 {
-    type Output = vec3;
-
-    fn neg(self) -> Self::Output {
-        vec3(-self.x, -self.y, -self.z)
-    }
-}
-
-impl std::ops::AddAssign<vec3> for vec3 {
-    fn add_assign(&mut self, rhs: vec3) {
-        *self = *self + rhs;
-    }
-}
-
-impl std::ops::MulAssign<f32> for vec3 {
-    fn mul_assign(&mut self, rhs: f32) {
-        *self = *self * rhs;
-    }
-}
-
-#[repr(C)]
-#[allow(non_snake_case)]
-#[derive(PartialEq, Copy, Clone)]
-pub struct vec4 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-    pub w: f32,
-}
-static_assert!(size_of::<vec4>() == 16);
-
-pub const fn vec4(x: f32, y: f32, z: f32, w: f32) -> vec4 {
-    vec4 { x, y, z, w }
-}
-
-pub fn lerp(x :&vec4, y:&vec4, a: f32) -> vec4 {
-    *x + ((*y - *x) * a)
-}
-
-impl std::ops::Mul<f32> for vec4 {
-    type Output = vec4;
-
-    fn mul(self, rhs: f32) -> Self::Output {
-        vec4(self.x * rhs, self.y * rhs, self.z * rhs, self.w * rhs)
-    }
-}
-
-impl std::ops::Div<f32> for vec4 {
-    type Output = vec4;
-
-    fn div(self, rhs: f32) -> Self::Output {
-        vec4(self.x / rhs, self.y / rhs, self.z / rhs, self.w / rhs)
-    }
-}
-
-impl std::ops::Add<vec4> for vec4 {
-    type Output = vec4;
-
-    fn add(self, rhs: vec4) -> Self::Output {
-        vec4(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z, self.w + rhs.w)
-    }
-}
-
-impl std::ops::Sub<vec4> for vec4 {
-    type Output = vec4;
-
-    fn sub(self, rhs: vec4) -> Self::Output {
-        vec4(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z, self.w - rhs.w)
-    }
-}
-
-impl std::ops::Neg for vec4 {
-    type Output = vec4;
-
-    fn neg(self) -> Self::Output {
-        vec4(-self.x, -self.y, -self.z, -self.w)
-    }
-}
-
-impl std::ops::AddAssign<vec4> for vec4 {
-    fn add_assign(&mut self, rhs: vec4) {
-        *self = *self + rhs;
-    }
-}
-
-impl std::ops::MulAssign<f32> for vec4 {
-    fn mul_assign(&mut self, rhs: f32) {
-        *self = *self * rhs;
-    }
-}
-
-enum ColorScheme {
+pub enum ColorScheme {
     Fire,
     Ice,
     Smoke,
@@ -184,10 +17,6 @@ struct Particle {
     dir: vec3,
     life: f32,
     invInitialLife: f32,
-    //depth: f32,
-
-    //angle: f32,
-    //angleSpeed: f32,
 }
 
 struct PointForce {
@@ -197,12 +26,12 @@ struct PointForce {
     quadraticAttenuation: f32,
 }
 
-struct ParticleSystem {
+pub struct ParticleSystem {
     particles: Vec<Particle>,
     pointForces: Vec<PointForce>,
     directionalForce: vec3,
 
-    lastTime: f32,
+    lastTime: f32, 
     particleCredit: f32,
 
     colors: [vec4; 12],
@@ -225,7 +54,7 @@ struct ParticleSystem {
 
 impl ParticleSystem {
 
-    fn new() -> ParticleSystem {
+    pub fn new() -> ParticleSystem {
         let mut p = ParticleSystem {
             particles : Vec::with_capacity(20),
             pointForces : Vec::with_capacity(2),
@@ -266,58 +95,54 @@ impl ParticleSystem {
         &self.pos
     }
 
-    fn get_particle_count(&self) -> u32 {
+    pub fn get_particle_count(&self) -> u32 {
         self.particles.len() as u32
     }
 
-    fn set_position(&mut self, position: &vec3) {
+    pub fn set_position(&mut self, position: &vec3) {
         self.pos = *position;
     }
 
-    fn set_spawn_rate(&mut self, spawn_rate: f32) {
+    pub fn set_spawn_rate(&mut self, spawn_rate: f32) {
         self.spawnRate = spawn_rate;
     }
 
-    fn set_speed(&mut self, meanSpeed: f32, spread: f32) {
+    pub fn set_speed(&mut self, meanSpeed: f32, spread: f32) {
         self.speed = meanSpeed;
         self.speedSpread = spread;
     }
 
-    fn set_life(&mut self, meanLife: f32, spread: f32) {
+    pub fn set_life(&mut self, meanLife: f32, spread: f32) {
         self.life = meanLife;
         self.lifeSpread = spread;
     }
 
-    fn setSize(&mut self, meanSize: f32, spread: f32) {
+    pub fn setSize(&mut self, meanSize: f32, spread: f32) {
         self.size = meanSize;
         self.sizeSpread = spread;
     }
 
-    fn set_directional_force(&mut self, df: &vec3) {
+    pub fn set_directional_force(&mut self, df: &vec3) {
         self.directionalForce = *df;
     }
 
-    fn add_point_force(&mut self, pf: PointForce) {
+    pub fn add_point_force(&mut self, pf: PointForce) {
         self.pointForces.push(pf);
     }
 
-    fn set_point_force(&mut self, force: i32, pf: PointForce) {
+    pub fn set_point_force(&mut self, force: i32, pf: PointForce) {
         self.pointForces[force as usize] = pf;
     }
 
-    fn set_friction_factor(&mut self, friction: f32) {
+    pub fn set_friction_factor(&mut self, friction: f32) {
         self.frictionFactor = friction;
     }
 
-    fn setColor(&mut self, color: i32, col: vec4) {
+    pub fn setColor(&mut self, color: i32, col: vec4) {
         self.colors[color as usize] = col;
     }
 
-    //fn set_rotate(&mut self, rot: bool){
-    //    self.rotate = rot;
-    //}
-
-    fn set_color_scheme(&mut self, colorScheme: ColorScheme) {
+    pub fn set_color_scheme(&mut self, colorScheme: ColorScheme) {
         match colorScheme {
             ColorScheme::Fire => {
                 for i in 0..4 {
@@ -361,7 +186,7 @@ impl ParticleSystem {
         p.pos += p.dir * time;
     }
 
-    fn update(&mut self, timeStamp: f32) {
+    pub fn update(&mut self, timeStamp: f32) {
         let time = timeStamp - self.lastTime;
         self.lastTime = timeStamp;
 
@@ -405,27 +230,17 @@ impl ParticleSystem {
 
             p.dir += (self.directionalForce + v) * time;
             p.dir *= friction;
-            //if rotate {} p.angle += p.angleSpeed * time; }
 
             Self::update_particle(p, time);
             true
         });
     }
 
-    fn updateTime(&mut self, timeStamp: f32) {
+    pub fn updateTime(&mut self, timeStamp: f32) {
         self.lastTime = timeStamp;
     }
 
-    //fn depthSort(&mut self, pos: &vec3, depthAxis: &vec3){
-    //    for p in &mut self.particles {
-    //        p.depth = dot(&(p.pos - *pos), depthAxis).abs();
-    //    }
-    //
-    //    // Not happy with this compare function for games - use NotNan type?
-    //    self.particles.sort_unstable_by(|a, b| { a.depth.partial_cmp(&b.depth).unwrap() } );
-    //}
-
-    fn getIndexArray(&mut self) -> &[u16] {
+    pub fn getIndexArray(&mut self) -> &[u16] {
         let old_size = self.indexArray.len();
         let new_size = self.particles.len() * 6;
 
@@ -454,7 +269,7 @@ impl ParticleSystem {
         buffer.add(size_of::<T>())
     }
 
-    fn getVertexArray(&mut self, dx: vec3, dy: vec3, useColors: bool, tex3d: bool) -> &[u8] {
+    pub fn getVertexArray(&mut self, dx: vec3, dy: vec3, useColors: bool, tex3d: bool) -> &[u8] {
         let mut vertexSize = size_of::<vec3>() + size_of::<vec2>();
         if useColors {
             vertexSize += size_of::<vec4>();

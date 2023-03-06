@@ -1,9 +1,11 @@
 mod game_rand;
 mod model;
 mod particle_system;
+mod vector;
 
 use game_rand::GameRand;
 use model::*;
+use vector::*;
 use particle_system::*;
 
 fn main() {
