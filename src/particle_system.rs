@@ -16,38 +16,38 @@ struct Particle {
 
     dir: vec3,
     life: f32,
-    invInitialLife: f32,
+    inv_initial_life: f32,
 }
 
 pub struct PointForce {
     pos: vec3,
     strength: f32,
-    linearAttenuation: f32,
-    quadraticAttenuation: f32,
+    linear_attenuation: f32,
+    quadratic_attenuation: f32,
 }
 
 pub struct ParticleSystem {
     particles: Vec<Particle>,
-    pub pointForces: Vec<PointForce>,
-    pub directionalForce: vec3,
+    pub point_forces: Vec<PointForce>,
+    pub directional_force: vec3,
 
-    lastTime: f32, 
-    particleCredit: f32,
+    last_time: f32, 
+    particle_credit: f32,
 
     pub colors: [vec4; 12],
     pub pos: vec3,
 
-    pub spawnRate: f32,
+    pub spawn_rate: f32,
     pub speed: f32,
-    pub speedSpread: f32,
+    pub speed_spread: f32,
     pub size: f32,
-    pub sizeSpread: f32,
+    pub size_spread: f32,
     pub life: f32,
-    pub lifeSpread: f32,
-    pub frictionFactor: f32,
+    pub life_spread: f32,
+    pub friction_factor: f32,
 
-    vertexArray: Vec<u8>,
-    indexArray: Vec<u16>,
+    vertex_array: Vec<u8>,
+    index_array: Vec<u16>,
 
     rand: GameRand, // DT_TODO: Pass this as a parameter?
 }
@@ -57,28 +57,28 @@ impl ParticleSystem {
     pub fn new() -> ParticleSystem {
         ParticleSystem {
             particles : Vec::with_capacity(20),
-            pointForces : Vec::with_capacity(2),
-            directionalForce : vec3(0.0,0.0, 0.0),
-            lastTime : 0.0,
-            particleCredit : 0.0,
+            point_forces : Vec::with_capacity(2),
+            directional_force : vec3(0.0,0.0, 0.0),
+            last_time : 0.0,
+            particle_credit : 0.0,
 
             colors : [vec4(0.0,0.0,0.0,0.0); 12], 
             pos : vec3(0.0, 0.0, 0.0),
         
-            spawnRate : 10.0,
+            spawn_rate : 10.0,
             speed : 100.0,
-            speedSpread : 25.0,
+            speed_spread : 25.0,
         
             size : 100.0,
-            sizeSpread : 10.0,
+            size_spread : 10.0,
         
             life : 2.5,
-            lifeSpread : 0.5,
+            life_spread : 0.5,
         
-            frictionFactor : 0.7,
+            friction_factor : 0.7,
         
-            vertexArray : Vec::new(),
-            indexArray : Vec::new(),
+            vertex_array : Vec::new(),
+            index_array : Vec::new(),
 
             rand : GameRand::new(2356),
         }
@@ -89,12 +89,12 @@ impl ParticleSystem {
         return mean + r * r.abs() * diff;
     }
 
-    pub fn get_particle_count(&self) -> u32 {
-        self.particles.len() as u32
+    pub fn get_particle_count(&self) -> usize {
+        self.particles.len()
     }
 
-    pub fn set_color_scheme(&mut self, colorScheme: ColorScheme) {
-        match colorScheme {
+    pub fn set_color_scheme(&mut self, color_scheme: ColorScheme) {
+        match color_scheme {
             ColorScheme::Fire => {
                 for i in 0..4 {
                     let f = i as f32;
@@ -133,29 +133,29 @@ impl ParticleSystem {
         }
     }
 
-    pub fn update(&mut self, timeStamp: f32) {
-        let time = timeStamp - self.lastTime;
-        self.lastTime = timeStamp;
+    pub fn update(&mut self, time_stamp: f32) {
+        let time = time_stamp - self.last_time;
+        self.last_time = time_stamp;
 
-        self.particleCredit += time * self.spawnRate;
-        let len = self.particleCredit as u32;
-        self.particleCredit -= len as f32;
+        self.particle_credit += time * self.spawn_rate;
+        let len = self.particle_credit as u32;
+        self.particle_credit -= len as f32;
 
         for _ in 0..len {
-            let life = self.random(self.life, self.lifeSpread);
+            let life = self.random(self.life, self.life_spread);
             let p = Particle {
                 pos: self.pos,
                 dir: normalize(&vec3(self.random(0.0, 0.3), 1.0, self.random(0.0, 0.3)))
-                    * self.random(self.speed, self.speedSpread),
+                    * self.random(self.speed, self.speed_spread),
 
-                size: self.random(self.size, self.sizeSpread),
+                size: self.random(self.size, self.size_spread),
                 life,
-                invInitialLife: 1.0 / life,
+                inv_initial_life: 1.0 / life,
             };
             self.particles.push(p);
         }
 
-        let friction = self.frictionFactor.powf(time);
+        let friction = self.friction_factor.powf(time);
 
         self.particles.retain_mut(|p| {
             p.life -= time;
@@ -164,17 +164,17 @@ impl ParticleSystem {
             }
 
             let mut v = vec3(0.0, 0.0, 0.0);
-            for f in &self.pointForces {
+            for f in &self.point_forces {
                 let dir = f.pos - p.pos;
                 let dist = dot(&dir, &dir);
                 v += dir
                     * (f.strength
                         / (1.0
-                            + dist.sqrt() * f.linearAttenuation
-                            + dist * f.quadraticAttenuation));
+                            + dist.sqrt() * f.linear_attenuation
+                            + dist * f.quadratic_attenuation));
             }
 
-            p.dir += (self.directionalForce + v) * time;
+            p.dir += (self.directional_force + v) * time;
             p.dir *= friction;
 
             p.pos += p.dir * time;
@@ -182,30 +182,30 @@ impl ParticleSystem {
         });
     }
 
-    pub fn updateTime(&mut self, timeStamp: f32) {
-        self.lastTime = timeStamp;
+    pub fn update_time(&mut self, time_stamp: f32) {
+        self.last_time = time_stamp;
     }
 
-    pub fn getIndexArray(&mut self) -> &[u16] {
-        let old_size = self.indexArray.len();
+    pub fn get_index_array(&mut self) -> &[u16] {
+        let old_size = self.index_array.len();
         let new_size = self.particles.len() * 6;
 
         if new_size > old_size {
-            self.indexArray.reserve(new_size);
+            self.index_array.reserve(new_size);
 
             let start_index = (old_size / 6) as u16;
             let end_index = self.particles.len() as u16;
             for i in start_index..end_index {
-                self.indexArray.push(4 * i);
-                self.indexArray.push(4 * i + 1);
-                self.indexArray.push(4 * i + 3);
-                self.indexArray.push(4 * i + 3);
-                self.indexArray.push(4 * i + 1);
-                self.indexArray.push(4 * i + 2);
+                self.index_array.push(4 * i);
+                self.index_array.push(4 * i + 1);
+                self.index_array.push(4 * i + 3);
+                self.index_array.push(4 * i + 3);
+                self.index_array.push(4 * i + 1);
+                self.index_array.push(4 * i + 2);
             }
         }
 
-        &self.indexArray
+        &self.index_array
     }
 
     unsafe fn copy_to_buffer<T>(buffer: *mut u8, data: T) -> *mut u8 {
@@ -215,18 +215,18 @@ impl ParticleSystem {
         buffer.add(size_of::<T>())
     }
 
-    pub fn getVertexArray(&mut self, dx: vec3, dy: vec3, useColors: bool, tex3d: bool) -> &[u8] {
-        let mut vertexSize = size_of::<vec3>() + size_of::<vec2>();
-        if useColors {
-            vertexSize += size_of::<vec4>();
+    pub fn get_vertex_array(&mut self, dx: vec3, dy: vec3, use_colors: bool, tex3d: bool) -> &[u8] {
+        let mut vertex_size = size_of::<vec3>() + size_of::<vec2>();
+        if use_colors {
+            vertex_size += size_of::<vec4>();
         }
         if tex3d {
-            vertexSize += size_of::<f32>();
+            vertex_size += size_of::<f32>();
         }
 
-        let size = self.particles.len() * vertexSize * 4;
-        if size > self.vertexArray.len() {
-            self.vertexArray.resize(size, 0);
+        let size = self.particles.len() * vertex_size * 4;
+        if size > self.vertex_array.len() {
+            self.vertex_array.resize(size, 0);
         }
 
         const COORDS : [vec2; 4] = [vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0)];
@@ -234,42 +234,42 @@ impl ParticleSystem {
 
         let mut frac : f32 = 0.0;
         let mut color : vec4 = vec4(0.0,0.0,0.0,0.0);
-        let destRange = self.vertexArray.as_mut_ptr_range();
-        let mut destPtr = destRange.start;
+        let dest_range = self.vertex_array.as_mut_ptr_range();
+        let mut dest_ptr = dest_range.start;
         for p in &self.particles {
 
-            if useColors || tex3d {
-                frac = p.life * p.invInitialLife;
+            if use_colors || tex3d {
+                frac = p.life * p.inv_initial_life;
             }
 
-            if useColors {
-                let mut colFrac = 11.0 * frac;
-                let colInt = colFrac as i32;
-                colFrac -= colInt as f32;
+            if use_colors {
+                let mut col_frac = 11.0 * frac;
+                let col_int = col_frac as i32;
+                col_frac -= col_int as f32;
     
-                color = lerp(&self.colors[colInt as usize], &self.colors[colInt as usize + 1], colFrac);
+                color = lerp(&self.colors[col_int as usize], &self.colors[col_int as usize + 1], col_frac);
             }
 
             for j in 0..4 {
 
                 let pos = p.pos + vect[j] * p.size;
                 unsafe {
-                    destPtr = Self::copy_to_buffer(destPtr, pos);
-                    destPtr = Self::copy_to_buffer(destPtr, COORDS[j]);
+                    dest_ptr = Self::copy_to_buffer(dest_ptr, pos);
+                    dest_ptr = Self::copy_to_buffer(dest_ptr, COORDS[j]);
 
                     if tex3d {
-                        destPtr = Self::copy_to_buffer(destPtr, 1.0 - frac);
+                        dest_ptr = Self::copy_to_buffer(dest_ptr, 1.0 - frac);
                     }
         
-                    if useColors {
-                        destPtr = Self::copy_to_buffer(destPtr, color);
+                    if use_colors {
+                        dest_ptr = Self::copy_to_buffer(dest_ptr, color);
                     }
                 }
             }
         }
-        debug_assert!(destPtr <= destRange.end);
+        debug_assert!(dest_ptr <= dest_range.end);
 
-        &self.vertexArray
+        &self.vertex_array
     }
 }
 
