@@ -1,5 +1,12 @@
 use crate::game_rand::GameRand;
-use std::mem::size_of;
+
+use std::{mem::*, ops::RangeBounds};
+#[macro_export]
+macro_rules! static_assert {
+    ($condition:expr) => {
+        const _: () = core::assert!($condition);
+    }
+}
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -7,6 +14,11 @@ use std::mem::size_of;
 pub struct vec2 {
     pub x: f32,
     pub y: f32,
+}
+static_assert!(size_of::<vec2>() == 8);
+
+pub const fn vec2(x: f32, y: f32) -> vec2 {
+    vec2 { x, y }
 }
 
 #[repr(C)]
@@ -17,7 +29,9 @@ pub struct vec3 {
     pub y: f32,
     pub z: f32,
 }
-pub fn vec3(x: f32, y: f32, z: f32) -> vec3 {
+static_assert!(size_of::<vec3>() == 12);
+
+pub const fn vec3(x: f32, y: f32, z: f32) -> vec3 {
     vec3 { x, y, z }
 }
 
@@ -65,6 +79,14 @@ impl std::ops::Sub<vec3> for vec3 {
     }
 }
 
+impl std::ops::Neg for vec3 {
+    type Output = vec3;
+
+    fn neg(self) -> Self::Output {
+        vec3(-self.x, -self.y, -self.z)
+    }
+}
+
 impl std::ops::AddAssign<vec3> for vec3 {
     fn add_assign(&mut self, rhs: vec3) {
         *self = *self + rhs;
@@ -86,9 +108,66 @@ pub struct vec4 {
     pub z: f32,
     pub w: f32,
 }
+static_assert!(size_of::<vec4>() == 16);
 
-pub fn vec4(x: f32, y: f32, z: f32, w: f32) -> vec4 {
+pub const fn vec4(x: f32, y: f32, z: f32, w: f32) -> vec4 {
     vec4 { x, y, z, w }
+}
+
+pub fn lerp(x :&vec4, y:&vec4, a: f32) -> vec4 {
+    *x + ((*y - *x) * a)
+}
+
+impl std::ops::Mul<f32> for vec4 {
+    type Output = vec4;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        vec4(self.x * rhs, self.y * rhs, self.z * rhs, self.w * rhs)
+    }
+}
+
+impl std::ops::Div<f32> for vec4 {
+    type Output = vec4;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        vec4(self.x / rhs, self.y / rhs, self.z / rhs, self.w / rhs)
+    }
+}
+
+impl std::ops::Add<vec4> for vec4 {
+    type Output = vec4;
+
+    fn add(self, rhs: vec4) -> Self::Output {
+        vec4(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z, self.w + rhs.w)
+    }
+}
+
+impl std::ops::Sub<vec4> for vec4 {
+    type Output = vec4;
+
+    fn sub(self, rhs: vec4) -> Self::Output {
+        vec4(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z, self.w - rhs.w)
+    }
+}
+
+impl std::ops::Neg for vec4 {
+    type Output = vec4;
+
+    fn neg(self) -> Self::Output {
+        vec4(-self.x, -self.y, -self.z, -self.w)
+    }
+}
+
+impl std::ops::AddAssign<vec4> for vec4 {
+    fn add_assign(&mut self, rhs: vec4) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::MulAssign<f32> for vec4 {
+    fn mul_assign(&mut self, rhs: f32) {
+        *self = *self * rhs;
+    }
 }
 
 enum ColorScheme {
@@ -207,7 +286,7 @@ impl ParticleSystem {
     //}
 
     fn set_color_scheme(&mut self, colorScheme: ColorScheme) {
-        match (colorScheme) {
+        match colorScheme {
             ColorScheme::Fire => {
                 for i in 0..4 {
                     let f = i as f32;
@@ -336,6 +415,13 @@ impl ParticleSystem {
         &self.indexArray
     }
 
+    unsafe fn copy_to_buffer<T>(buffer: *mut u8, data: T) -> *mut u8 {
+        let data = &data as *const T as * const u8;
+
+        buffer.copy_from_nonoverlapping(data, size_of::<T>());
+        buffer.add(size_of::<T>())
+    }
+
     fn getVertexArray(&mut self, dx: vec3, dy: vec3, useColors: bool, tex3d: bool) -> &[u8] {
         let mut vertexSize = size_of::<vec3>() + size_of::<vec2>();
         if useColors {
@@ -346,26 +432,53 @@ impl ParticleSystem {
         }
 
         let size = self.particles.len() * vertexSize * 4;
-        if (size > self.vertexArray.len()) {
+        if size > self.vertexArray.len() {
             self.vertexArray.resize(size, 0);
         }
 
-        //fillVertexArray(vertexArray, dx, dy, useColors, tex3d);
+        const COORDS : [vec2; 4] = [vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0)];
+        let vect  = [-dx + dy, dx + dy, dx - dy, -dx - dy];
+
+        let mut frac : f32 = 0.0;
+        let mut color : vec4 = vec4(0.0,0.0,0.0,0.0);
+        let destRange = self.vertexArray.as_mut_ptr_range();
+        let mut destPtr = destRange.start;
+        for p in &self.particles {
+
+            if useColors || tex3d {
+                frac = p.life * p.invInitialLife;
+            }
+
+            if useColors {
+                let mut colFrac = 11.0 * frac;
+                let colInt = colFrac as i32;
+                colFrac -= colInt as f32;
+    
+                color = lerp(&self.colors[colInt as usize], &self.colors[colInt as usize + 1], colFrac);
+            }
+
+            for j in 0..4 {
+
+                let pos = p.pos + vect[j] * p.size;
+                unsafe {
+                    destPtr = Self::copy_to_buffer(destPtr, pos);
+                    destPtr = Self::copy_to_buffer(destPtr, COORDS[j]);
+
+                    if tex3d {
+                        destPtr = Self::copy_to_buffer(destPtr, 1.0 - frac);
+                    }
+        
+                    if useColors {
+                        destPtr = Self::copy_to_buffer(destPtr, color);
+                    }
+                }
+            }
+        }
+        debug_assert!(destPtr <= destRange.end);
 
         &self.vertexArray
     }
 }
-/*
-
-char *getVertexArray(const vec3 &dx, const vec3 &dy, bool useColors = true, bool tex3d = false);
-char *getPointSpriteArray(bool useColors = true);
-unsigned short *getIndexArray();
-
-void fillVertexArray(char *dest, const vec3 &dx, const vec3 &dy, bool useColors = true, bool tex3d = false);
-void fillInstanceVertexArray(char *dest);
-void fillInstanceVertexArrayRange(vec4 *posAndSize, vec4 *color, const unsigned int start, unsigned int count);
-void fillIndexArray(unsigned short *dest);
-*/
 
 /*
 ParticleSystem::ParticleSystem(){
@@ -399,124 +512,4 @@ ParticleSystem::ParticleSystem(){
 
 
 
-char *ParticleSystem::getPointSpriteArray(bool useColors){
-    unsigned int vertexSize = sizeof(vec3) + sizeof(float);
-    if (useColors) vertexSize += sizeof(vec4);
-    unsigned int size = vertexSize * (unsigned int)particles.size();
-
-    if (size > vertexArraySize){
-        delete vertexArray;
-        vertexArray = new char[size];
-        vertexArraySize = size;
-    }
-
-    char *dest = vertexArray;
-    for (unsigned int i = 0; i < particles.size(); i++){
-        *(vec3 *) dest = particles[i].pos;
-        dest += sizeof(vec3);
-        *(float *) dest = particles[i].size;
-        dest += sizeof(float);
-
-        if (useColors){
-            //float colFrac = (11.0f * particles[i].life) / particles[i].initialLife;
-            float colFrac = 11.0f * particles[i].life * particles[i].invInitialLife;
-
-            int colInt = (int) colFrac;
-            colFrac -= colInt;
-
-            *(vec4 *) dest = lerp(colors[colInt], colors[colInt + 1], colFrac);
-            dest += sizeof(vec4);
-        }
-    }
-
-    return vertexArray;
-}
-
-void ParticleSystem::fillVertexArray(char *dest, const vec3 &dx, const vec3 &dy, bool useColors, bool tex3d){
-    static vec2 coords[4] = { vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 1) };
-    vec3 vect[4] = { -dx + dy, dx + dy, dx - dy, -dx - dy };
-
-    float frac = 0;
-    vec4 color;
-    for (unsigned int i = 0; i < particles.size(); i++){
-        if (useColors || tex3d)
-            frac = particles[i].life * particles[i].invInitialLife;
-//			frac = particles[i].life / particles[i].initialLife;
-
-        if (useColors){
-            float colFrac = 11.0f * frac;
-            int colInt = (int) colFrac;
-            colFrac -= colInt;
-
-            color = lerp(colors[colInt], colors[colInt + 1], colFrac);
-        }
-
-        if (rotate){
-            float fx = 1.4142136f * cosf(particles[i].angle);
-            float fy = 1.4142136f * sinf(particles[i].angle);
-
-            for (unsigned int k = 0; k < 4; k++){
-                vect[k] = fx * dx + fy * dy;
-
-                float t = fy;
-                fy = -fx;
-                fx = t;
-            }
-        }
-
-        for (unsigned int j = 0; j < 4; j++){
-            *(vec3 *) dest = particles[i].pos + particles[i].size * vect[j];
-            dest += sizeof(vec3);
-            *(vec2 *) dest = coords[j];
-            dest += sizeof(vec2);
-
-            if (tex3d){
-                *(float *) dest = 1.0f - frac;
-                dest += sizeof(float);
-            }
-
-            if (useColors){
-                *(vec4 *) dest = color;
-                dest += sizeof(vec4);
-            }
-        }
-    }
-}
-
-void ParticleSystem::fillInstanceVertexArray(char *dest){
-    Particle *part = particles.data();
-    for (unsigned int i = 0; i < particles.size(); i++){
-        *(vec3 *) dest = part->pos;
-        dest += sizeof(vec3);
-        *(float *) dest = part->size;
-        dest += sizeof(float);
-
-        float colFrac = 11.0f * part->life * part->invInitialLife;
-        int colInt = (int) colFrac;
-        colFrac -= colInt;
-
-        *(vec4 *) dest = lerp(colors[colInt], colors[colInt + 1], colFrac);
-        dest += sizeof(vec4);
-
-        part++;
-    }
-}
-
-void ParticleSystem::fillInstanceVertexArrayRange(vec4 *posAndSize, vec4 *color, const unsigned int start, unsigned int count){
-    Particle *part = particles.data() + start;
-
-    for (unsigned int i = 0; i < count; i++){
-        *(vec3 *) posAndSize = part->pos;
-        posAndSize->w = part->size;
-        posAndSize++;
-
-        float colFrac = 11.0f * part->life * part->invInitialLife;
-        int colInt = (int) colFrac;
-        colFrac -= colInt;
-
-        *color++ = lerp(colors[colInt], colors[colInt + 1], colFrac);
-
-        part++;
-    }
-}
  */
