@@ -27,16 +27,8 @@ pub struct PointForce {
 }
 
 pub struct ParticleSystem {
-    particles: Vec<Particle>,
-    pub point_forces: Vec<PointForce>,
-    pub directional_force: vec3,
 
-    last_time: f32, 
-    particle_credit: f32,
-
-    pub colors: [vec4; 12],
     pub pos: vec3,
-
     pub spawn_rate: f32,
     pub speed: f32,
     pub speed_spread: f32,
@@ -46,47 +38,43 @@ pub struct ParticleSystem {
     pub life_spread: f32,
     pub friction_factor: f32,
 
+    pub colors: [vec4; 12],
+    pub point_forces: Vec<PointForce>,
+    pub directional_force: vec3,
+
+    last_time: f32, 
+    particle_credit: f32,
+
+    particles: Vec<Particle>,
     vertex_array: Vec<u8>,
     index_array: Vec<u16>,
-
-    rand: GameRand, // DT_TODO: Pass this as a parameter?
 }
 
 impl ParticleSystem {
 
     pub fn new() -> ParticleSystem {
         ParticleSystem {
-            particles : Vec::with_capacity(20),
-            point_forces : Vec::with_capacity(2),
-            directional_force : vec3(0.0,0.0, 0.0),
-            last_time : 0.0,
-            particle_credit : 0.0,
-
-            colors : [vec4(0.0,0.0,0.0,0.0); 12], 
             pos : vec3(0.0, 0.0, 0.0),
-        
             spawn_rate : 10.0,
             speed : 100.0,
             speed_spread : 25.0,
-        
             size : 100.0,
             size_spread : 10.0,
-        
             life : 2.5,
             life_spread : 0.5,
-        
             friction_factor : 0.7,
-        
+
+            colors : [vec4(0.0,0.0,0.0,0.0); 12], 
+            point_forces : Vec::with_capacity(2),
+            directional_force : vec3(0.0,0.0, 0.0),
+
+            last_time : 0.0,
+            particle_credit : 0.0,
+
+            particles : Vec::with_capacity(20),
             vertex_array : Vec::new(),
             index_array : Vec::new(),
-
-            rand : GameRand::new(2356),
         }
-    }
-
-    fn random(&mut self, mean: f32, diff: f32) -> f32 {
-        let r: f32 = 2.0 * self.rand.next_random01() - 1.0;
-        return mean + r * r.abs() * diff;
     }
 
     pub fn get_particle_count(&self) -> usize {
@@ -133,7 +121,7 @@ impl ParticleSystem {
         }
     }
 
-    pub fn update(&mut self, time_stamp: f32) {
+    pub fn update(&mut self, time_stamp: f32, rand : &mut GameRand) {
         let time = time_stamp - self.last_time;
         self.last_time = time_stamp;
 
@@ -141,14 +129,19 @@ impl ParticleSystem {
         let len = self.particle_credit as u32;
         self.particle_credit -= len as f32;
 
+        let mut random = |mean: f32, diff: f32| {
+            let r: f32 = 2.0 * rand.next_random01() - 1.0;
+            mean + r * r.abs() * diff
+        };
+
         for _ in 0..len {
-            let life = self.random(self.life, self.life_spread);
+            let life = random(self.life, self.life_spread);
             let p = Particle {
                 pos: self.pos,
-                dir: normalize(&vec3(self.random(0.0, 0.3), 1.0, self.random(0.0, 0.3)))
-                    * self.random(self.speed, self.speed_spread),
+                dir: normalize(&vec3(random(0.0, 0.3), 1.0, random(0.0, 0.3)))
+                    * random(self.speed, self.speed_spread),
 
-                size: self.random(self.size, self.size_spread),
+                size: random(self.size, self.size_spread),
                 life,
                 inv_initial_life: 1.0 / life,
             };
