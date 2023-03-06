@@ -199,7 +199,10 @@ impl ParticleSystem {
         &self.index_array[..new_size] // Only return up to the used size
     }
 
-    unsafe fn copy_to_buffer<T>(buffer: *mut u8, data: T) -> *mut u8 {
+    unsafe fn copy_to_buffer<T>(buffer: *mut u8, data: T) -> *mut u8
+    where
+        T: Copy,
+    {
         let data = &data as *const T as *const u8;
 
         buffer.copy_from_nonoverlapping(data, size_of::<T>());
