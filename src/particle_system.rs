@@ -217,7 +217,6 @@ struct ParticleSystem {
     lifeSpread: f32,
     frictionFactor: f32,
 
-    //rotate : bool,
     vertexArray: Vec<u8>,
     indexArray: Vec<u16>,
 
@@ -225,6 +224,39 @@ struct ParticleSystem {
 }
 
 impl ParticleSystem {
+
+    fn new() -> ParticleSystem {
+        let mut p = ParticleSystem {
+            particles : Vec::with_capacity(20),
+            pointForces : Vec::with_capacity(2),
+            directionalForce : vec3(0.0,0.0, 0.0),
+            lastTime : 0.0,
+            particleCredit : 0.0,
+
+            colors : [vec4(0.0,0.0,0.0,0.0); 12], 
+            pos : vec3(0.0, 0.0, 0.0),
+        
+            spawnRate : 10.0,
+            speed : 100.0,
+            speedSpread : 25.0,
+        
+            size : 100.0,
+            sizeSpread : 10.0,
+        
+            life : 2.5,
+            lifeSpread : 0.5,
+        
+            frictionFactor : 0.7,
+        
+            vertexArray : Vec::new(),
+            indexArray : Vec::new(),
+
+            rand : GameRand::new(2356),
+        };
+        p.set_color_scheme(ColorScheme::Fire);
+        p
+    }
+
     fn random(&mut self, mean: f32, diff: f32) -> f32 {
         let r: f32 = 2.0 * self.rand.next_random01() - 1.0;
         return mean + r * r.abs() * diff;
@@ -480,36 +512,3 @@ impl ParticleSystem {
     }
 }
 
-/*
-ParticleSystem::ParticleSystem(){
-    pos = vec3(0, 0, 0);
-    directionalForce = vec3(0, 0, 0);
-
-    spawnRate = 10;
-    speed = 100;
-    speedSpread = 25;
-
-    size = 100;
-    sizeSpread = 10;
-
-    life = 2.5f;
-    lifeSpread = 0.5f;
-
-    frictionFactor = 0.7f;
-
-    setColorScheme(COLOR_SCHEME_FIRE);
-
-    lastTime = 0;
-    particleCredit = 0;
-
-    rotate = false;
-
-    vertexArray = NULL;
-    vertexArraySize = 0;
-    indexArray = NULL;
-    indexArraySize = 0;
-}
-
-
-
- */
