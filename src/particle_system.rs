@@ -27,7 +27,6 @@ pub struct PointForce {
 }
 
 pub struct ParticleSystem {
-
     pub pos: vec3,
     pub spawn_rate: f32,
     pub speed: f32,
@@ -42,7 +41,7 @@ pub struct ParticleSystem {
     pub point_forces: Vec<PointForce>,
     pub directional_force: vec3,
 
-    last_time: f32, 
+    last_time: f32,
     particle_credit: f32,
 
     particles: Vec<Particle>,
@@ -51,29 +50,28 @@ pub struct ParticleSystem {
 }
 
 impl ParticleSystem {
-
     pub fn new() -> ParticleSystem {
         ParticleSystem {
-            pos : vec3(0.0, 0.0, 0.0),
-            spawn_rate : 10.0,
-            speed : 100.0,
-            speed_spread : 25.0,
-            size : 100.0,
-            size_spread : 10.0,
-            life : 2.5,
-            life_spread : 0.5,
-            friction_factor : 0.7,
+            pos: vec3(0.0, 0.0, 0.0),
+            spawn_rate: 10.0,
+            speed: 100.0,
+            speed_spread: 25.0,
+            size: 100.0,
+            size_spread: 10.0,
+            life: 2.5,
+            life_spread: 0.5,
+            friction_factor: 0.7,
 
-            colors : [vec4(0.0,0.0,0.0,0.0); 12], 
-            point_forces : Vec::with_capacity(2),
-            directional_force : vec3(0.0,0.0, 0.0),
+            colors: [vec4(0.0, 0.0, 0.0, 0.0); 12],
+            point_forces: Vec::with_capacity(2),
+            directional_force: vec3(0.0, 0.0, 0.0),
 
-            last_time : 0.0,
-            particle_credit : 0.0,
+            last_time: 0.0,
+            particle_credit: 0.0,
 
-            particles : Vec::with_capacity(20),
-            vertex_array : Vec::new(),
-            index_array : Vec::new(),
+            particles: Vec::with_capacity(20),
+            vertex_array: Vec::new(),
+            index_array: Vec::new(),
         }
     }
 
@@ -121,7 +119,7 @@ impl ParticleSystem {
         }
     }
 
-    pub fn update(&mut self, time_stamp: f32, rand : &mut GameRand) {
+    pub fn update(&mut self, time_stamp: f32, rand: &mut GameRand) {
         let time = time_stamp - self.last_time;
         self.last_time = time_stamp;
 
@@ -202,7 +200,7 @@ impl ParticleSystem {
     }
 
     unsafe fn copy_to_buffer<T>(buffer: *mut u8, data: T) -> *mut u8 {
-        let data = &data as *const T as * const u8;
+        let data = &data as *const T as *const u8;
 
         buffer.copy_from_nonoverlapping(data, size_of::<T>());
         buffer.add(size_of::<T>())
@@ -222,15 +220,19 @@ impl ParticleSystem {
             self.vertex_array.resize(size, 0);
         }
 
-        const COORDS : [vec2; 4] = [vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0)];
-        let vect  = [-dx + dy, dx + dy, dx - dy, -dx - dy];
+        const COORDS: [vec2; 4] = [
+            vec2(0.0, 0.0),
+            vec2(1.0, 0.0),
+            vec2(1.0, 1.0),
+            vec2(0.0, 1.0),
+        ];
+        let vect = [-dx + dy, dx + dy, dx - dy, -dx - dy];
 
-        let mut frac : f32 = 0.0;
-        let mut color : vec4 = vec4(0.0,0.0,0.0,0.0);
+        let mut frac: f32 = 0.0;
+        let mut color: vec4 = vec4(0.0, 0.0, 0.0, 0.0);
         let dest_range = self.vertex_array.as_mut_ptr_range();
         let mut dest_ptr = dest_range.start;
         for p in &self.particles {
-
             if use_colors || tex3d {
                 frac = p.life * p.inv_initial_life;
             }
@@ -239,12 +241,15 @@ impl ParticleSystem {
                 let mut col_frac = 11.0 * frac;
                 let col_int = col_frac as i32;
                 col_frac -= col_int as f32;
-    
-                color = lerp(&self.colors[col_int as usize], &self.colors[col_int as usize + 1], col_frac);
+
+                color = lerp(
+                    &self.colors[col_int as usize],
+                    &self.colors[col_int as usize + 1],
+                    col_frac,
+                );
             }
 
             for j in 0..4 {
-
                 let pos = p.pos + vect[j] * p.size;
                 unsafe {
                     dest_ptr = Self::copy_to_buffer(dest_ptr, pos);
@@ -253,7 +258,7 @@ impl ParticleSystem {
                     if tex3d {
                         dest_ptr = Self::copy_to_buffer(dest_ptr, 1.0 - frac);
                     }
-        
+
                     if use_colors {
                         dest_ptr = Self::copy_to_buffer(dest_ptr, color);
                     }
@@ -265,4 +270,3 @@ impl ParticleSystem {
         &self.vertex_array[..size] // Only return up to the used size
     }
 }
-

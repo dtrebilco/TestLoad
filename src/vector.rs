@@ -4,7 +4,7 @@ use std::mem::size_of;
 macro_rules! static_assert {
     ($condition:expr) => {
         const _: () = core::assert!($condition);
-    }
+    };
 }
 
 #[repr(C)]
@@ -113,7 +113,7 @@ pub const fn vec4(x: f32, y: f32, z: f32, w: f32) -> vec4 {
     vec4 { x, y, z, w }
 }
 
-pub fn lerp(x :&vec4, y:&vec4, a: f32) -> vec4 {
+pub fn lerp(x: &vec4, y: &vec4, a: f32) -> vec4 {
     *x + ((*y - *x) * a)
 }
 
@@ -137,7 +137,12 @@ impl std::ops::Add<vec4> for vec4 {
     type Output = vec4;
 
     fn add(self, rhs: vec4) -> Self::Output {
-        vec4(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z, self.w + rhs.w)
+        vec4(
+            self.x + rhs.x,
+            self.y + rhs.y,
+            self.z + rhs.z,
+            self.w + rhs.w,
+        )
     }
 }
 
@@ -145,7 +150,12 @@ impl std::ops::Sub<vec4> for vec4 {
     type Output = vec4;
 
     fn sub(self, rhs: vec4) -> Self::Output {
-        vec4(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z, self.w - rhs.w)
+        vec4(
+            self.x - rhs.x,
+            self.y - rhs.y,
+            self.z - rhs.z,
+            self.w - rhs.w,
+        )
     }
 }
 
