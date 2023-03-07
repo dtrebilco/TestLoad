@@ -46,6 +46,13 @@ fn main() {
     for p in PrimitiveType::iter() {
         println!("{:?}", p);
     }
+
+    let mut v = vec2(0.0, 1.0);
+    v += vec2(2.0, 3.0);
+    v -= vec2(2.0, 3.0);
+    v *= 3.0;
+    v /= 3.0;
+
     /*/
         let mut rand = GameRand::new(12345);
 

@@ -7,6 +7,34 @@ macro_rules! static_assert {
     };
 }
 
+macro_rules! vec_ops {
+    ($name:ident) => {
+        impl std::ops::AddAssign<$name> for $name {
+            fn add_assign(&mut self, rhs: $name) {
+                *self = *self + rhs;
+            }
+        }
+
+        impl std::ops::SubAssign<$name> for $name {
+            fn sub_assign(&mut self, rhs: $name) {
+                *self = *self - rhs;
+            }
+        }
+
+        impl std::ops::MulAssign<f32> for $name {
+            fn mul_assign(&mut self, rhs: f32) {
+                *self = *self * rhs;
+            }
+        }
+
+        impl std::ops::DivAssign<f32> for $name {
+            fn div_assign(&mut self, rhs: f32) {
+                *self = *self / rhs;
+            }
+        }
+    };
+}
+
 #[repr(C)]
 #[allow(non_snake_case)]
 #[derive(PartialEq, Copy, Clone)]
@@ -19,6 +47,49 @@ static_assert!(size_of::<vec2>() == 8);
 pub const fn vec2(x: f32, y: f32) -> vec2 {
     vec2 { x, y }
 }
+
+impl std::ops::Mul<f32> for vec2 {
+    type Output = vec2;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        vec2(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl std::ops::Div<f32> for vec2 {
+    type Output = vec2;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        vec2(self.x / rhs, self.y / rhs)
+    }
+}
+
+impl std::ops::Add<vec2> for vec2 {
+    type Output = vec2;
+
+    fn add(self, rhs: vec2) -> Self::Output {
+        vec2(self.x + rhs.x, self.y + rhs.y)
+    }
+}
+
+impl std::ops::Sub<vec2> for vec2 {
+    type Output = vec2;
+
+    fn sub(self, rhs: vec2) -> Self::Output {
+        vec2(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
+impl std::ops::Neg for vec2 {
+    type Output = vec2;
+
+    fn neg(self) -> Self::Output {
+        vec2(-self.x, -self.y)
+    }
+}
+vec_ops!(vec2);
+
+// -------------------------------------------------------------------------------------------
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -38,8 +109,12 @@ pub fn dot(a: &vec3, b: &vec3) -> f32 {
     (a.x * b.x) + (a.y * b.y) + (a.z * b.z)
 }
 
+pub fn length_squared(vec: &vec3) -> f32 {
+    dot(vec, vec)
+}
+
 pub fn length(vec: &vec3) -> f32 {
-    dot(vec, vec).sqrt()
+    length_squared(vec).sqrt()
 }
 
 pub fn normalize(vec: &vec3) -> vec3 {
@@ -86,17 +161,9 @@ impl std::ops::Neg for vec3 {
     }
 }
 
-impl std::ops::AddAssign<vec3> for vec3 {
-    fn add_assign(&mut self, rhs: vec3) {
-        *self = *self + rhs;
-    }
-}
+vec_ops!(vec3);
 
-impl std::ops::MulAssign<f32> for vec3 {
-    fn mul_assign(&mut self, rhs: f32) {
-        *self = *self * rhs;
-    }
-}
+// -------------------------------------------------------------------------------------------
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -167,14 +234,4 @@ impl std::ops::Neg for vec4 {
     }
 }
 
-impl std::ops::AddAssign<vec4> for vec4 {
-    fn add_assign(&mut self, rhs: vec4) {
-        *self = *self + rhs;
-    }
-}
-
-impl std::ops::MulAssign<f32> for vec4 {
-    fn mul_assign(&mut self, rhs: f32) {
-        *self = *self * rhs;
-    }
-}
+vec_ops!(vec4);
