@@ -1,3 +1,4 @@
+mod base_app;
 mod game_rand;
 mod model;
 mod particle_system;
