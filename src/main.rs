@@ -2,11 +2,13 @@ mod game_rand;
 mod model;
 mod particle_system;
 mod vector;
+mod timer;
 
 use game_rand::GameRand;
 use model::*;
 use particle_system::*;
 use vector::*;
+use timer::*;
 
 fn main() {
     let mut p = ParticleSystem::new();
@@ -52,6 +54,8 @@ fn main() {
     v -= vec2(2.0, 3.0);
     v *= 3.0;
     v /= 3.0;
+
+    
 
     /*/
         let mut rand = GameRand::new(12345);
