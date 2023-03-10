@@ -1,8 +1,11 @@
+use crate::timer::Timer;
 use crate::vector::*;
 
-pub struct BaseApp {
+pub struct BaseData {
     pub app_time: f32,
     pub frame_time: f32,
+
+    pub timer: Timer,
     start_ticks: u64,
     time_ticks: u64,
 
@@ -17,25 +20,46 @@ pub struct BaseApp {
     pub key_up: bool,
     pub key_backward: bool,
     pub key_forward: bool,
-
-    app: dyn App,
 }
 
 pub trait App {
-    fn reset_camera(&mut self, app: &mut BaseApp) {}
+    fn reset_camera(&mut self, _app: &mut BaseData) {}
 
-    fn on_event(&mut self, app: &mut BaseApp) -> bool {
+    fn on_event(&mut self, _app: &mut BaseData) -> bool {
         false
     }
 
-    fn load(&mut self, app: &mut BaseApp) -> bool {
+    fn load(&mut self, _app: &mut BaseData) -> bool {
         false
     }
 
-    fn draw_frame(&mut self, app: &mut BaseApp) {}
+    fn draw_frame(&mut self, _app: &mut BaseData) {}
 }
 
-impl BaseApp {
+impl BaseData {
+    fn new() -> BaseData {
+        BaseData {
+            app_time: 0.0,
+            frame_time: 0.33,
+
+            timer: Timer::new(),
+            start_ticks: 0,
+            time_ticks: 0,
+
+            cam_pos: vec3(0.0, 0.0, 0.0),
+            wx: 0.0,
+            wy: 0.0,
+            wz: 0.0,
+
+            key_left: false,
+            key_right: false,
+            key_down: false,
+            key_up: false,
+            key_backward: false,
+            key_forward: false,
+        }
+    }
+
     fn controls(&mut self) {
         // Compute directional vectors from euler angles
         let cos_x = self.wx.cos();
@@ -72,6 +96,26 @@ impl BaseApp {
             dir *= 1.0 / len_sq.sqrt();
             let speed = 1000.0f32; // DT_TODO:
             self.cam_pos += dir * (self.frame_time * speed);
+        }
+    }
+}
+
+pub struct BaseApp<T>
+where
+    T: App,
+{
+    base: BaseData,
+    app: T,
+}
+
+impl<T> BaseApp<T>
+where
+    T: App,
+{
+    fn new(app: T) -> BaseApp<T> {
+        BaseApp {
+            base: BaseData::new(),
+            app,
         }
     }
 }
