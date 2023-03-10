@@ -38,14 +38,14 @@ pub trait App {
 impl BaseApp {
     fn controls(&mut self) {
         // Compute directional vectors from euler angles
-        let cosX = self.wx.cos();
-        let sinX = self.wx.sin();
-        let cosY = self.wy.cos();
-        let sinY = self.wy.sin();
+        let cos_x = self.wx.cos();
+        let sin_x = self.wx.sin();
+        let cos_y = self.wy.cos();
+        let sin_y = self.wy.sin();
 
-        let dx = vec3(cosY, 0.0, sinY);
-        let dy = vec3(-sinX * sinY, cosX, sinX * cosY);
-        let dz = vec3(-cosX * sinY, -sinX, cosX * cosY);
+        let dx = vec3(cos_y, 0.0, sin_y);
+        let dy = vec3(-sin_x * sin_y, cos_x, sin_x * cos_y);
+        let dz = vec3(-cos_x * sin_y, -sin_x, cos_x * cos_y);
 
         let mut dir = vec3(0.0, 0.0, 0.0);
         if self.key_left {
@@ -67,9 +67,9 @@ impl BaseApp {
             dir += dz;
         }
 
-        let lenSq = length_squared(dir);
-        if lenSq > 0.0 {
-            dir *= 1.0 / lenSq.sqrt();
+        let len_sq = length_squared(&dir);
+        if len_sq > 0.0 {
+            dir *= 1.0 / len_sq.sqrt();
             let speed = 1000.0f32; // DT_TODO:
             self.cam_pos += dir * (self.frame_time * speed);
         }
