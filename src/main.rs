@@ -6,21 +6,18 @@ mod sapp;
 mod timer;
 mod vector;
 
+use base_app::*;
 use game_rand::GameRand;
 use model::*;
 use particle_system::*;
 use timer::*;
 use vector::*;
-use base_app::*;
 
-struct App {
+struct App {}
 
-}
-
-impl AppI for App{}
+impl AppI for App {}
 
 fn main() {
-
     let App = App {};
     run_app(App);
 

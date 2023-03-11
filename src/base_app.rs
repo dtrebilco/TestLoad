@@ -24,19 +24,19 @@ pub struct BaseData {
 }
 
 pub trait AppI {
-    fn init(&mut self, _app: &mut BaseData) {}
+    fn init(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) {}
 
-    fn reset_camera(&mut self, _app: &mut BaseData) {}
+    fn reset_camera(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) {}
 
-    fn on_event(&mut self, _app: &mut BaseData, _event: &Event) -> bool {
+    fn on_event(&mut self, _app: &mut BaseData, _sapp: &mut SAppData, _event: &Event) -> bool {
         false
     }
 
-    fn load(&mut self, _app: &mut BaseData) -> bool {
+    fn load(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) -> bool {
         false
     }
 
-    fn draw_frame(&mut self, _app: &mut BaseData) {}
+    fn draw_frame(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) {}
 }
 
 impl BaseData {
@@ -111,33 +111,28 @@ where
     app: T,
 }
 
-pub fn run_app<T>(app: T) where T: AppI {
-    let mut b = BaseApp {
-      base: BaseData::new(),
-      app,
-    };
-
-    b.app.init(&mut b.base);
-}
-
-impl<T> BaseApp<T>
+pub fn run_app<T>(app: T)
 where
     T: AppI,
 {
-    pub fn new(app: T) -> BaseApp<T> {
-        BaseApp {
-            base: BaseData::new(),
-            app,
-        }
-    }
+    let b = BaseApp {
+        base: BaseData::new(),
+        app,
+    };
+
+    crate::sapp::run_app(b);
 }
 
 impl<T> SAppI for BaseApp<T>
 where
     T: AppI,
 {
-    fn on_event(&mut self, data: &mut SAppData, event: &Event) {
-        if self.app.on_event(&mut self.base, &event) {
+    fn init(&mut self, data: &mut SAppData) {
+        self.app.init(&mut self.base, data);
+    }
+
+    fn on_event(&mut self, sapp: &mut SAppData, event: &Event) {
+        if self.app.on_event(&mut self.base, sapp, &event) {
             return;
         }
 
@@ -163,7 +158,7 @@ where
                         //sapp_request_quit();
                     }
                     if data.key_code == KeyCode::Enter {
-                        self.app.reset_camera(&mut self.base);
+                        self.app.reset_camera(&mut self.base, sapp);
                     }
                 }
                 if !data.key_repeat {

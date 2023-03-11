@@ -235,9 +235,7 @@ struct Event {
 */
 
 pub trait SAppI {
-    fn load(&mut self, _app: &mut SAppData) -> bool {
-        false
-    }
+    fn init(&mut self, _app: &mut SAppData) {}
 
     fn draw_frame(&mut self, _app: &mut SAppData) {}
 
@@ -256,18 +254,17 @@ where
     app: T,
 }
 
-impl<T> SApp<T>
+pub fn run_app<T>(app: T)
 where
     T: SAppI,
 {
-    fn new(app: T) -> SApp<T> {
-        SApp {
-            base: SAppData{},
-            app,
-        }
-    }
-}
+    let mut b = SApp {
+        base: SAppData {},
+        app,
+    };
 
+    b.app.init(&mut b.base);
+}
 
 /*
 enum {
