@@ -148,3 +148,70 @@ enum KeyCode {
     RightSuper = 347,
     Menu = 348,
 }
+
+
+/*
+    sapp_mousebutton
+
+    The currently pressed mouse button in the events MOUSE_DOWN
+    and MOUSE_UP, stored in the struct field sapp_event.mouse_button.
+*/
+enum MouseButton {
+    Left = 0x0,
+    Right = 0x1,
+    Middle = 0x2,
+    Invalid = 0x100,
+}
+
+/*
+    These are currently pressed modifier keys (and mouse buttons) which are
+    passed in the event struct field sapp_event.modifiers.
+*/
+enum Modifier{
+    Shift = 0x1,      // left or right shift key
+    Ctrl  = 0x2,      // left or right control key
+    Alt   = 0x4,      // left or right alt key
+    Super = 0x8,      // left or right 'super' key
+    Lmb   = 0x100,    // left mouse button
+    Rmb   = 0x200,    // right mouse button
+    Mmb   = 0x400,    // middle mouse button
+}
+
+/*
+    sapp_event
+
+    This is an all-in-one event struct passed to the event handler
+    user callback function. Note that it depends on the event
+    type what struct fields actually contain useful values, so you
+    should first check the event type before reading other struct
+    fields.
+*/
+/*
+struct Event {
+
+    sapp_event_type type;               // the event type, always valid
+    
+    sapp_keycode key_code;              // the virtual key code, only valid in KEY_UP, KEY_DOWN
+    uint32_t char_code;                 // the UTF-32 character code, only valid in CHAR events
+    bool key_repeat;                    // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
+
+    uint32_t modifiers;                 // current modifier keys, valid in all key-, char- and mouse-events
+    sapp_mousebutton mouse_button;      // mouse button that was pressed or released, valid in MOUSE_DOWN, MOUSE_UP
+
+    float scroll_x;                     // horizontal mouse wheel scroll distance, valid in MOUSE_SCROLL events
+    float scroll_y;                     // vertical mouse wheel scroll distance, valid in MOUSE_SCROLL events
+    //int num_touches;                    // number of valid items in the touches[] array
+    //sapp_touchpoint touches[SAPP_MAX_TOUCHPOINTS];  // current touch points, valid in TOUCHES_BEGIN, TOUCHES_MOVED, TOUCHES_ENDED
+
+    uint64_t frame_count;               // current frame counter, always valid, useful for checking if two events were issued in the same frame
+    float mouse_x;                      // current horizontal mouse position in pixels, always valid except during mouse lock
+    float mouse_y;                      // current vertical mouse position in pixels, always valid except during mouse lock
+    float mouse_dx;                     // relative horizontal mouse movement since last frame, always valid
+    float mouse_dy;                     // relative vertical mouse movement since last frame, always valid
+
+    int window_width;                   // current window- and framebuffer sizes in pixels, always valid
+    int window_height;
+    int framebuffer_width;              // = window_width * dpi_scale
+    int framebuffer_height;             // = window_height * dpi_scale
+}
+*/
