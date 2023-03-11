@@ -18,8 +18,12 @@ struct App {}
 impl AppI for App {}
 
 fn main() {
+
+    let mut desc = sapp::SAppDesc::new();
+    desc.window_title = "Test window title";
+
     let App = App {};
-    run_app(App);
+    run_app(App, desc);
 
     let mut p = ParticleSystem::new();
     p.set_color_scheme(ColorScheme::Rainbow);

@@ -254,7 +254,7 @@ where
     app: T,
 }
 
-pub fn run_app<T>(app: T)
+pub fn run_app<T>(app: T, desc: SAppDesc)
 where
     T: SAppI,
 {
@@ -264,6 +264,64 @@ where
     };
 
     b.app.init(&mut b.base);
+}
+
+impl<T> SApp<T> where T: SAppI {}
+
+pub struct SAppDesc<'a> {
+    pub width: u32,  // the preferred width of the window / canvas
+    pub height: u32, // the preferred height of the window / canvas
+
+    pub sample_count: u32,  // MSAA sample count
+    pub swap_interval: u32, // the preferred swap interval (ignored on some platforms)
+
+    pub high_dpi: bool, // whether the rendering canvas is full-resolution on HighDPI displays
+    pub fullscreen: bool, // whether the window should be created in fullscreen mode
+    pub alpha: bool, // whether the framebuffer should have an alpha channel (ignored on some platforms)
+
+    pub window_title: &'a str,  // the window title as UTF-8 encoded string
+    pub enable_clipboard: bool, // enable clipboard access, default is false
+    pub clipboard_size: u32,    // max size of clipboard content in bytes
+    pub enable_dragndrop: bool, // enable file dropping (drag'n'drop), default is false
+    pub max_dropped_files: u32, // max number of dropped files to process (default: 1)
+    pub max_dropped_file_path_length: u32, // max length in bytes of a dropped UTF-8 file path (default: 2048)
+    //sapp_icon_desc icon;                // the initial window icon to set
+
+    pub gl_major_version: u32, // override GL major and minor version (the default GL version is 3.2)
+    pub gl_minor_version: u32,
+    pub win32_console_utf8: bool, // if true, set the output console codepage to UTF-8
+    pub win32_console_create: bool, // if true, attach stdout/stderr to a new console window
+    pub win32_console_attach: bool, // if true, attach stdout/stderr to parent process
+}
+
+impl<'a> SAppDesc<'a> {
+    pub fn new() -> SAppDesc<'a>
+    {
+        SAppDesc {
+            width: 1,
+            height: 1,
+        
+            sample_count: 1,
+            swap_interval: 1,
+        
+            high_dpi: false,
+            fullscreen: false,
+            alpha: false,
+        
+            window_title: "Title",
+            enable_clipboard: false,
+            clipboard_size: 0,
+            enable_dragndrop: false,
+            max_dropped_files: 0,
+            max_dropped_file_path_length: 0,
+        
+            gl_major_version: 0,
+            gl_minor_version: 0,
+            win32_console_utf8: false,
+            win32_console_create: false,
+            win32_console_attach: false,
+        }
+    }
 }
 
 /*
@@ -333,4 +391,62 @@ typedef struct {
     wchar_t window_title_wide[_SAPP_MAX_TITLE_LENGTH];   /* UTF-32 or UCS-2 */
     sapp_keycode keycodes[SAPP_MAX_KEYCODES];
 } _sapp_t;
+
+_SOKOL_PRIVATE void _sapp_win32_run(const sapp_desc* desc) {
+    _sapp_init_state(desc);
+    _sapp_win32_init_console();
+    _sapp.win32.is_win10_or_greater = _sapp_win32_is_win10_or_greater();
+    _sapp_win32_init_keytable();
+    _sapp_win32_utf8_to_wide(_sapp.window_title, _sapp.window_title_wide, sizeof(_sapp.window_title_wide));
+    _sapp_win32_init_dpi();
+    _sapp_win32_init_cursors();
+    _sapp_win32_create_window();
+    sapp_set_icon(&desc->icon);
+    _sapp_wgl_init();
+    _sapp_wgl_load_extensions();
+    _sapp_wgl_create_context();
+    _sapp.valid = true;
+
+    bool done = false;
+    while (!(done || _sapp.quit_ordered)) {
+        _sapp_win32_timing_measure();
+        MSG msg;
+        while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (WM_QUIT == msg.message) {
+                done = true;
+                continue;
+            }
+            else {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+        _sapp_frame();
+        _sapp_wgl_swap_buffers();
+
+        /* check for window resized, this cannot happen in WM_SIZE as it explodes memory usage */
+        if (_sapp_win32_update_dimensions()) {
+            _sapp_win32_app_event(SAPP_EVENTTYPE_RESIZED);
+        }
+        /* check if the window monitor has changed, need to reset timing because
+           the new monitor might have a different refresh rate
+        */
+        if (_sapp_win32_update_monitor()) {
+            _sapp_timing_reset(&_sapp.timing);
+        }
+        if (_sapp.quit_requested) {
+            PostMessage(_sapp.win32.hwnd, WM_CLOSE, 0, 0);
+        }
+    }
+    _sapp_call_cleanup();
+
+    _sapp_wgl_destroy_context();
+    _sapp_wgl_shutdown();
+    _sapp_win32_destroy_window();
+    _sapp_win32_destroy_icons();
+    _sapp_win32_restore_console();
+    _sapp_discard_state();
+}
+
+
 */

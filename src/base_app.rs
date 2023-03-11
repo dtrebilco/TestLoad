@@ -111,7 +111,7 @@ where
     app: T,
 }
 
-pub fn run_app<T>(app: T)
+pub fn run_app<T>(app: T, desc: SAppDesc)
 where
     T: AppI,
 {
@@ -120,7 +120,7 @@ where
         app,
     };
 
-    crate::sapp::run_app(b);
+    crate::sapp::run_app(b, desc);
 }
 
 impl<T> SAppI for BaseApp<T>
