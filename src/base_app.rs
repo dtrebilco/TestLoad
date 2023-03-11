@@ -120,81 +120,52 @@ where
         }
     }
 
-    fn on_event(event: &Event) -> bool {
-        match event {
-            Event::MouseDown(data) => {
-                if data.mouse_button == MouseButton::Left {
-                    // sapp_lock_mouse(true);
-                }
-            }
-            Event::MouseUp(data) => {
-                if data.mouse_button == MouseButton::Left {
-                    // sapp_lock_mouse(false);
-                }
-            }
-
-            _ => return false,
+    fn on_event(&mut self, event: &Event) {
+        if self.app.on_event(&mut self.base) {
+            return;
         }
-        true
+
+        match event {
+            Event::Mouse(data) => {
+                if data.mouse_button == MouseButton::Left {
+                    // sapp_lock_mouse(data.pressed);
+                }
+            }
+            Event::MouseScroll(data) => {
+                //cam_zoom(cam, ev->scroll_y * 0.5f); //DT_TODO: Adjust speed here?
+            }
+            Event::MouseMove => {
+                //if sapp_mouse_locked() {
+                //  let mouseSensibility = 0.003f32;
+                //  self.base.wx -= mouseSensibility * ev->mouse_dy;
+                //  self.base.wy -= mouseSensibility * ev->mouse_dx;
+                //}
+            }
+            Event::Key(data) => {
+                if data.pressed {
+                    if data.key_code == KeyCode::Escape {
+                        //sapp_request_quit();
+                    }
+                    if data.key_code == KeyCode::Enter {
+                        self.app.reset_camera(&mut self.base);
+                    }
+                }
+                if !data.key_repeat {
+                    match data.key_code {
+                        KeyCode::W => self.base.key_forward = data.pressed,
+                        KeyCode::S => self.base.key_backward = data.pressed,
+                        KeyCode::A => self.base.key_left = data.pressed,
+                        KeyCode::D => self.base.key_right = data.pressed,
+                        _ => (),
+                    }
+                }
+            }
+            _ => (),
+        }
     }
 }
 
 /*
-
-bool BaseApp::OnEvent(const sapp_event* ev) {
-
-  switch (ev->type) {
-  case SAPP_EVENTTYPE_MOUSE_DOWN:
-    if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
-      sapp_lock_mouse(true);
-    }
-    break;
-  case SAPP_EVENTTYPE_MOUSE_UP:
-    if (ev->mouse_button == SAPP_MOUSEBUTTON_LEFT) {
-      sapp_lock_mouse(false);
-    }
-    break;
-  case SAPP_EVENTTYPE_MOUSE_SCROLL:
-    //cam_zoom(cam, ev->scroll_y * 0.5f); //DT_TODO: Adjust speed here?
-    break;
-  case SAPP_EVENTTYPE_MOUSE_MOVE:
-    if (sapp_mouse_locked()) {
-      float mouseSensibility = 0.003f;
-      wx -= mouseSensibility * ev->mouse_dy;
-      wy -= mouseSensibility * ev->mouse_dx;
-    }
-    break;
-
-  case SAPP_EVENTTYPE_KEY_DOWN:
-    if (ev->key_code == SAPP_KEYCODE_ESCAPE)
-    {
-      sapp_request_quit();
-    }
-    if (ev->key_code == SAPP_KEYCODE_ENTER)
-    {
-      ResetCamera();
-    }
-    break;
-  default:
-    break;
-  }
-
-  if (ev->type == SAPP_EVENTTYPE_KEY_DOWN ||
-      ev->type == SAPP_EVENTTYPE_KEY_UP) {
-    if (!ev->key_repeat) {
-      bool pressed = (ev->type == SAPP_EVENTTYPE_KEY_DOWN);
-
-      switch (ev->key_code) {
-      case SAPP_KEYCODE_W: key_forwardKey  = pressed; break;
-      case SAPP_KEYCODE_S: key_backwardKey = pressed; break;
-      case SAPP_KEYCODE_A: key_leftKey     = pressed; break;
-      case SAPP_KEYCODE_D: key_rightKey    = pressed; break;
-      }
-    }
-  }
-
-  return false;
-}
 
 static void init_userdata_cb(void* in_app) {
   BaseApp* app = (BaseApp*)in_app;

@@ -148,6 +148,7 @@ bitflags! {
 }
 
 pub struct KeyEvent {
+    pub pressed: bool,       // true if the key is pressed
     pub key_code: KeyCode,   // the virtual key code, only valid in KEY_UP, KEY_DOWN
     pub key_repeat: bool, // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
     pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
@@ -160,6 +161,7 @@ pub struct CharEvent {
 }
 
 pub struct MouseEvent {
+    pub pressed: bool,             // true if the mouse is pressed
     pub mouse_button: MouseButton, // mouse button that was pressed or released, valid in MOUSE_DOWN, MOUSE_UP
     pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
 }
@@ -170,11 +172,9 @@ pub struct MouseScrollEvent {
 }
 
 pub enum Event {
-    KeyDown(KeyEvent),
-    KeyUp(KeyEvent),
+    Key(KeyEvent),
     Char(CharEvent),
-    MouseDown(MouseEvent),
-    MouseUp(MouseEvent),
+    Mouse(MouseEvent),
     MouseScroll(MouseScrollEvent),
     MouseMove,
     MouseEnter,
