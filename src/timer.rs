@@ -43,7 +43,7 @@ impl Timer {
     }
 
     pub fn diff(new_ticks: u64, old_ticks: u64) -> u64 {
-        if (new_ticks > old_ticks) {
+        if new_ticks > old_ticks {
             return new_ticks - old_ticks;
         }
         1

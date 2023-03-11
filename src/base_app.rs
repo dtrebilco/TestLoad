@@ -1,6 +1,6 @@
+use crate::sapp::*;
 use crate::timer::Timer;
 use crate::vector::*;
-use crate::sapp::*;
 
 pub struct BaseData {
     pub app_time: f32,
@@ -118,6 +118,24 @@ where
             base: BaseData::new(),
             app,
         }
+    }
+
+    fn on_event(event: &Event) -> bool {
+        match event {
+            Event::MouseDown(data) => {
+                if data.mouse_button == MouseButton::Left {
+                    // sapp_lock_mouse(true);
+                }
+            }
+            Event::MouseUp(data) => {
+                if data.mouse_button == MouseButton::Left {
+                    // sapp_lock_mouse(false);
+                }
+            }
+
+            _ => return false,
+        }
+        true
     }
 }
 

@@ -1,31 +1,7 @@
-enum EventType {
-    Invalid,
-    KeyDown,
-    KeyUp,
-    Char,
-    MouseDown,
-    MouseUp,
-    MouseScroll,
-    MouseMove,
-    MouseEnter,
-    MouseLeave,
-    TouchesBegan,
-    TouchesMoved,
-    TouchesEnded,
-    TouchesCancelled,
-    Resized,
-    Iconified,
-    Restored,
-    Focused,
-    Unfocused,
-    Suspended,
-    Resumed,
-    QuitRequested,
-    ClipboardPasted,
-    FilesDropped,
-}
+use bitflags::bitflags;
 
-enum KeyCode {
+#[derive(PartialEq)]
+pub enum KeyCode {
     Invalid = 0,
     Space = 32,
     Apostrophe = 39, /* ' */
@@ -149,32 +125,74 @@ enum KeyCode {
     Menu = 348,
 }
 
-
-/*
-    sapp_mousebutton
-
-    The currently pressed mouse button in the events MOUSE_DOWN
-    and MOUSE_UP, stored in the struct field sapp_event.mouse_button.
-*/
-enum MouseButton {
+#[derive(PartialEq)]
+pub enum MouseButton {
     Left = 0x0,
     Right = 0x1,
     Middle = 0x2,
     Invalid = 0x100,
 }
 
-/*
-    These are currently pressed modifier keys (and mouse buttons) which are
-    passed in the event struct field sapp_event.modifiers.
-*/
-enum Modifier{
-    Shift = 0x1,      // left or right shift key
-    Ctrl  = 0x2,      // left or right control key
-    Alt   = 0x4,      // left or right alt key
-    Super = 0x8,      // left or right 'super' key
-    Lmb   = 0x100,    // left mouse button
-    Rmb   = 0x200,    // right mouse button
-    Mmb   = 0x400,    // middle mouse button
+// These are currently pressed modifier keys (and mouse buttons) which are
+// passed in the event struct field sapp_event.modifiers.
+bitflags! {
+    pub struct Modifier : u32 {
+        const Shift = 0x1;      // left or right shift key
+        const Ctrl  = 0x2;      // left or right control key
+        const Alt   = 0x4;      // left or right alt key
+        const Super = 0x8;      // left or right 'super' key
+        const Lmb   = 0x100;    // left mouse button
+        const Rmb   = 0x200;    // right mouse button
+        const Mmb   = 0x400;    // middle mouse button
+    }
+}
+
+pub struct KeyEvent {
+    pub key_code: KeyCode,   // the virtual key code, only valid in KEY_UP, KEY_DOWN
+    pub key_repeat: bool, // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
+    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
+}
+
+pub struct CharEvent {
+    pub char_code: char,     // the UTF-32 character code, only valid in CHAR events
+    pub key_repeat: bool, // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
+    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
+}
+
+pub struct MouseEvent {
+    pub mouse_button: MouseButton, // mouse button that was pressed or released, valid in MOUSE_DOWN, MOUSE_UP
+    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
+}
+
+pub struct MouseScrollEvent {
+    pub scroll_x: f32, // horizontal mouse wheel scroll distance, valid in MOUSE_SCROLL events
+    pub scroll_y: f32, // vertical mouse wheel scroll distance, valid in MOUSE_SCROLL events
+}
+
+pub enum Event {
+    KeyDown(KeyEvent),
+    KeyUp(KeyEvent),
+    Char(CharEvent),
+    MouseDown(MouseEvent),
+    MouseUp(MouseEvent),
+    MouseScroll(MouseScrollEvent),
+    MouseMove,
+    MouseEnter,
+    MouseLeave,
+    TouchesBegan,
+    TouchesMoved,
+    TouchesEnded,
+    TouchesCancelled,
+    Resized,
+    Iconified,
+    Restored,
+    Focused,
+    Unfocused,
+    Suspended,
+    Resumed,
+    QuitRequested,
+    ClipboardPasted,
+    FilesDropped,
 }
 
 /*
@@ -190,7 +208,7 @@ enum Modifier{
 struct Event {
 
     sapp_event_type type;               // the event type, always valid
-    
+
     sapp_keycode key_code;              // the virtual key code, only valid in KEY_UP, KEY_DOWN
     uint32_t char_code;                 // the UTF-32 character code, only valid in CHAR events
     bool key_repeat;                    // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
