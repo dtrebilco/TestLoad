@@ -23,10 +23,12 @@ pub struct BaseData {
     pub key_forward: bool,
 }
 
-pub trait App {
+pub trait AppI {
+    fn init(&mut self, _app: &mut BaseData) {}
+
     fn reset_camera(&mut self, _app: &mut BaseData) {}
 
-    fn on_event(&mut self, _app: &mut BaseData) -> bool {
+    fn on_event(&mut self, _app: &mut BaseData, _event: &Event) -> bool {
         false
     }
 
@@ -103,25 +105,39 @@ impl BaseData {
 
 pub struct BaseApp<T>
 where
-    T: App,
+    T: AppI,
 {
     base: BaseData,
     app: T,
 }
 
+pub fn run_app<T>(app: T) where T: AppI {
+    let mut b = BaseApp {
+      base: BaseData::new(),
+      app,
+    };
+
+    b.app.init(&mut b.base);
+}
+
 impl<T> BaseApp<T>
 where
-    T: App,
+    T: AppI,
 {
-    fn new(app: T) -> BaseApp<T> {
+    pub fn new(app: T) -> BaseApp<T> {
         BaseApp {
             base: BaseData::new(),
             app,
         }
     }
+}
 
-    fn on_event(&mut self, event: &Event) {
-        if self.app.on_event(&mut self.base) {
+impl<T> SAppI for BaseApp<T>
+where
+    T: AppI,
+{
+    fn on_event(&mut self, data: &mut SAppData, event: &Event) {
+        if self.app.on_event(&mut self.base, &event) {
             return;
         }
 
@@ -211,6 +227,8 @@ sapp_desc sokol_main(int argc, char* argv[]) {
       .window_title = "Portals",
   };
 }
+
+
 
 
  */

@@ -11,8 +11,19 @@ use model::*;
 use particle_system::*;
 use timer::*;
 use vector::*;
+use base_app::*;
+
+struct App {
+
+}
+
+impl AppI for App{}
 
 fn main() {
+
+    let App = App {};
+    run_app(App);
+
     let mut p = ParticleSystem::new();
     p.set_color_scheme(ColorScheme::Rainbow);
 

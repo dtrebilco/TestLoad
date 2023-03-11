@@ -233,3 +233,107 @@ struct Event {
     int framebuffer_height;             // = window_height * dpi_scale
 }
 */
+
+pub trait SAppI {
+    fn load(&mut self, _app: &mut SAppData) -> bool {
+        false
+    }
+
+    fn draw_frame(&mut self, _app: &mut SAppData) {}
+
+    fn on_event(&mut self, _app: &mut SAppData, _event: &Event) {}
+
+    fn shutdown(&mut self, _app: &mut SAppData) {}
+}
+
+pub struct SAppData {}
+
+pub struct SApp<T>
+where
+    T: SAppI,
+{
+    base: SAppData,
+    app: T,
+}
+
+impl<T> SApp<T>
+where
+    T: SAppI,
+{
+    fn new(app: T) -> SApp<T> {
+        SApp {
+            base: SAppData{},
+            app,
+        }
+    }
+}
+
+
+/*
+enum {
+    SAPP_MAX_TOUCHPOINTS = 8,
+    SAPP_MAX_MOUSEBUTTONS = 3,
+    SAPP_MAX_KEYCODES = 512,
+    SAPP_MAX_ICONIMAGES = 8,
+};
+
+
+typedef struct {
+    bool enabled;
+    int buf_size;
+    char* buffer;
+} _sapp_clipboard_t;
+
+typedef struct {
+    bool enabled;
+    int max_files;
+    int max_path_length;
+    int num_files;
+    int buf_size;
+    char* buffer;
+} _sapp_drop_t;
+
+typedef struct {
+    float x, y;
+    float dx, dy;
+    bool shown;
+    bool locked;
+    bool pos_valid;
+    sapp_mouse_cursor current_cursor;
+} _sapp_mouse_t;
+
+typedef struct {
+    sapp_desc desc;
+    bool valid;
+    bool fullscreen;
+    bool gles2_fallback;
+    bool first_frame;
+    bool init_called;
+    bool cleanup_called;
+    bool quit_requested;
+    bool quit_ordered;
+    bool event_consumed;
+    bool html5_ask_leave_site;
+    bool onscreen_keyboard_shown;
+    int window_width;
+    int window_height;
+    int framebuffer_width;
+    int framebuffer_height;
+    int sample_count;
+    int swap_interval;
+    float dpi_scale;
+    uint64_t frame_count;
+    _sapp_timing_t timing;
+    sapp_event event;
+    _sapp_mouse_t mouse;
+    _sapp_clipboard_t clipboard;
+    _sapp_drop_t drop;
+    sapp_icon_desc default_icon_desc;
+    uint32_t* default_icon_pixels;
+    _sapp_win32_t win32;
+    _sapp_wgl_t wgl;
+    char window_title[_SAPP_MAX_TITLE_LENGTH];      /* UTF-8 */
+    wchar_t window_title_wide[_SAPP_MAX_TITLE_LENGTH];   /* UTF-32 or UCS-2 */
+    sapp_keycode keycodes[SAPP_MAX_KEYCODES];
+} _sapp_t;
+*/
