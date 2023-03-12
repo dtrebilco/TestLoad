@@ -13,4 +13,9 @@ version = "0.45.0"
 features = [
     "Win32_Foundation",
     "Win32_System_Performance",
+    "Win32_UI",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_OpenGL",
 ]

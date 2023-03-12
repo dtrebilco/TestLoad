@@ -1,6 +1,10 @@
 use bitflags::bitflags;
+use windows_sys::Win32::Foundation::*;
+use windows_sys::Win32::Graphics::Gdi::*;
+use windows_sys::Win32::Graphics::OpenGL::*;
+use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum KeyCode {
     Invalid = 0,
     Space = 32,
@@ -244,13 +248,234 @@ pub trait SAppI {
     fn shutdown(&mut self, _app: &mut SAppData) {}
 }
 
-pub struct SAppData {}
+const SAPP_MAX_TOUCHPOINTS: u32 = 8;
+const SAPP_MAX_MOUSEBUTTONS: u32 = 3;
+const SAPP_MAX_KEYCODES: u32 = 512;
+const SAPP_MAX_ICONIMAGES: u32 = 8;
 
-pub struct SApp<T>
+struct SAppMouse {
+    x: f32,
+    y: f32,
+    dx: f32,
+    dy: f32,
+    shown: bool,
+    locked: bool,
+    pos_valid: bool,
+    //sapp_mouse_cursor current_cursor; // Cursor icon enum
+}
+impl SAppMouse {
+    fn new() -> SAppMouse {
+        SAppMouse {
+            x: 0.0,
+            y: 0.0,
+            dx: 0.0,
+            dy: 0.0,
+            shown: true,
+            locked: false,
+            pos_valid: false,
+        }
+    }
+}
+
+struct SAppWin32 {
+    hwnd: HWND,
+    hmonitor: HMONITOR,
+    dc: HDC,
+    big_icon: HICON,
+    small_icon: HICON,
+    //cursors: [HCURSOR; _SAPP_MOUSECURSOR_NUM],
+    orig_codepage: u32,
+    mouse_locked_x: i32,
+    mouse_locked_y: i32,
+    stored_window_rect: RECT, // used to restore window pos/size when toggling fullscreen => windowed
+    is_win10_or_greater: bool,
+    in_create_window: bool,
+    iconified: bool,
+    mouse_tracked: bool,
+    mouse_capture_mask: u8,
+    //dpi : _sapp_win32_dpi_t,
+    raw_input_mousepos_valid: bool,
+    raw_input_mousepos_x: i32,
+    raw_input_mousepos_y: i32,
+    raw_input_data: [u8; 256],
+}
+impl SAppWin32 {
+    fn new() -> SAppWin32 {
+        SAppWin32 {
+            hwnd: 0,
+            hmonitor: 0,
+            dc: 0,
+            big_icon: 0,
+            small_icon: 0,
+            //cursors: [HCURSOR; _SAPP_MOUSECURSOR_NUM],
+            orig_codepage: 0,
+            mouse_locked_x: 0,
+            mouse_locked_y: 0,
+            stored_window_rect: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            }, // used to restore window pos/size when toggling fullscreen => windowed
+            is_win10_or_greater: false,
+            in_create_window: false,
+            iconified: false,
+            mouse_tracked: false,
+            mouse_capture_mask: 0,
+            //dpi : _sapp_win32_dpi_t,
+            raw_input_mousepos_valid: false,
+            raw_input_mousepos_x: 0,
+            raw_input_mousepos_y: 0,
+            raw_input_data: [0; 256],
+        }
+    }
+}
+
+const WGL_NUMBER_PIXEL_FORMATS_ARB: u32 = 0x2000;
+const WGL_SUPPORT_OPENGL_ARB: u32 = 0x2010;
+const WGL_DRAW_TO_WINDOW_ARB: u32 = 0x2001;
+const WGL_PIXEL_TYPE_ARB: u32 = 0x2013;
+const WGL_TYPE_RGBA_ARB: u32 = 0x202b;
+const WGL_ACCELERATION_ARB: u32 = 0x2003;
+const WGL_NO_ACCELERATION_ARB: u32 = 0x2025;
+const WGL_RED_BITS_ARB: u32 = 0x2015;
+const WGL_GREEN_BITS_ARB: u32 = 0x2017;
+const WGL_BLUE_BITS_ARB: u32 = 0x2019;
+const WGL_ALPHA_BITS_ARB: u32 = 0x201b;
+const WGL_DEPTH_BITS_ARB: u32 = 0x2022;
+const WGL_STENCIL_BITS_ARB: u32 = 0x2023;
+const WGL_DOUBLE_BUFFER_ARB: u32 = 0x2011;
+const WGL_SAMPLES_ARB: u32 = 0x2042;
+const WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB: u32 = 0x00000002;
+const WGL_CONTEXT_PROFILE_MASK_ARB: u32 = 0x9126;
+const WGL_CONTEXT_CORE_PROFILE_BIT_ARB: u32 = 0x00000001;
+const WGL_CONTEXT_MAJOR_VERSION_ARB: u32 = 0x2091;
+const WGL_CONTEXT_MINOR_VERSION_ARB: u32 = 0x2092;
+const WGL_CONTEXT_FLAGS_ARB: u32 = 0x2094;
+const ERROR_INVALID_VERSION_ARB: u32 = 0x2095;
+const ERROR_INVALID_PROFILE_ARB: u32 = 0x2096;
+const ERROR_INCOMPATIBLE_DEVICE_CONTEXTS_ARB: u32 = 0x2054;
+
+//type PFNWGLSWAPINTERVALEXTPROC = extern "system" fn(u32) -> bool;
+/*
+typedef BOOL (WINAPI * PFNWGLSWAPINTERVALEXTPROC)(int);
+typedef BOOL (WINAPI * PFNWGLGETPIXELFORMATATTRIBIVARBPROC)(HDC,int,int,UINT,const int*,int*);
+typedef const char* (WINAPI * PFNWGLGETEXTENSIONSSTRINGEXTPROC)(void);
+typedef const char* (WINAPI * PFNWGLGETEXTENSIONSSTRINGARBPROC)(HDC);
+typedef HGLRC (WINAPI * PFNWGLCREATECONTEXTATTRIBSARBPROC)(HDC,HGLRC,const int*);
+typedef HGLRC (WINAPI * PFN_wglCreateContext)(HDC);
+typedef BOOL (WINAPI * PFN_wglDeleteContext)(HGLRC);
+typedef PROC (WINAPI * PFN_wglGetProcAddress)(LPCSTR);
+typedef HDC (WINAPI * PFN_wglGetCurrentDC)(void);
+typedef BOOL (WINAPI * PFN_wglMakeCurrent)(HDC,HGLRC);
+*/
+
+/*
+struct SAppWgl {
+    HINSTANCE opengl32;
+    HGLRC gl_ctx;
+    PFN_wglCreateContext CreateContext;
+    PFN_wglDeleteContext DeleteContext;
+    PFN_wglGetProcAddress GetProcAddress;
+    PFN_wglGetCurrentDC GetCurrentDC;
+    PFN_wglMakeCurrent MakeCurrent;
+    PFNWGLSWAPINTERVALEXTPROC SwapIntervalEXT;
+    PFNWGLGETPIXELFORMATATTRIBIVARBPROC GetPixelFormatAttribivARB;
+    PFNWGLGETEXTENSIONSSTRINGEXTPROC GetExtensionsStringEXT;
+    PFNWGLGETEXTENSIONSSTRINGARBPROC GetExtensionsStringARB;
+    PFNWGLCREATECONTEXTATTRIBSARBPROC CreateContextAttribsARB;
+    bool ext_swap_control;
+    bool arb_multisample;
+    bool arb_pixel_format;
+    bool arb_create_context;
+    bool arb_create_context_profile;
+    HWND msg_hwnd;
+    HDC msg_dc;
+}
+*/
+
+pub struct SAppData<'a> {
+    desc: SAppDesc<'a>,
+    valid: bool,
+    fullscreen: bool,
+
+    first_frame: bool,
+    init_called: bool,
+    cleanup_called: bool,
+    quit_requested: bool,
+    quit_ordered: bool,
+    event_consumed: bool,
+
+    window_width: u32,
+    window_height: u32,
+    framebuffer_width: u32,
+    framebuffer_height: u32,
+    sample_count: u32,
+    swap_interval: u32,
+    dpi_scale: f32,
+    frame_count: u64,
+
+    //_sapp_timing_t timing;
+    //sapp_event event;
+    mouse: SAppMouse,
+    //_sapp_clipboard_t clipboard;
+    //_sapp_drop_t drop;
+    //sapp_icon_desc default_icon_desc;
+    //uint32_t* default_icon_pixels;
+    win32: SAppWin32,
+    //wgl : SAppWgl,
+    //char window_title[_SAPP_MAX_TITLE_LENGTH];      /* UTF-8 */
+    //wchar_t window_title_wide[_SAPP_MAX_TITLE_LENGTH];   /* UTF-32 or UCS-2 */
+    keycodes: [KeyCode; SAPP_MAX_KEYCODES as usize],
+}
+
+impl<'a> SAppData<'a> {
+    fn new(desc: SAppDesc) -> SAppData {
+        SAppData {
+            valid: false,
+            fullscreen: desc.fullscreen,
+            first_frame: true,
+            init_called: false,
+            cleanup_called: false,
+            quit_requested: false,
+            quit_ordered: false,
+            event_consumed: false,
+
+            // NOTE: _sapp.desc.width/height may be 0! Platform backends need to deal with this
+            window_width: desc.width,
+            window_height: desc.height,
+            framebuffer_width: desc.width,
+            framebuffer_height: desc.height,
+            sample_count: desc.sample_count,
+            swap_interval: desc.swap_interval,
+            //clipboard.enabled = desc.enable_clipboard,
+            //if (_sapp.clipboard.enabled) {
+            //    _sapp.clipboard.buf_size = _sapp.desc.clipboard_size;
+            //    _sapp.clipboard.buffer = (char*) _sapp_malloc_clear((size_t)_sapp.clipboard.buf_size);
+            //}
+            //_sapp.drop.enabled = _sapp.desc.enable_dragndrop;
+            //if (_sapp.drop.enabled) {
+            //    _sapp.drop.max_files = _sapp.desc.max_dropped_files;
+            //    _sapp.drop.max_path_length = _sapp.desc.max_dropped_file_path_length;
+            //    _sapp.drop.buf_size = _sapp.drop.max_files * _sapp.drop.max_path_length;
+            //    _sapp.drop.buffer = (char*) _sapp_malloc_clear((size_t)_sapp.drop.buf_size);
+            //}
+            dpi_scale: 1.0,
+            frame_count: 0,
+            mouse: SAppMouse::new(),
+            //_sapp_timing_init(&_sapp.timing);
+            win32: SAppWin32::new(),
+            keycodes: [KeyCode::Invalid; SAPP_MAX_KEYCODES as usize],
+            desc,
+        }
+    }
+}
+
+pub struct SApp<'a, T>
 where
     T: SAppI,
 {
-    base: SAppData,
+    base: SAppData<'a>,
     app: T,
 }
 
@@ -259,14 +484,14 @@ where
     T: SAppI,
 {
     let mut b = SApp {
-        base: SAppData {},
+        base: SAppData::new(desc),
         app,
     };
 
     b.app.init(&mut b.base);
 }
 
-impl<T> SApp<T> where T: SAppI {}
+impl<'a, T> SApp<'a, T> where T: SAppI {}
 
 pub struct SAppDesc<'a> {
     pub width: u32,  // the preferred width of the window / canvas
@@ -286,7 +511,6 @@ pub struct SAppDesc<'a> {
     pub max_dropped_files: u32, // max number of dropped files to process (default: 1)
     pub max_dropped_file_path_length: u32, // max length in bytes of a dropped UTF-8 file path (default: 2048)
     //sapp_icon_desc icon;                // the initial window icon to set
-
     pub gl_major_version: u32, // override GL major and minor version (the default GL version is 3.2)
     pub gl_minor_version: u32,
     pub win32_console_utf8: bool, // if true, set the output console codepage to UTF-8
@@ -295,28 +519,27 @@ pub struct SAppDesc<'a> {
 }
 
 impl<'a> SAppDesc<'a> {
-    pub fn new() -> SAppDesc<'a>
-    {
+    pub fn new() -> SAppDesc<'a> {
         SAppDesc {
             width: 1,
             height: 1,
-        
+
             sample_count: 1,
             swap_interval: 1,
-        
+
             high_dpi: false,
             fullscreen: false,
             alpha: false,
-        
+
             window_title: "Title",
             enable_clipboard: false,
             clipboard_size: 0,
             enable_dragndrop: false,
-            max_dropped_files: 0,
-            max_dropped_file_path_length: 0,
-        
-            gl_major_version: 0,
-            gl_minor_version: 0,
+            max_dropped_files: 1,
+            max_dropped_file_path_length: 2048,
+
+            gl_major_version: 3,
+            gl_minor_version: 2,
             win32_console_utf8: false,
             win32_console_create: false,
             win32_console_attach: false,
@@ -325,13 +548,6 @@ impl<'a> SAppDesc<'a> {
 }
 
 /*
-enum {
-    SAPP_MAX_TOUCHPOINTS = 8,
-    SAPP_MAX_MOUSEBUTTONS = 3,
-    SAPP_MAX_KEYCODES = 512,
-    SAPP_MAX_ICONIMAGES = 8,
-};
-
 
 typedef struct {
     bool enabled;
@@ -356,41 +572,6 @@ typedef struct {
     bool pos_valid;
     sapp_mouse_cursor current_cursor;
 } _sapp_mouse_t;
-
-typedef struct {
-    sapp_desc desc;
-    bool valid;
-    bool fullscreen;
-    bool gles2_fallback;
-    bool first_frame;
-    bool init_called;
-    bool cleanup_called;
-    bool quit_requested;
-    bool quit_ordered;
-    bool event_consumed;
-    bool html5_ask_leave_site;
-    bool onscreen_keyboard_shown;
-    int window_width;
-    int window_height;
-    int framebuffer_width;
-    int framebuffer_height;
-    int sample_count;
-    int swap_interval;
-    float dpi_scale;
-    uint64_t frame_count;
-    _sapp_timing_t timing;
-    sapp_event event;
-    _sapp_mouse_t mouse;
-    _sapp_clipboard_t clipboard;
-    _sapp_drop_t drop;
-    sapp_icon_desc default_icon_desc;
-    uint32_t* default_icon_pixels;
-    _sapp_win32_t win32;
-    _sapp_wgl_t wgl;
-    char window_title[_SAPP_MAX_TITLE_LENGTH];      /* UTF-8 */
-    wchar_t window_title_wide[_SAPP_MAX_TITLE_LENGTH];   /* UTF-32 or UCS-2 */
-    sapp_keycode keycodes[SAPP_MAX_KEYCODES];
-} _sapp_t;
 
 _SOKOL_PRIVATE void _sapp_win32_run(const sapp_desc* desc) {
     _sapp_init_state(desc);

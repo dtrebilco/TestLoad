@@ -18,7 +18,6 @@ struct App {}
 impl AppI for App {}
 
 fn main() {
-
     let mut desc = sapp::SAppDesc::new();
     desc.window_title = "Test window title";
 
