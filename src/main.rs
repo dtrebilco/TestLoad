@@ -18,8 +18,9 @@ struct App {}
 impl AppI for App {}
 
 fn main() {
+    let mut title: String = "Test window title 😀".to_string();
     let mut desc = sapp::SAppDesc::new();
-    desc.window_title = "Test window title";
+    desc.window_title = &title;
 
     let App = App {};
     run_app(App, desc);

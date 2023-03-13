@@ -1,10 +1,10 @@
 use bitflags::bitflags;
+use windows_sys::core::*;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::Graphics::OpenGL::*;
-use windows_sys::Win32::UI::WindowsAndMessaging::*;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::core::*;
+use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum KeyCode {
@@ -279,7 +279,7 @@ impl SAppMouse {
     }
 }
 
-fn sapp_win32_init_keytable(keycodes :&mut [KeyCode; SAPP_MAX_KEYCODES as usize]) {
+fn sapp_win32_init_keytable(keycodes: &mut [KeyCode; SAPP_MAX_KEYCODES as usize]) {
     /* same as GLFW */
     keycodes[0x00B] = KeyCode::Num0;
     keycodes[0x002] = KeyCode::Num1;
@@ -401,7 +401,6 @@ fn sapp_win32_init_keytable(keycodes :&mut [KeyCode; SAPP_MAX_KEYCODES as usize]
     keycodes[0x04A] = KeyCode::KpSubtract;
 }
 
-
 extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         match message {
@@ -426,10 +425,14 @@ s.map(
         .collect(),
 )*/
 
-unsafe fn sapp_win32_update_dimensions(sapp : &mut SAppData) -> bool {
-    let mut rect = RECT { left:0, top:0, right:0, bottom:0 };
+unsafe fn sapp_win32_update_dimensions(sapp: &mut SAppData) -> bool {
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
     if (GetClientRect(sapp.win32.hwnd, &mut rect) == TRUE) {
-
         sapp.window_width = (rect.right - rect.left) as u32;
         sapp.window_height = (rect.bottom - rect.top) as u32;
         let mut fb_width = sapp.window_width;
@@ -454,8 +457,7 @@ unsafe fn sapp_win32_update_dimensions(sapp : &mut SAppData) -> bool {
             sapp.framebuffer_height = fb_height;
             return true;
         }
-    }
-    else {
+    } else {
         sapp.window_width = 1;
         sapp.window_height = 1;
         sapp.framebuffer_width = 1;
@@ -464,10 +466,9 @@ unsafe fn sapp_win32_update_dimensions(sapp : &mut SAppData) -> bool {
     return false;
 }
 
-unsafe fn sapp_win32_create_window(sapp : &mut SAppData) {
+unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
     let instance = GetModuleHandleW(std::ptr::null());
-    let mut wndclassw = WNDCLASSW
-    {
+    let wndclassw = WNDCLASSW {
         hCursor: LoadCursorW(0, IDC_ARROW),
         hInstance: instance,
         lpszClassName: w!("SOKOLAPP"),
@@ -486,8 +487,19 @@ unsafe fn sapp_win32_create_window(sapp : &mut SAppData) {
        mode, so that no windowed-mode window pops up before the fullscreen window)
     */
     let win_ex_style = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
-    let mut rect = RECT { left:0, top:0, right:0, bottom:0 };
-    let win_style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX;
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    let win_style = WS_CLIPSIBLINGS
+        | WS_CLIPCHILDREN
+        | WS_CAPTION
+        | WS_SYSMENU
+        | WS_MINIMIZEBOX
+        | WS_MAXIMIZEBOX
+        | WS_SIZEBOX;
 
     rect.right = sapp.window_width as i32;
     rect.bottom = sapp.window_height as i32;
@@ -500,21 +512,34 @@ unsafe fn sapp_win32_create_window(sapp : &mut SAppData) {
     let win_height = rect.bottom - rect.top;
     sapp.win32.in_create_window = true;
 
-    let test = w!("2Test");
+    // DT_TODO: See about setting active code page in the manifest to utf8 to not have to do this
+    // UTF16 null terminated string
+    let mut title = Vec::with_capacity(sapp.desc.window_title.encode_utf16().count() + 1);
+    title.extend(sapp.desc.window_title.encode_utf16());
+    title.push(0);
 
     sapp.win32.hwnd = CreateWindowExW(
-        win_ex_style,               // dwExStyle
-        w!("SOKOLAPP"),                // lpClassName
-        test, //DT_TODO: sapp.window_title_wide,    // lpWindowName
-        win_style,                  // dwStyle
-        CW_USEDEFAULT,              // X
-        SW_HIDE as i32,                    // Y (NOTE: CW_USEDEFAULT is not used for position here, but internally calls ShowWindow!
-        if use_default_width { CW_USEDEFAULT } else { win_width }, // nWidth
-        if use_default_height { CW_USEDEFAULT } else { win_height}, // nHeight (NOTE: if width is CW_USEDEFAULT, height is actually ignored)
-        0,                       // hWndParent
-        0,                       // hMenu
-        instance,      // hInstance
-        std::ptr::null());                      // lParam
+        win_ex_style,   // dwExStyle
+        w!("SOKOLAPP"), // lpClassName
+        title.as_ptr(), // lpWindowName
+        win_style,      // dwStyle
+        CW_USEDEFAULT,  // X
+        SW_HIDE as i32, // Y (NOTE: CW_USEDEFAULT is not used for position here, but internally calls ShowWindow!
+        if use_default_width {
+            CW_USEDEFAULT
+        } else {
+            win_width
+        }, // nWidth
+        if use_default_height {
+            CW_USEDEFAULT
+        } else {
+            win_height
+        }, // nHeight (NOTE: if width is CW_USEDEFAULT, height is actually ignored)
+        0,              // hWndParent
+        0,              // hMenu
+        instance,       // hInstance
+        std::ptr::null(),
+    ); // lParam
     sapp.win32.in_create_window = false;
     sapp.win32.dc = GetDC(sapp.win32.hwnd);
     sapp.win32.hmonitor = MonitorFromWindow(sapp.win32.hwnd, MONITOR_DEFAULTTONULL);
@@ -805,7 +830,9 @@ where
     //_sapp_win32_utf8_to_wide(_sapp.window_title, _sapp.window_title_wide, sizeof(_sapp.window_title_wide));
     //_sapp_win32_init_dpi();
     //_sapp_win32_init_cursors();
-    unsafe {sapp_win32_create_window(&mut b.base);}
+    unsafe {
+        sapp_win32_create_window(&mut b.base);
+    }
     //sapp_set_icon(&desc->icon);
     //_sapp_wgl_init();
     //_sapp_wgl_load_extensions();
@@ -816,13 +843,12 @@ where
     while !(done || b.base.quit_ordered) {
         //_sapp_win32_timing_measure();
         unsafe {
-            let mut msg : MSG = std::mem::zeroed();
+            let mut msg: MSG = std::mem::zeroed();
             while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
                 if WM_QUIT == msg.message {
                     done = true;
                     continue;
-                }
-                else {
+                } else {
                     TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
@@ -842,7 +868,9 @@ where
         //    _sapp_timing_reset(&_sapp.timing);
         //}
         if b.base.quit_requested {
-            unsafe { PostMessageW(b.base.win32.hwnd, WM_CLOSE, 0, 0); }
+            unsafe {
+                PostMessageW(b.base.win32.hwnd, WM_CLOSE, 0, 0);
+            }
         }
     }
     //_sapp_call_cleanup();
@@ -853,12 +881,9 @@ where
     //_sapp_win32_destroy_icons();
     //_sapp_win32_restore_console();
     //_sapp_discard_state();
-
 }
 
 impl<'a, T> SApp<'a, T> where T: SAppI {}
-
-
 
 /*
 
