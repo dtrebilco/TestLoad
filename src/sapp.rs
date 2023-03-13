@@ -3,6 +3,8 @@ use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::Graphics::OpenGL::*;
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::core::*;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum KeyCode {
@@ -277,6 +279,261 @@ impl SAppMouse {
     }
 }
 
+fn sapp_win32_init_keytable(keycodes :&mut [KeyCode; SAPP_MAX_KEYCODES as usize]) {
+    /* same as GLFW */
+    keycodes[0x00B] = KeyCode::Num0;
+    keycodes[0x002] = KeyCode::Num1;
+    keycodes[0x003] = KeyCode::Num2;
+    keycodes[0x004] = KeyCode::Num3;
+    keycodes[0x005] = KeyCode::Num4;
+    keycodes[0x006] = KeyCode::Num5;
+    keycodes[0x007] = KeyCode::Num6;
+    keycodes[0x008] = KeyCode::Num7;
+    keycodes[0x009] = KeyCode::Num8;
+    keycodes[0x00A] = KeyCode::Num9;
+    keycodes[0x01E] = KeyCode::A;
+    keycodes[0x030] = KeyCode::B;
+    keycodes[0x02E] = KeyCode::C;
+    keycodes[0x020] = KeyCode::D;
+    keycodes[0x012] = KeyCode::E;
+    keycodes[0x021] = KeyCode::F;
+    keycodes[0x022] = KeyCode::G;
+    keycodes[0x023] = KeyCode::H;
+    keycodes[0x017] = KeyCode::I;
+    keycodes[0x024] = KeyCode::J;
+    keycodes[0x025] = KeyCode::K;
+    keycodes[0x026] = KeyCode::L;
+    keycodes[0x032] = KeyCode::M;
+    keycodes[0x031] = KeyCode::N;
+    keycodes[0x018] = KeyCode::O;
+    keycodes[0x019] = KeyCode::P;
+    keycodes[0x010] = KeyCode::Q;
+    keycodes[0x013] = KeyCode::R;
+    keycodes[0x01F] = KeyCode::S;
+    keycodes[0x014] = KeyCode::T;
+    keycodes[0x016] = KeyCode::U;
+    keycodes[0x02F] = KeyCode::V;
+    keycodes[0x011] = KeyCode::W;
+    keycodes[0x02D] = KeyCode::X;
+    keycodes[0x015] = KeyCode::Y;
+    keycodes[0x02C] = KeyCode::Z;
+    keycodes[0x028] = KeyCode::Apostrophe;
+    keycodes[0x02B] = KeyCode::Backslash;
+    keycodes[0x033] = KeyCode::Comma;
+    keycodes[0x00D] = KeyCode::Equal;
+    keycodes[0x029] = KeyCode::GraveAccent;
+    keycodes[0x01A] = KeyCode::LeftBracket;
+    keycodes[0x00C] = KeyCode::Minus;
+    keycodes[0x034] = KeyCode::Period;
+    keycodes[0x01B] = KeyCode::RightBracket;
+    keycodes[0x027] = KeyCode::Semicolon;
+    keycodes[0x035] = KeyCode::Slash;
+    keycodes[0x056] = KeyCode::World2;
+    keycodes[0x00E] = KeyCode::Backspace;
+    keycodes[0x153] = KeyCode::Delete;
+    keycodes[0x14F] = KeyCode::End;
+    keycodes[0x01C] = KeyCode::Enter;
+    keycodes[0x001] = KeyCode::Escape;
+    keycodes[0x147] = KeyCode::Home;
+    keycodes[0x152] = KeyCode::Insert;
+    keycodes[0x15D] = KeyCode::Menu;
+    keycodes[0x151] = KeyCode::PageDown;
+    keycodes[0x149] = KeyCode::PageUp;
+    keycodes[0x045] = KeyCode::Pause;
+    keycodes[0x146] = KeyCode::Pause;
+    keycodes[0x039] = KeyCode::Space;
+    keycodes[0x00F] = KeyCode::Tab;
+    keycodes[0x03A] = KeyCode::CapsLock;
+    keycodes[0x145] = KeyCode::NumLock;
+    keycodes[0x046] = KeyCode::ScrollLock;
+    keycodes[0x03B] = KeyCode::F1;
+    keycodes[0x03C] = KeyCode::F2;
+    keycodes[0x03D] = KeyCode::F3;
+    keycodes[0x03E] = KeyCode::F4;
+    keycodes[0x03F] = KeyCode::F5;
+    keycodes[0x040] = KeyCode::F6;
+    keycodes[0x041] = KeyCode::F7;
+    keycodes[0x042] = KeyCode::F8;
+    keycodes[0x043] = KeyCode::F9;
+    keycodes[0x044] = KeyCode::F10;
+    keycodes[0x057] = KeyCode::F11;
+    keycodes[0x058] = KeyCode::F12;
+    keycodes[0x064] = KeyCode::F13;
+    keycodes[0x065] = KeyCode::F14;
+    keycodes[0x066] = KeyCode::F15;
+    keycodes[0x067] = KeyCode::F16;
+    keycodes[0x068] = KeyCode::F17;
+    keycodes[0x069] = KeyCode::F18;
+    keycodes[0x06A] = KeyCode::F19;
+    keycodes[0x06B] = KeyCode::F20;
+    keycodes[0x06C] = KeyCode::F21;
+    keycodes[0x06D] = KeyCode::F22;
+    keycodes[0x06E] = KeyCode::F23;
+    keycodes[0x076] = KeyCode::F24;
+    keycodes[0x038] = KeyCode::LeftAlt;
+    keycodes[0x01D] = KeyCode::LeftControl;
+    keycodes[0x02A] = KeyCode::LeftShift;
+    keycodes[0x15B] = KeyCode::LeftSuper;
+    keycodes[0x137] = KeyCode::PrintScreen;
+    keycodes[0x138] = KeyCode::RightAlt;
+    keycodes[0x11D] = KeyCode::RightControl;
+    keycodes[0x036] = KeyCode::RightShift;
+    keycodes[0x15C] = KeyCode::RightSuper;
+    keycodes[0x150] = KeyCode::Down;
+    keycodes[0x14B] = KeyCode::Left;
+    keycodes[0x14D] = KeyCode::Right;
+    keycodes[0x148] = KeyCode::Up;
+    keycodes[0x052] = KeyCode::Kp0;
+    keycodes[0x04F] = KeyCode::Kp1;
+    keycodes[0x050] = KeyCode::Kp2;
+    keycodes[0x051] = KeyCode::Kp3;
+    keycodes[0x04B] = KeyCode::Kp4;
+    keycodes[0x04C] = KeyCode::Kp5;
+    keycodes[0x04D] = KeyCode::Kp6;
+    keycodes[0x047] = KeyCode::Kp7;
+    keycodes[0x048] = KeyCode::Kp8;
+    keycodes[0x049] = KeyCode::Kp9;
+    keycodes[0x04E] = KeyCode::KpAdd;
+    keycodes[0x053] = KeyCode::KpDecimal;
+    keycodes[0x135] = KeyCode::KpDivide;
+    keycodes[0x11C] = KeyCode::KpEnter;
+    keycodes[0x037] = KeyCode::KpMultiply;
+    keycodes[0x04A] = KeyCode::KpSubtract;
+}
+
+
+extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        match message {
+            WM_PAINT => {
+                //println!("WM_PAINT");
+                ValidateRect(window, std::ptr::null());
+                0
+            }
+            WM_DESTROY => {
+                //println!("WM_DESTROY");
+                PostQuitMessage(0);
+                0
+            }
+            _ => DefWindowProcW(window, message, wparam, lparam),
+        }
+    }
+}
+/*
+s.map(
+    |s| s.encode_utf16()
+        .chain(std::iter::once(0)) // append a terminating null
+        .collect(),
+)*/
+
+unsafe fn sapp_win32_update_dimensions(sapp : &mut SAppData) -> bool {
+    let mut rect = RECT { left:0, top:0, right:0, bottom:0 };
+    if (GetClientRect(sapp.win32.hwnd, &mut rect) == TRUE) {
+
+        sapp.window_width = (rect.right - rect.left) as u32;
+        sapp.window_height = (rect.bottom - rect.top) as u32;
+        let mut fb_width = sapp.window_width;
+        let mut fb_height = sapp.window_height;
+
+        //float window_width = (float)(rect.right - rect.left) / _sapp.win32.dpi.window_scale;
+        //float window_height = (float)(rect.bottom - rect.top) / _sapp.win32.dpi.window_scale;
+        //sapp.window_width = (int)roundf(window_width);
+        //sapp.window_height = (int)roundf(window_height);
+        //int fb_width = (int)roundf(window_width * _sapp.win32.dpi.content_scale);
+        //int fb_height = (int)roundf(window_height * _sapp.win32.dpi.content_scale);
+
+        /* prevent a framebuffer size of 0 when window is minimized */
+        if 0 == fb_width {
+            fb_width = 1;
+        }
+        if 0 == fb_height {
+            fb_height = 1;
+        }
+        if (fb_width != sapp.framebuffer_width) || (fb_height != sapp.framebuffer_height) {
+            sapp.framebuffer_width = fb_width;
+            sapp.framebuffer_height = fb_height;
+            return true;
+        }
+    }
+    else {
+        sapp.window_width = 1;
+        sapp.window_height = 1;
+        sapp.framebuffer_width = 1;
+        sapp.framebuffer_height = 1;
+    }
+    return false;
+}
+
+unsafe fn sapp_win32_create_window(sapp : &mut SAppData) {
+    let instance = GetModuleHandleW(std::ptr::null());
+    let mut wndclassw = WNDCLASSW
+    {
+        hCursor: LoadCursorW(0, IDC_ARROW),
+        hInstance: instance,
+        lpszClassName: w!("SOKOLAPP"),
+        style: CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+        lpfnWndProc: Some(wndproc),
+        cbClsExtra: 0,
+        cbWndExtra: 0,
+        hIcon: LoadIconW(0, IDI_WINLOGO),
+        hbrBackground: 0,
+        lpszMenuName: std::ptr::null(),
+    };
+    RegisterClassW(&wndclassw);
+
+    /* NOTE: regardless whether fullscreen is requested or not, a regular
+       windowed-mode window will always be created first (however in hidden
+       mode, so that no windowed-mode window pops up before the fullscreen window)
+    */
+    let win_ex_style = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+    let mut rect = RECT { left:0, top:0, right:0, bottom:0 };
+    let win_style = WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX;
+
+    rect.right = sapp.window_width as i32;
+    rect.bottom = sapp.window_height as i32;
+    //rect.right = (sapp.window_width as float * sapp.win32.dpi.window_scale) as i32;
+    //rect.bottom = (sapp.window_height as float * sapp.win32.dpi.window_scale) as i32;
+    let use_default_width = 0 == sapp.window_width;
+    let use_default_height = 0 == sapp.window_height;
+    AdjustWindowRectEx(&mut rect, win_style, FALSE, win_ex_style);
+    let win_width = rect.right - rect.left;
+    let win_height = rect.bottom - rect.top;
+    sapp.win32.in_create_window = true;
+
+    let test = w!("2Test");
+
+    sapp.win32.hwnd = CreateWindowExW(
+        win_ex_style,               // dwExStyle
+        w!("SOKOLAPP"),                // lpClassName
+        test, //DT_TODO: sapp.window_title_wide,    // lpWindowName
+        win_style,                  // dwStyle
+        CW_USEDEFAULT,              // X
+        SW_HIDE as i32,                    // Y (NOTE: CW_USEDEFAULT is not used for position here, but internally calls ShowWindow!
+        if use_default_width { CW_USEDEFAULT } else { win_width }, // nWidth
+        if use_default_height { CW_USEDEFAULT } else { win_height}, // nHeight (NOTE: if width is CW_USEDEFAULT, height is actually ignored)
+        0,                       // hWndParent
+        0,                       // hMenu
+        instance,      // hInstance
+        std::ptr::null());                      // lParam
+    sapp.win32.in_create_window = false;
+    sapp.win32.dc = GetDC(sapp.win32.hwnd);
+    sapp.win32.hmonitor = MonitorFromWindow(sapp.win32.hwnd, MONITOR_DEFAULTTONULL);
+    debug_assert!(sapp.win32.dc != 0);
+
+    /* this will get the actual windowed-mode window size, if fullscreen
+       is requested, the set_fullscreen function will then capture the
+       current window rectangle, which then might be used later to
+       restore the window position when switching back to windowed
+    */
+    sapp_win32_update_dimensions(sapp);
+    if sapp.fullscreen {
+        //_sapp_win32_set_fullscreen(_sapp.fullscreen, SWP_HIDEWINDOW);
+        //sapp_win32_update_dimensions(sapp);
+    }
+    ShowWindow(sapp.win32.hwnd, SW_SHOW);
+    //DragAcceptFiles(sapp.win32.hwnd, 1);
+}
+
 struct SAppWin32 {
     hwnd: HWND,
     hmonitor: HMONITOR,
@@ -394,6 +651,60 @@ struct SAppWgl {
 }
 */
 
+pub struct SAppDesc<'a> {
+    pub width: u32,  // the preferred width of the window / canvas
+    pub height: u32, // the preferred height of the window / canvas
+
+    pub sample_count: u32,  // MSAA sample count
+    pub swap_interval: u32, // the preferred swap interval (ignored on some platforms)
+
+    pub high_dpi: bool, // whether the rendering canvas is full-resolution on HighDPI displays
+    pub fullscreen: bool, // whether the window should be created in fullscreen mode
+    pub alpha: bool, // whether the framebuffer should have an alpha channel (ignored on some platforms)
+
+    pub window_title: &'a str,  // the window title as UTF-8 encoded string
+    pub enable_clipboard: bool, // enable clipboard access, default is false
+    pub clipboard_size: u32,    // max size of clipboard content in bytes
+    pub enable_dragndrop: bool, // enable file dropping (drag'n'drop), default is false
+    pub max_dropped_files: u32, // max number of dropped files to process (default: 1)
+    pub max_dropped_file_path_length: u32, // max length in bytes of a dropped UTF-8 file path (default: 2048)
+    //sapp_icon_desc icon;                // the initial window icon to set
+    pub gl_major_version: u32, // override GL major and minor version (the default GL version is 3.2)
+    pub gl_minor_version: u32,
+    pub win32_console_utf8: bool, // if true, set the output console codepage to UTF-8
+    pub win32_console_create: bool, // if true, attach stdout/stderr to a new console window
+    pub win32_console_attach: bool, // if true, attach stdout/stderr to parent process
+}
+
+impl<'a> SAppDesc<'a> {
+    pub fn new() -> SAppDesc<'a> {
+        SAppDesc {
+            width: 0,
+            height: 0,
+
+            sample_count: 1,
+            swap_interval: 1,
+
+            high_dpi: false,
+            fullscreen: false,
+            alpha: false,
+
+            window_title: "Title",
+            enable_clipboard: false,
+            clipboard_size: 0,
+            enable_dragndrop: false,
+            max_dropped_files: 1,
+            max_dropped_file_path_length: 2048,
+
+            gl_major_version: 3,
+            gl_minor_version: 2,
+            win32_console_utf8: false,
+            win32_console_create: false,
+            win32_console_attach: false,
+        }
+    }
+}
+
 pub struct SAppData<'a> {
     desc: SAppDesc<'a>,
     valid: bool,
@@ -488,64 +799,66 @@ where
         app,
     };
 
-    b.app.init(&mut b.base);
+    //_sapp_win32_init_console();
+    //_sapp.win32.is_win10_or_greater = _sapp_win32_is_win10_or_greater();
+    sapp_win32_init_keytable(&mut b.base.keycodes);
+    //_sapp_win32_utf8_to_wide(_sapp.window_title, _sapp.window_title_wide, sizeof(_sapp.window_title_wide));
+    //_sapp_win32_init_dpi();
+    //_sapp_win32_init_cursors();
+    unsafe {sapp_win32_create_window(&mut b.base);}
+    //sapp_set_icon(&desc->icon);
+    //_sapp_wgl_init();
+    //_sapp_wgl_load_extensions();
+    //_sapp_wgl_create_context();
+    b.base.valid = true;
+
+    let mut done = false;
+    while !(done || b.base.quit_ordered) {
+        //_sapp_win32_timing_measure();
+        unsafe {
+            let mut msg : MSG = std::mem::zeroed();
+            while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
+                if WM_QUIT == msg.message {
+                    done = true;
+                    continue;
+                }
+                else {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+        }
+        //_sapp_frame();
+        //_sapp_wgl_swap_buffers();
+
+        /* check for window resized, this cannot happen in WM_SIZE as it explodes memory usage */
+        //if (_sapp_win32_update_dimensions()) {
+        //    _sapp_win32_app_event(SAPP_EVENTTYPE_RESIZED);
+        //}
+        /* check if the window monitor has changed, need to reset timing because
+           the new monitor might have a different refresh rate
+        */
+        //if (_sapp_win32_update_monitor()) {
+        //    _sapp_timing_reset(&_sapp.timing);
+        //}
+        if b.base.quit_requested {
+            unsafe { PostMessageW(b.base.win32.hwnd, WM_CLOSE, 0, 0); }
+        }
+    }
+    //_sapp_call_cleanup();
+
+    //_sapp_wgl_destroy_context();
+    //_sapp_wgl_shutdown();
+    //_sapp_win32_destroy_window();
+    //_sapp_win32_destroy_icons();
+    //_sapp_win32_restore_console();
+    //_sapp_discard_state();
+
 }
 
 impl<'a, T> SApp<'a, T> where T: SAppI {}
 
-pub struct SAppDesc<'a> {
-    pub width: u32,  // the preferred width of the window / canvas
-    pub height: u32, // the preferred height of the window / canvas
 
-    pub sample_count: u32,  // MSAA sample count
-    pub swap_interval: u32, // the preferred swap interval (ignored on some platforms)
-
-    pub high_dpi: bool, // whether the rendering canvas is full-resolution on HighDPI displays
-    pub fullscreen: bool, // whether the window should be created in fullscreen mode
-    pub alpha: bool, // whether the framebuffer should have an alpha channel (ignored on some platforms)
-
-    pub window_title: &'a str,  // the window title as UTF-8 encoded string
-    pub enable_clipboard: bool, // enable clipboard access, default is false
-    pub clipboard_size: u32,    // max size of clipboard content in bytes
-    pub enable_dragndrop: bool, // enable file dropping (drag'n'drop), default is false
-    pub max_dropped_files: u32, // max number of dropped files to process (default: 1)
-    pub max_dropped_file_path_length: u32, // max length in bytes of a dropped UTF-8 file path (default: 2048)
-    //sapp_icon_desc icon;                // the initial window icon to set
-    pub gl_major_version: u32, // override GL major and minor version (the default GL version is 3.2)
-    pub gl_minor_version: u32,
-    pub win32_console_utf8: bool, // if true, set the output console codepage to UTF-8
-    pub win32_console_create: bool, // if true, attach stdout/stderr to a new console window
-    pub win32_console_attach: bool, // if true, attach stdout/stderr to parent process
-}
-
-impl<'a> SAppDesc<'a> {
-    pub fn new() -> SAppDesc<'a> {
-        SAppDesc {
-            width: 1,
-            height: 1,
-
-            sample_count: 1,
-            swap_interval: 1,
-
-            high_dpi: false,
-            fullscreen: false,
-            alpha: false,
-
-            window_title: "Title",
-            enable_clipboard: false,
-            clipboard_size: 0,
-            enable_dragndrop: false,
-            max_dropped_files: 1,
-            max_dropped_file_path_length: 2048,
-
-            gl_major_version: 3,
-            gl_minor_version: 2,
-            win32_console_utf8: false,
-            win32_console_create: false,
-            win32_console_attach: false,
-        }
-    }
-}
 
 /*
 
