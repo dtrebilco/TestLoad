@@ -3,7 +3,8 @@ use windows_sys::core::*;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::Graphics::OpenGL::*;
-use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::System::LibraryLoader::{FreeLibrary, GetModuleHandleW, GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::UI::HiDpi::*;
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 #[derive(PartialEq, Clone, Copy)]
@@ -418,12 +419,99 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
         }
     }
 }
-/*
-s.map(
-    |s| s.encode_utf16()
-        .chain(std::iter::once(0)) // append a terminating null
-        .collect(),
-)*/
+
+unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
+    // Manually loading entry points to support old windows versions - perhaps gate this behind a modern window feature version?
+    type FnSetProcessDPIAwareT = extern "system" fn() -> BOOL;
+    type FnSetProcessDPIAwarenessT = extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
+    type FnSetProcessDPIAwarenessContextT =
+        extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL; // since Windows 10, version 1703
+    type FnGetDpiForMonitorT = extern "system" fn(
+        hmonitor: HMONITOR,
+        dpitype: MONITOR_DPI_TYPE,
+        dpix: *mut u32,
+        dpiy: *mut u32,
+    ) -> HRESULT;
+
+    let mut fn_set_process_dpi_aware = Option::<FnSetProcessDPIAwareT>::None;
+    let mut fn_set_process_dpi_awareness = Option::<FnSetProcessDPIAwarenessT>::None;
+    let mut fn_set_process_dpi_awareness_context = Option::<FnSetProcessDPIAwarenessContextT>::None;
+    let mut fn_get_dpi_for_monitor = Option::<FnGetDpiForMonitorT>::None;
+
+    let user32 = LoadLibraryA(s!("user32.dll"));
+    if user32 != 0 {
+        fn_set_process_dpi_aware =
+            std::mem::transmute(GetProcAddress(user32, s!("SetProcessDPIAware")));
+        fn_set_process_dpi_awareness_context =
+            std::mem::transmute(GetProcAddress(user32, s!("SetProcessDpiAwarenessContext")));
+    }
+    let shcore = LoadLibraryA(s!("shcore.dll"));
+    if shcore != 0 {
+        fn_set_process_dpi_awareness =
+            std::mem::transmute(GetProcAddress(shcore, s!("SetProcessDpiAwareness")));
+        fn_get_dpi_for_monitor = std::mem::transmute(GetProcAddress(shcore, s!("GetDpiForMonitor")));
+    }
+
+    // NOTE on SetProcessDpiAware() vs SetProcessDpiAwareness() vs SetProcessDpiAwarenessContext():
+    //
+    // These are different attempts to get DPI handling on Windows right, from oldest
+    // to newest. SetProcessDpiAwarenessContext() is required for the new
+    // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 method.
+    if let Some(set_process_dpi_awareness) = fn_set_process_dpi_awareness {
+        if sapp.desc.high_dpi {
+
+            // app requests HighDPI rendering, first try the Win10 Creator Update per-monitor-dpi awareness,
+            // if that fails, fall back to system-dpi-awareness
+            sapp.win32.dpi.aware = true;
+            let per_monitor_aware_v2: DPI_AWARENESS_CONTEXT = -4;
+            if let Some(set_process_dpi_awareness_context) = fn_set_process_dpi_awareness_context {
+                if set_process_dpi_awareness_context(per_monitor_aware_v2) == FALSE {
+                    set_process_dpi_awareness(PROCESS_SYSTEM_DPI_AWARE);
+                }
+            } else {
+                set_process_dpi_awareness(PROCESS_SYSTEM_DPI_AWARE);
+            }
+        } else {
+            // if the app didn't request HighDPI rendering, let Windows do the upscaling
+            sapp.win32.dpi.aware = false;
+            set_process_dpi_awareness(PROCESS_DPI_UNAWARE);
+        }
+    } else if let Some(set_process_dpi_aware) = fn_set_process_dpi_aware {
+        // fallback for Windows 7
+        sapp.win32.dpi.aware = true;
+        set_process_dpi_aware();
+    }
+    // get dpi scale factor for main monitor
+    sapp.win32.dpi.window_scale = 1.0;
+    if let Some(get_dpi_for_monitor) = fn_get_dpi_for_monitor {
+        if sapp.win32.dpi.aware {
+            let pt: POINT = POINT { x: 1, y: 1 };
+            let hm: HMONITOR = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+            let mut dpix: u32 = 0;
+            let mut dpiy: u32 = 0;
+            let hr: HRESULT = get_dpi_for_monitor(hm, MDT_EFFECTIVE_DPI, &mut dpix, &mut dpiy);
+            debug_assert!(hr >= 0);
+            // clamp window scale to an integer factor
+            sapp.win32.dpi.window_scale = dpix as f32 / 96.0;
+        }
+    }
+
+    if sapp.desc.high_dpi {
+        sapp.win32.dpi.content_scale = sapp.win32.dpi.window_scale;
+        sapp.win32.dpi.mouse_scale = 1.0;
+    } else {
+        sapp.win32.dpi.content_scale = 1.0;
+        sapp.win32.dpi.mouse_scale = 1.0 / sapp.win32.dpi.window_scale;
+    }
+
+    sapp.dpi_scale = sapp.win32.dpi.content_scale;
+    if user32 != 0 {
+        FreeLibrary(user32);
+    }
+    if shcore != 0 {
+        FreeLibrary(shcore);
+    }
+}
 
 unsafe fn sapp_win32_update_dimensions(sapp: &mut SAppData) -> bool {
     let mut rect = RECT {
@@ -433,17 +521,12 @@ unsafe fn sapp_win32_update_dimensions(sapp: &mut SAppData) -> bool {
         bottom: 0,
     };
     if (GetClientRect(sapp.win32.hwnd, &mut rect) == TRUE) {
-        sapp.window_width = (rect.right - rect.left) as u32;
-        sapp.window_height = (rect.bottom - rect.top) as u32;
-        let mut fb_width = sapp.window_width;
-        let mut fb_height = sapp.window_height;
-
-        //float window_width = (float)(rect.right - rect.left) / _sapp.win32.dpi.window_scale;
-        //float window_height = (float)(rect.bottom - rect.top) / _sapp.win32.dpi.window_scale;
-        //sapp.window_width = (int)roundf(window_width);
-        //sapp.window_height = (int)roundf(window_height);
-        //int fb_width = (int)roundf(window_width * _sapp.win32.dpi.content_scale);
-        //int fb_height = (int)roundf(window_height * _sapp.win32.dpi.content_scale);
+        let window_width = (rect.right - rect.left) as f32 / sapp.win32.dpi.window_scale;
+        let window_height = (rect.bottom - rect.top) as f32 / sapp.win32.dpi.window_scale;
+        sapp.window_width = window_width.round() as u32;
+        sapp.window_height = window_height.round() as u32;
+        let mut fb_width = (window_width as f32 * sapp.win32.dpi.content_scale).round() as u32;
+        let mut fb_height = (window_height as f32 * sapp.win32.dpi.content_scale).round() as u32;
 
         /* prevent a framebuffer size of 0 when window is minimized */
         if 0 == fb_width {
@@ -501,10 +584,8 @@ unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
         | WS_MAXIMIZEBOX
         | WS_SIZEBOX;
 
-    rect.right = sapp.window_width as i32;
-    rect.bottom = sapp.window_height as i32;
-    //rect.right = (sapp.window_width as float * sapp.win32.dpi.window_scale) as i32;
-    //rect.bottom = (sapp.window_height as float * sapp.win32.dpi.window_scale) as i32;
+    rect.right = (sapp.window_width as f32 * sapp.win32.dpi.window_scale) as i32;
+    rect.bottom = (sapp.window_height as f32 * sapp.win32.dpi.window_scale) as i32;
     let use_default_width = 0 == sapp.window_width;
     let use_default_height = 0 == sapp.window_height;
     AdjustWindowRectEx(&mut rect, win_style, FALSE, win_ex_style);
@@ -559,6 +640,13 @@ unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
     //DragAcceptFiles(sapp.win32.hwnd, 1);
 }
 
+struct DPI {
+    aware: bool,
+    content_scale: f32,
+    window_scale: f32,
+    mouse_scale: f32,
+}
+
 struct SAppWin32 {
     hwnd: HWND,
     hmonitor: HMONITOR,
@@ -575,7 +663,7 @@ struct SAppWin32 {
     iconified: bool,
     mouse_tracked: bool,
     mouse_capture_mask: u8,
-    //dpi : _sapp_win32_dpi_t,
+    dpi: DPI,
     raw_input_mousepos_valid: bool,
     raw_input_mousepos_x: i32,
     raw_input_mousepos_y: i32,
@@ -604,7 +692,12 @@ impl SAppWin32 {
             iconified: false,
             mouse_tracked: false,
             mouse_capture_mask: 0,
-            //dpi : _sapp_win32_dpi_t,
+            dpi: DPI {
+                aware: false,
+                content_scale: 0.0,
+                window_scale: 0.0,
+                mouse_scale: 0.0,
+            },
             raw_input_mousepos_valid: false,
             raw_input_mousepos_x: 0,
             raw_input_mousepos_y: 0,
@@ -828,7 +921,9 @@ where
     //_sapp.win32.is_win10_or_greater = _sapp_win32_is_win10_or_greater();
     sapp_win32_init_keytable(&mut b.base.keycodes);
     //_sapp_win32_utf8_to_wide(_sapp.window_title, _sapp.window_title_wide, sizeof(_sapp.window_title_wide));
-    //_sapp_win32_init_dpi();
+    unsafe {
+        sapp_win32_init_dpi(&mut b.base);
+    }
     //_sapp_win32_init_cursors();
     unsafe {
         sapp_win32_create_window(&mut b.base);
