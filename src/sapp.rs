@@ -6,6 +6,14 @@ use windows_sys::Win32::Graphics::OpenGL::*;
 use windows_sys::Win32::System::LibraryLoader::{FreeLibrary, GetModuleHandleW, GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::UI::HiDpi::*;
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
+use windows_sys::Win32::UI::Input::{GetRawInputData, RAWINPUT, HRAWINPUT, RID_INPUT, RAWINPUTHEADER};
+use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_ABSOLUTE;
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TrackMouseEvent, TRACKMOUSEEVENT, TME_LEAVE};
+
+#[inline]
+pub fn HIWORD(l: u32) -> u16 {
+    ((l >> 16) & 0xffff) as u16
+}
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum KeyCode {
@@ -183,8 +191,8 @@ pub enum Event {
     Char(CharEvent),
     Mouse(MouseEvent),
     MouseScroll(MouseScrollEvent),
-    MouseMove,
-    MouseEnter,
+    MouseMove(Modifier),
+    MouseEnter(Modifier),
     MouseLeave,
     TouchesBegan,
     TouchesMoved,
@@ -438,8 +446,8 @@ where T : SAppI
                     // if window should be closed and event handling is enabled, give user code
                     //    a change to intervene via sapp_cancel_quit()
                     sapp.base.quit_requested = true;
-                    sapp_win32_app_event(SAPP_EVENTTYPE_QUIT_REQUESTED);
-                    /// if user code hasn't intervened, quit the app
+                    sapp.call_event(&Event::QuitRequested);
+                    // if user code hasn't intervened, quit the app
                     if sapp.base.quit_requested {
                         sapp.base.quit_ordered = true;
                     }
@@ -463,32 +471,28 @@ where T : SAppI
                     }
                 }
             }
-            WM_ERASEBKGND => {
-                return 1;
-            }
+            WM_ERASEBKGND => return 1,
             WM_SIZE => {
                     let iconified = wparam == SIZE_MINIMIZED as usize;
                     if iconified != sapp.base.win32.iconified {
                         sapp.base.win32.iconified = iconified;
                         if iconified {
-                            sapp_win32_app_event(SAPP_EVENTTYPE_ICONIFIED);
+                            sapp.call_event(&Event::Iconified);
                         }
                         else {
-                            sapp_win32_app_event(SAPP_EVENTTYPE_RESTORED);
+                            sapp.call_event(&Event::Restored);
                         }
                     }
                 }
 
-            WM_SETFOCUS => {
-                _sapp_win32_app_event(SAPP_EVENTTYPE_FOCUSED);
-            }
+            WM_SETFOCUS => sapp.call_event(&Event::Focused),
 
             WM_KILLFOCUS => {
                 // if focus is lost for any reason, and we're in mouse locked mode, disable mouse lock
                 if sapp.base.mouse.locked {
                     sapp_win32_lock_mouse(false);
                 }
-                sapp_win32_app_event(SAPP_EVENTTYPE_UNFOCUSED);
+                sapp.call_event(&Event::Unfocused);
             }
             WM_SETCURSOR => {
                 //if (LOWORD(lParam) == HTCLIENT) {
@@ -504,32 +508,32 @@ where T : SAppI
             }
             WM_LBUTTONDOWN => {
                 sapp_win32_mouse_update(lParam);
-                sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_LEFT);
+                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: true, mouse_button: MouseButton::Left, modifiers: Modifier::empty() }));
                 sapp_win32_capture_mouse(1<<SAPP_MOUSEBUTTON_LEFT);
             }
             WM_RBUTTONDOWN => {
                 sapp_win32_mouse_update(lParam);
-                sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_RIGHT);
+                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: true, mouse_button: MouseButton::Right, modifiers: Modifier::empty() }));                
                 sapp_win32_capture_mouse(1<<SAPP_MOUSEBUTTON_RIGHT);
             }
             WM_MBUTTONDOWN => {
                 sapp_win32_mouse_update(lParam);
-                sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_DOWN, SAPP_MOUSEBUTTON_MIDDLE);
+                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: true, mouse_button: MouseButton::Middle, modifiers: Modifier::empty() }));                
                 sapp_win32_capture_mouse(1<<SAPP_MOUSEBUTTON_MIDDLE);
             }
             WM_LBUTTONUP => {
                 sapp_win32_mouse_update(lParam);
-                sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_LEFT);
+                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: false, mouse_button: MouseButton::Left, modifiers: Modifier::empty() }));
                 sapp_win32_release_mouse(1<<SAPP_MOUSEBUTTON_LEFT);
             }
             WM_RBUTTONUP => {
                 _sapp_win32_mouse_update(lParam);
-                _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_RIGHT);
+                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: false, mouse_button: MouseButton::Right, modifiers: Modifier::empty() }));                
                 _sapp_win32_release_mouse(1<<SAPP_MOUSEBUTTON_RIGHT);
             }
             WM_MBUTTONUP => {
                 _sapp_win32_mouse_update(lParam);
-                _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_UP, SAPP_MOUSEBUTTON_MIDDLE);
+                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: false, mouse_button: MouseButton::Middle, modifiers: Modifier::empty() }));                
                 _sapp_win32_release_mouse(1<<SAPP_MOUSEBUTTON_MIDDLE);
             }
             WM_MOUSEMOVE => {
@@ -537,77 +541,73 @@ where T : SAppI
                     sapp_win32_mouse_update(lParam);
                     if !sapp.base.win32.mouse_tracked {
                         sapp.base.win32.mouse_tracked = true;
-                        TRACKMOUSEEVENT tme;
-                        _sapp_clear(&tme, sizeof(tme));
-                        tme.cbSize = sizeof(tme);
-                        tme.dwFlags = TME_LEAVE;
-                        tme.hwndTrack = _sapp.win32.hwnd;
-                        TrackMouseEvent(&tme);
-                        sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_ENTER, SAPP_MOUSEBUTTON_INVALID);
+                        let mut tme = TRACKMOUSEEVENT{ 
+                            cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                            dwFlags: TME_LEAVE,
+                            hwndTrack: sapp.base.win32.hwnd,
+                            dwHoverTime: 0};
+                        TrackMouseEvent(&mut tme);
+                        sapp.call_event(&Event::MouseEnter(Modifier::empty()));
                     }
-                    sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID);
+                    sapp.call_event(&Event::MouseMove(Modifier::empty()));
                 }
             }
             WM_INPUT => {
                 /* raw mouse input during mouse-lock */
                 if sapp.base.mouse.locked {
-                    HRAWINPUT ri = (HRAWINPUT) lParam;
-                    UINT size = sizeof(_sapp.win32.raw_input_data);
+                    let ri = lparam as HRAWINPUT;
+                    let size : u32 = sapp.base.win32.raw_input_data.len() as u32;
+                    let ptr = &mut sapp.base.win32.raw_input_data as *mut u8 as *mut core::ffi::c_void;
                     // see: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputdata
-                    if ((UINT)-1 == GetRawInputData(ri, RID_INPUT, &_sapp.win32.raw_input_data, &size, sizeof(RAWINPUTHEADER))) {
-                        _SAPP_ERROR(WIN32_GET_RAW_INPUT_DATA_FAILED);
-                        break;
-                    }
-                    const RAWINPUT* raw_mouse_data = (const RAWINPUT*) &_sapp.win32.raw_input_data;
-                    if (raw_mouse_data->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) {
-                        /* mouse only reports absolute position
-                           NOTE: THIS IS UNTESTED, it's unclear from reading the
-                           Win32 RawInput docs under which circumstances absolute
-                           positions are sent.
-                        */
-                        if (_sapp.win32.raw_input_mousepos_valid) {
-                            LONG new_x = raw_mouse_data->data.mouse.lLastX;
-                            LONG new_y = raw_mouse_data->data.mouse.lLastY;
-                            _sapp.mouse.dx = (float) (new_x - _sapp.win32.raw_input_mousepos_x);
-                            _sapp.mouse.dy = (float) (new_y - _sapp.win32.raw_input_mousepos_y);
-                            _sapp.win32.raw_input_mousepos_x = new_x;
-                            _sapp.win32.raw_input_mousepos_y = new_y;
-                            _sapp.win32.raw_input_mousepos_valid = true;
+                    if -1i32 as u32 != GetRawInputData(ri, RID_INPUT, ptr, &mut size, std::mem::size_of::<RAWINPUTHEADER>() as u32) {
+                        let raw_mouse_data = ptr as *const RAWINPUT; // DT_TODO: Check casting of this - use local var of just type RAWINPUT? Link seems to indicate you can do this?
+                        let raw_data = &(*raw_mouse_data).data;
+                        if (raw_data.mouse.usFlags as u32 & MOUSE_MOVE_ABSOLUTE) != 0 {
+                            // mouse only reports absolute position
+                            //   NOTE: THIS IS UNTESTED, it's unclear from reading the
+                            //   Win32 RawInput docs under which circumstances absolute
+                            //   positions are sent.
+                            if sapp.base.win32.raw_input_mousepos_valid {
+                                let new_x = raw_data.mouse.lLastX;
+                                let new_y = raw_data.mouse.lLastY;
+                                sapp.base.mouse.dx = (new_x - sapp.base.win32.raw_input_mousepos_x) as f32;
+                                sapp.base.mouse.dy = (new_y - sapp.base.win32.raw_input_mousepos_y) as f32;
+                                sapp.base.win32.raw_input_mousepos_x = new_x;
+                                sapp.base.win32.raw_input_mousepos_y = new_y;
+                                sapp.base.win32.raw_input_mousepos_valid = true;
+                            }
                         }
+                        else {
+                            // mouse reports movement delta (this seems to be the common case)
+                            sapp.base.mouse.dx = raw_data.mouse.lLastX as f32;
+                            sapp.base.mouse.dy = raw_data.mouse.lLastY as f32;
+                        }
+                        sapp.call_event(&Event::MouseMove(Modifier::empty()));
                     }
-                    else {
-                        /* mouse reports movement delta (this seems to be the common case) */
-                        _sapp.mouse.dx = (float) raw_mouse_data->data.mouse.lLastX;
-                        _sapp.mouse.dy = (float) raw_mouse_data->data.mouse.lLastY;
-                    }
-                    _sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_MOVE, SAPP_MOUSEBUTTON_INVALID);
+
+                    //else _SAPP_ERROR(WIN32_GET_RAW_INPUT_DATA_FAILED); // DT_TODO:
+
                 }
             }
 
             WM_MOUSELEAVE => {
                 if !sapp.base.mouse.locked {
                     sapp.base.win32.mouse_tracked = false;
-                    sapp_win32_mouse_event(SAPP_EVENTTYPE_MOUSE_LEAVE, SAPP_MOUSEBUTTON_INVALID);
+                    sapp.call_event(&Event::MouseLeave);
                 }
             }
             WM_MOUSEWHEEL => {
                 sapp_win32_mouse_update(lParam);
-                sapp_win32_scroll_event(0.0f, (float)((SHORT)HIWORD(wParam)));
+                sapp.call_event(&Event::MouseScroll(MouseScrollEvent{scroll_x : 0.0, scroll_y : HIWORD(wparam as u32) as f32 / 30.0 }));
             }
             WM_MOUSEHWHEEL => {
                 _sapp_win32_mouse_update(lParam);
-                _sapp_win32_scroll_event((float)((SHORT)HIWORD(wParam)), 0.0f);
+                sapp.call_event(&Event::MouseScroll(MouseScrollEvent{scroll_x : HIWORD(wparam as u32) as f32 / -30.0, scroll_y : 0.0 }));                
             }
-            WM_CHAR => {
-                _sapp_win32_char_event((uint32_t)wParam, !!(lParam&0x40000000));
-            }
-            WM_KEYDOWN | WM_SYSKEYDOWN => {
-                _sapp_win32_key_event(SAPP_EVENTTYPE_KEY_DOWN, (int)(HIWORD(lParam)&0x1FF), !!(lParam&0x40000000));
-            }
-            WM_KEYUP | WM_SYSKEYUP => {
-                _sapp_win32_key_event(SAPP_EVENTTYPE_KEY_UP, (int)(HIWORD(lParam)&0x1FF), false);
-            }
-            WM_ENTERSIZEMOVE => SetTimer(sapp.base.win32.hwnd, 1, USER_TIMER_MINIMUM, std::ptr::null()),
+            WM_CHAR => _sapp_win32_char_event((uint32_t)wParam, !!(lParam&0x40000000)),
+            WM_KEYDOWN | WM_SYSKEYDOWN => sapp_win32_key_event(SAPP_EVENTTYPE_KEY_DOWN, (int)(HIWORD(lParam)&0x1FF), !!(lParam&0x40000000)),
+            WM_KEYUP | WM_SYSKEYUP => sapp_win32_key_event(SAPP_EVENTTYPE_KEY_UP, (int)(HIWORD(lParam)&0x1FF), false),
+            WM_ENTERSIZEMOVE => SetTimer(sapp.base.win32.hwnd, 1, USER_TIMER_MINIMUM, None),
             WM_EXITSIZEMOVE => KillTimer(sapp.base.win32.hwnd, 1),
 
             WM_TIMER => {
@@ -623,14 +623,13 @@ where T : SAppI
                 */
             }
             WM_NCLBUTTONDOWN => {
-                /* workaround for half-second pause when starting to move window
-                    see: https://gamedev.net/forums/topic/672094-keeping-things-moving-during-win32-moveresize-events/5254386/
-                */
-                if (SendMessage(_sapp.win32.hwnd, WM_NCHITTEST, wParam, lParam) == HTCAPTION) {
-                    POINT point;
-                    GetCursorPos(&point);
-                    ScreenToClient(_sapp.win32.hwnd, &point);
-                    PostMessage(_sapp.win32.hwnd, WM_MOUSEMOVE, 0, ((uint32_t)point.x)|(((uint32_t)point.y) << 16));
+                // workaround for half-second pause when starting to move window
+                //    see: https://gamedev.net/forums/topic/672094-keeping-things-moving-during-win32-moveresize-events/5254386/
+                if SendMessageW(sapp.base.win32.hwnd, WM_NCHITTEST, wparam, lparam) == HTCAPTION as isize {
+                    let mut point = POINT { x: 0, y:0 };
+                    GetCursorPos(&mut point);
+                    ScreenToClient(sapp.base.win32.hwnd, &mut point);
+                    PostMessageW(sapp.base.win32.hwnd, WM_MOUSEMOVE, 0, ((point.x as u32)|((point.y as u32) << 16)) as isize);
                 }
             }
             WM_DROPFILES => sapp_win32_files_dropped((HDROP)wParam),
@@ -1131,6 +1130,17 @@ where
     app: T,
 }
 
+impl<'a, T> SApp<'a, T>
+where T: SAppI
+{
+    fn call_event(&mut self, event : &Event) {
+        if !self.base.cleanup_called && self.base.init_called {
+            self.app.on_event(&mut self.base, event);
+        }
+    }
+} 
+
+
 pub fn run_app<T>(app: T, desc: SAppDesc)
 where
     T: SAppI,
@@ -1200,6 +1210,9 @@ where
             }
         }
     }
+    //DT_TODO Unset pointer on the window
+    //SetWindowLongPtrW(b.base.win32.hwnd, GWL_USERDATA, 0);
+
     //_sapp_call_cleanup();
 
     //_sapp_wgl_destroy_context();

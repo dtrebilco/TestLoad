@@ -145,7 +145,7 @@ where
             Event::MouseScroll(data) => {
                 //cam_zoom(cam, ev->scroll_y * 0.5f); //DT_TODO: Adjust speed here?
             }
-            Event::MouseMove => {
+            Event::MouseMove(data) => {
                 //if sapp_mouse_locked() {
                 //  let mouseSensibility = 0.003f32;
                 //  self.base.wx -= mouseSensibility * ev->mouse_dy;

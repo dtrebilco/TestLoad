@@ -20,4 +20,8 @@ features = [
     "Win32_Graphics",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_OpenGL",
+    "Win32_UI_Input",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Devices",
+    "Win32_Devices_HumanInterfaceDevice",
 ]
