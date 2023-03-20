@@ -115,12 +115,12 @@ pub fn run_app<T>(app: T, desc: SAppDesc)
 where
     T: AppI,
 {
-    let b = BaseApp {
+    let mut b = BaseApp {
         base: BaseData::new(),
         app,
     };
 
-    crate::sapp::run_app(b, desc);
+    crate::sapp::run_app(&mut b, desc);
 }
 
 impl<T> SAppI for BaseApp<T>

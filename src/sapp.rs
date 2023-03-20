@@ -568,10 +568,9 @@ unsafe fn sapp_win32_dpi_changed(sapp : &mut SAppData, hWnd : HWND, proposed_win
 }
 
 
-unsafe extern "system" fn wndproc<T>(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT
-where T : SAppI
+unsafe extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT
 {
-    let sapp = GetWindowLongPtrW(window, GWLP_USERDATA) as *mut SApp<T>;
+    let sapp = GetWindowLongPtrW(window, GWLP_USERDATA) as *mut SApp;
     let sapp = match sapp.as_mut() {
         Some(app) => app,
         _ => return DefWindowProcW(window, message, wparam, lparam)
@@ -607,6 +606,7 @@ where T : SAppI
                         // user trying to access menu via ALT
                         return 0;
                     }
+                    _ => {}
                 }
             }
             WM_ERASEBKGND => return 1,
@@ -694,11 +694,12 @@ where T : SAppI
                     sapp.call_event(&Event::MouseMove(Modifier::empty()));
                 }
             }
+            
             WM_INPUT => {
                 // raw mouse input during mouse-lock
                 if sapp.base.mouse.locked {
                     let ri = lparam as HRAWINPUT;
-                    let size : u32 = sapp.base.win32.raw_input_data.len() as u32;
+                    let mut size : u32 = sapp.base.win32.raw_input_data.len() as u32;
                     let ptr = &mut sapp.base.win32.raw_input_data as *mut u8 as *mut core::ffi::c_void;
                     // see: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputdata
                     if -1i32 as u32 != GetRawInputData(ri, RID_INPUT, ptr, &mut size, std::mem::size_of::<RAWINPUTHEADER>() as u32) {
@@ -740,6 +741,7 @@ where T : SAppI
                     sapp.call_event(&Event::MouseLeave);
                 }
             }
+            
             WM_MOUSEWHEEL => {
                 sapp_win32_mouse_update(&mut sapp.base, lparam);
                 sapp.call_event(&Event::MouseScroll(MouseScrollEvent{scroll_x : 0.0, scroll_y : HIWORD(wparam as u32) as f32 / 30.0 }));
@@ -1301,16 +1303,13 @@ impl<'a> SAppData<'a> {
     }
 }
 
-pub struct SApp<'a, T>
-where
-    T: SAppI,
+pub struct SApp<'a>
 {
     base: SAppData<'a>,
-    app: T,
+    app: &'a mut dyn SAppI,
 }
 
-impl<'a, T> SApp<'a, T>
-where T: SAppI
+impl<'a> SApp<'a>
 {
     fn call_event(&mut self, event : &Event) {
         if !self.base.cleanup_called && self.base.init_called {
@@ -1319,10 +1318,7 @@ where T: SAppI
     }
 } 
 
-
-pub fn run_app<T>(app: T, desc: SAppDesc)
-where
-    T: SAppI,
+pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc)
 {
     let mut b = SApp {
         base: SAppData::new(desc),
@@ -1347,7 +1343,7 @@ where
     b.base.valid = true;
 
     let user_data = &mut b;
-    let ptr = user_data as *mut SApp<T>;
+    let ptr = user_data as *mut SApp;
 
     unsafe {
         // DT_TODO: check safety of doing this
@@ -1402,7 +1398,7 @@ where
     //_sapp_discard_state();
 }
 
-impl<'a, T> SApp<'a, T> where T: SAppI {}
+//impl<'a, T> SApp<'a, T> where T: SAppI {}
 
 /*
 
