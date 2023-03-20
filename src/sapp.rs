@@ -1,14 +1,21 @@
 use bitflags::bitflags;
 use windows_sys::core::*;
+use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_ABSOLUTE;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::Graphics::OpenGL::*;
-use windows_sys::Win32::System::LibraryLoader::{FreeLibrary, GetModuleHandleW, GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::LibraryLoader::{
+    FreeLibrary, GetModuleHandleW, GetProcAddress, LoadLibraryA,
+};
 use windows_sys::Win32::UI::HiDpi::*;
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
+};
+use windows_sys::Win32::UI::Input::{
+    GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
+    RIDEV_REMOVE, RID_INPUT,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
-use windows_sys::Win32::UI::Input::{GetRawInputData, RegisterRawInputDevices, RAWINPUT, HRAWINPUT, RID_INPUT, RAWINPUTHEADER, RAWINPUTDEVICE, RIDEV_REMOVE};
-use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_ABSOLUTE;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{TrackMouseEvent, SetCapture, ReleaseCapture, TRACKMOUSEEVENT, TME_LEAVE};
 
 #[inline]
 pub fn LOWORD(l: u32) -> u16 {
@@ -444,23 +451,27 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
 }
 */
 
-fn sapp_win32_capture_mouse(sapp : &mut SAppData, btn_mask : u8) {
+fn sapp_win32_capture_mouse(sapp: &mut SAppData, btn_mask: u8) {
     if 0 == sapp.win32.mouse_capture_mask {
-        unsafe { SetCapture(sapp.win32.hwnd); }
+        unsafe {
+            SetCapture(sapp.win32.hwnd);
+        }
     }
     sapp.win32.mouse_capture_mask |= btn_mask;
 }
 
-fn sapp_win32_release_mouse(sapp : &mut SAppData, btn_mask : u8) {
+fn sapp_win32_release_mouse(sapp: &mut SAppData, btn_mask: u8) {
     if 0 != sapp.win32.mouse_capture_mask {
         sapp.win32.mouse_capture_mask &= !btn_mask;
         if 0 == sapp.win32.mouse_capture_mask {
-            unsafe { ReleaseCapture(); }
+            unsafe {
+                ReleaseCapture();
+            }
         }
     }
 }
 
-unsafe fn sapp_win32_lock_mouse(sapp : &mut SAppData, lock : bool) {
+unsafe fn sapp_win32_lock_mouse(sapp: &mut SAppData, lock: bool) {
     if lock == sapp.mouse.locked {
         return;
     }
@@ -470,7 +481,7 @@ unsafe fn sapp_win32_lock_mouse(sapp : &mut SAppData, lock : bool) {
     sapp_win32_release_mouse(sapp, 0xFF);
     if sapp.mouse.locked {
         // store the current mouse position, so it can be restored when unlocked
-        let mut pos = POINT{x:0, y:0}; 
+        let mut pos = POINT { x: 0, y: 0 };
         let res = GetCursorPos(&mut pos);
         debug_assert!(res == TRUE);
         sapp.win32.mouse_locked_x = pos.x;
@@ -480,10 +491,10 @@ unsafe fn sapp_win32_lock_mouse(sapp : &mut SAppData, lock : bool) {
         // confine the mouse movement to a small rectangle inside our window
         // (so that we dont miss any mouse up events)
         let client_rect = RECT {
-            left:sapp.win32.mouse_locked_x,
-            top:sapp.win32.mouse_locked_y,
-            right:sapp.win32.mouse_locked_x,
-            bottom:sapp.win32.mouse_locked_y,
+            left: sapp.win32.mouse_locked_x,
+            top: sapp.win32.mouse_locked_y,
+            right: sapp.win32.mouse_locked_x,
+            bottom: sapp.win32.mouse_locked_y,
         };
         ClipCursor(&client_rect);
 
@@ -492,10 +503,10 @@ unsafe fn sapp_win32_lock_mouse(sapp : &mut SAppData, lock : bool) {
 
         // enable raw input for mouse, starts sending WM_INPUT messages to WinProc (see GLFW)
         let rid = RAWINPUTDEVICE {
-            usUsagePage: 0x01,   // usUsagePage: HID_USAGE_PAGE_GENERIC
-            usUsage:0x02,   // usUsage: HID_USAGE_GENERIC_MOUSE
-            dwFlags: 0,      // dwFlags
-            hwndTarget: sapp.win32.hwnd    // hwndTarget
+            usUsagePage: 0x01,           // usUsagePage: HID_USAGE_PAGE_GENERIC
+            usUsage: 0x02,               // usUsage: HID_USAGE_GENERIC_MOUSE
+            dwFlags: 0,                  // dwFlags
+            hwndTarget: sapp.win32.hwnd, // hwndTarget
         };
 
         if RegisterRawInputDevices(&rid, 1, std::mem::size_of::<RAWINPUTDEVICE>() as u32) != TRUE {
@@ -504,10 +515,14 @@ unsafe fn sapp_win32_lock_mouse(sapp : &mut SAppData, lock : bool) {
         // in case the raw mouse device only supports absolute position reporting,
         // we need to skip the dx/dy compution for the first WM_INPUT event
         sapp.win32.raw_input_mousepos_valid = false;
-    }
-    else {
+    } else {
         // disable raw input for mouse
-        let rid = RAWINPUTDEVICE { usUsagePage:0x01, usUsage:0x02, dwFlags:RIDEV_REMOVE, hwndTarget:0 };
+        let rid = RAWINPUTDEVICE {
+            usUsagePage: 0x01,
+            usUsage: 0x02,
+            dwFlags: RIDEV_REMOVE,
+            hwndTarget: 0,
+        };
         if RegisterRawInputDevices(&rid, 1, std::mem::size_of::<RAWINPUTDEVICE>() as u32) != TRUE {
             //_SAPP_ERROR(WIN32_REGISTER_RAW_INPUT_DEVICES_FAILED_MOUSE_UNLOCK);
         }
@@ -522,7 +537,7 @@ unsafe fn sapp_win32_lock_mouse(sapp : &mut SAppData, lock : bool) {
     }
 }
 
-fn sapp_win32_mouse_update(sapp : &mut SAppData, lParam: LPARAM) {
+fn sapp_win32_mouse_update(sapp: &mut SAppData, lParam: LPARAM) {
     if !sapp.mouse.locked {
         let new_x = GET_X_LPARAM(lParam) as f32 * sapp.win32.dpi.mouse_scale;
         let new_y = GET_Y_LPARAM(lParam) as f32 * sapp.win32.dpi.mouse_scale;
@@ -537,7 +552,7 @@ fn sapp_win32_mouse_update(sapp : &mut SAppData, lParam: LPARAM) {
     }
 }
 
-unsafe fn sapp_win32_dpi_changed(sapp : &mut SAppData, hWnd : HWND, proposed_win_rect: &RECT ) {
+unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_rect: &RECT) {
     // called on WM_DPICHANGED, which will only be sent to the application
     //    if sapp_desc.high_dpi is true and the Windows version is recent enough
     //    to support DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
@@ -557,271 +572,328 @@ unsafe fn sapp_win32_dpi_changed(sapp : &mut SAppData, hWnd : HWND, proposed_win
         sapp.win32.dpi.window_scale = dpix as f32 / 96.0;
         sapp.win32.dpi.content_scale = sapp.win32.dpi.window_scale;
         sapp.dpi_scale = sapp.win32.dpi.window_scale;
-        SetWindowPos(hWnd, 0,
+        SetWindowPos(
+            hWnd,
+            0,
             proposed_win_rect.left,
             proposed_win_rect.top,
             proposed_win_rect.right - proposed_win_rect.left,
             proposed_win_rect.bottom - proposed_win_rect.top,
-            SWP_NOZORDER | SWP_NOACTIVATE);
+            SWP_NOZORDER | SWP_NOACTIVATE,
+        );
     }
     FreeLibrary(user32);
 }
 
-
-unsafe extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT
-{
+unsafe extern "system" fn wndproc(
+    window: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     let sapp = GetWindowLongPtrW(window, GWLP_USERDATA) as *mut SApp;
     let sapp = match sapp.as_mut() {
         Some(app) => app,
-        _ => return DefWindowProcW(window, message, wparam, lparam)
+        _ => return DefWindowProcW(window, message, wparam, lparam),
     };
 
-        match message {
-            WM_CLOSE =>  {
-                // only give user a chance to intervene when sapp_quit() wasn't already called
-                if !sapp.base.quit_ordered {
-                    // if window should be closed and event handling is enabled, give user code
-                    //    a change to intervene via sapp_cancel_quit()
-                    sapp.base.quit_requested = true;
-                    sapp.call_event(&Event::QuitRequested);
-                    // if user code hasn't intervened, quit the app
-                    if sapp.base.quit_requested {
-                        sapp.base.quit_ordered = true;
-                    }
+    match message {
+        WM_CLOSE => {
+            // only give user a chance to intervene when sapp_quit() wasn't already called
+            if !sapp.base.quit_ordered {
+                // if window should be closed and event handling is enabled, give user code
+                //    a change to intervene via sapp_cancel_quit()
+                sapp.base.quit_requested = true;
+                sapp.call_event(&Event::QuitRequested);
+                // if user code hasn't intervened, quit the app
+                if sapp.base.quit_requested {
+                    sapp.base.quit_ordered = true;
                 }
-                if sapp.base.quit_ordered {
-                    PostQuitMessage(0);
-                }
-                return 0;
             }
-            WM_SYSCOMMAND => {
-                match (wparam & 0xFFF0) as u32 {
-                    SC_SCREENSAVE | SC_MONITORPOWER => {
-                        if sapp.base.fullscreen {
-                            // disable screen saver and blanking in fullscreen mode
-                            return 0;
-                        }
-                    }
-                    SC_KEYMENU => {
-                        // user trying to access menu via ALT
+            if sapp.base.quit_ordered {
+                PostQuitMessage(0);
+            }
+            return 0;
+        }
+        WM_SYSCOMMAND => {
+            match (wparam & 0xFFF0) as u32 {
+                SC_SCREENSAVE | SC_MONITORPOWER => {
+                    if sapp.base.fullscreen {
+                        // disable screen saver and blanking in fullscreen mode
                         return 0;
                     }
-                    _ => {}
+                }
+                SC_KEYMENU => {
+                    // user trying to access menu via ALT
+                    return 0;
+                }
+                _ => {}
+            }
+        }
+        WM_ERASEBKGND => return 1,
+        WM_SIZE => {
+            let iconified = wparam == SIZE_MINIMIZED as usize;
+            if iconified != sapp.base.win32.iconified {
+                sapp.base.win32.iconified = iconified;
+                if iconified {
+                    sapp.call_event(&Event::Iconified);
+                } else {
+                    sapp.call_event(&Event::Restored);
                 }
             }
-            WM_ERASEBKGND => return 1,
-            WM_SIZE => {
-                    let iconified = wparam == SIZE_MINIMIZED as usize;
-                    if iconified != sapp.base.win32.iconified {
-                        sapp.base.win32.iconified = iconified;
-                        if iconified {
-                            sapp.call_event(&Event::Iconified);
-                        }
-                        else {
-                            sapp.call_event(&Event::Restored);
-                        }
-                    }
-                }
+        }
 
-            WM_SETFOCUS => sapp.call_event(&Event::Focused),
+        WM_SETFOCUS => sapp.call_event(&Event::Focused),
 
-            WM_KILLFOCUS => {
-                // if focus is lost for any reason, and we're in mouse locked mode, disable mouse lock
-                if sapp.base.mouse.locked {
-                    sapp_win32_lock_mouse(&mut sapp.base, false);
+        WM_KILLFOCUS => {
+            // if focus is lost for any reason, and we're in mouse locked mode, disable mouse lock
+            if sapp.base.mouse.locked {
+                sapp_win32_lock_mouse(&mut sapp.base, false);
+            }
+            sapp.call_event(&Event::Unfocused);
+        }
+        WM_SETCURSOR => {
+            //if (LOWORD(lParam) == HTCLIENT) {
+            //    sapp_win32_update_cursor(_sapp.mouse.current_cursor, _sapp.mouse.shown, true);
+            //    return TRUE;
+            //}
+        }
+        WM_DPICHANGED => {
+            // DT_TODO: Test this and look at https://learn.microsoft.com/en-us/windows/win32/hidpi/wm-dpichanged - why not access g_dpi = HIWORD(wParam); ??
+            // Update window's DPI and size if its moved to another monitor with a different DPI
+            // Only sent if DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 is used.
+            let rect = lparam as *const RECT;
+            if let Some(rect) = rect.as_ref() {
+                sapp_win32_dpi_changed(&mut sapp.base, window, rect);
+            }
+        }
+        WM_LBUTTONDOWN => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::Mouse(MouseEvent {
+                pressed: true,
+                mouse_button: MouseButton::Left,
+                modifiers: Modifier::empty(),
+            }));
+            sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
+        }
+        WM_RBUTTONDOWN => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::Mouse(MouseEvent {
+                pressed: true,
+                mouse_button: MouseButton::Right,
+                modifiers: Modifier::empty(),
+            }));
+            sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
+        }
+        WM_MBUTTONDOWN => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::Mouse(MouseEvent {
+                pressed: true,
+                mouse_button: MouseButton::Middle,
+                modifiers: Modifier::empty(),
+            }));
+            sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
+        }
+        WM_LBUTTONUP => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::Mouse(MouseEvent {
+                pressed: false,
+                mouse_button: MouseButton::Left,
+                modifiers: Modifier::empty(),
+            }));
+            sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
+        }
+        WM_RBUTTONUP => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::Mouse(MouseEvent {
+                pressed: false,
+                mouse_button: MouseButton::Right,
+                modifiers: Modifier::empty(),
+            }));
+            sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
+        }
+        WM_MBUTTONUP => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::Mouse(MouseEvent {
+                pressed: false,
+                mouse_button: MouseButton::Middle,
+                modifiers: Modifier::empty(),
+            }));
+            sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
+        }
+        WM_MOUSEMOVE => {
+            if !sapp.base.mouse.locked {
+                sapp_win32_mouse_update(&mut sapp.base, lparam);
+                if !sapp.base.win32.mouse_tracked {
+                    sapp.base.win32.mouse_tracked = true;
+                    let mut tme = TRACKMOUSEEVENT {
+                        cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
+                        dwFlags: TME_LEAVE,
+                        hwndTrack: sapp.base.win32.hwnd,
+                        dwHoverTime: 0,
+                    };
+                    TrackMouseEvent(&mut tme);
+                    sapp.call_event(&Event::MouseEnter(Modifier::empty()));
                 }
-                sapp.call_event(&Event::Unfocused);
+                sapp.call_event(&Event::MouseMove(Modifier::empty()));
             }
-            WM_SETCURSOR => {
-                //if (LOWORD(lParam) == HTCLIENT) {
-                //    sapp_win32_update_cursor(_sapp.mouse.current_cursor, _sapp.mouse.shown, true);
-                //    return TRUE;
-                //}
-            }
-            WM_DPICHANGED =>
-            {
-                // DT_TODO: Test this and look at https://learn.microsoft.com/en-us/windows/win32/hidpi/wm-dpichanged - why not access g_dpi = HIWORD(wParam); ??
-                // Update window's DPI and size if its moved to another monitor with a different DPI
-                // Only sent if DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 is used.
-                let rect = lparam as *const RECT;
-                if let Some(rect) = rect.as_ref() {
-                    sapp_win32_dpi_changed(&mut sapp.base, window, rect);
-                }
-            }
-            WM_LBUTTONDOWN => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: true, mouse_button: MouseButton::Left, modifiers: Modifier::empty() }));
-                sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
-            }
-            WM_RBUTTONDOWN => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: true, mouse_button: MouseButton::Right, modifiers: Modifier::empty() }));                
-                sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
-            }
-            WM_MBUTTONDOWN => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: true, mouse_button: MouseButton::Middle, modifiers: Modifier::empty() }));                
-                sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
-            }
-            WM_LBUTTONUP => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: false, mouse_button: MouseButton::Left, modifiers: Modifier::empty() }));
-                sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
-            }
-            WM_RBUTTONUP => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: false, mouse_button: MouseButton::Right, modifiers: Modifier::empty() }));                
-                sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
-            }
-            WM_MBUTTONUP => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::Mouse(MouseEvent{ pressed: false, mouse_button: MouseButton::Middle, modifiers: Modifier::empty() }));                
-                sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
-            }
-            WM_MOUSEMOVE => {
-                if !sapp.base.mouse.locked {
-                    sapp_win32_mouse_update(&mut sapp.base, lparam);
-                    if !sapp.base.win32.mouse_tracked {
-                        sapp.base.win32.mouse_tracked = true;
-                        let mut tme = TRACKMOUSEEVENT{ 
-                            cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32,
-                            dwFlags: TME_LEAVE,
-                            hwndTrack: sapp.base.win32.hwnd,
-                            dwHoverTime: 0};
-                        TrackMouseEvent(&mut tme);
-                        sapp.call_event(&Event::MouseEnter(Modifier::empty()));
+        }
+
+        WM_INPUT => {
+            // raw mouse input during mouse-lock
+            if sapp.base.mouse.locked {
+                let ri = lparam as HRAWINPUT;
+                let mut size: u32 = sapp.base.win32.raw_input_data.len() as u32;
+                let ptr = &mut sapp.base.win32.raw_input_data as *mut u8 as *mut core::ffi::c_void;
+                // see: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputdata
+                if -1i32 as u32
+                    != GetRawInputData(
+                        ri,
+                        RID_INPUT,
+                        ptr,
+                        &mut size,
+                        std::mem::size_of::<RAWINPUTHEADER>() as u32,
+                    )
+                {
+                    let raw_mouse_data = ptr as *const RAWINPUT; // DT_TODO: Check casting of this - copy into a RAWINPUT Struct for safety? (or have array of RAWINPUT's up to a size?)
+                    let raw_data = &(*raw_mouse_data).data;
+                    if (raw_data.mouse.usFlags as u32 & MOUSE_MOVE_ABSOLUTE) != 0 {
+                        // mouse only reports absolute position
+                        // NOTE: This code is untested and will most likely behave wrong in Remote Desktop sessions.
+                        // (such remote desktop sessions are setting the MOUSE_MOVE_ABSOLUTE flag).
+                        // See: https://github.com/floooh/sokol/issues/806 and
+                        // https://github.com/microsoft/DirectXTK/commit/ef56b63f3739381e451f7a5a5bd2c9779d2a7555)
+                        let new_x = raw_data.mouse.lLastX;
+                        let new_y = raw_data.mouse.lLastY;
+                        if sapp.base.win32.raw_input_mousepos_valid {
+                            sapp.base.mouse.dx =
+                                (new_x - sapp.base.win32.raw_input_mousepos_x) as f32;
+                            sapp.base.mouse.dy =
+                                (new_y - sapp.base.win32.raw_input_mousepos_y) as f32;
+                        }
+                        sapp.base.win32.raw_input_mousepos_x = new_x;
+                        sapp.base.win32.raw_input_mousepos_y = new_y;
+                        sapp.base.win32.raw_input_mousepos_valid = true;
+                    } else {
+                        // mouse reports movement delta (this seems to be the common case)
+                        sapp.base.mouse.dx = raw_data.mouse.lLastX as f32;
+                        sapp.base.mouse.dy = raw_data.mouse.lLastY as f32;
                     }
                     sapp.call_event(&Event::MouseMove(Modifier::empty()));
                 }
-            }
-            
-            WM_INPUT => {
-                // raw mouse input during mouse-lock
-                if sapp.base.mouse.locked {
-                    let ri = lparam as HRAWINPUT;
-                    let mut size : u32 = sapp.base.win32.raw_input_data.len() as u32;
-                    let ptr = &mut sapp.base.win32.raw_input_data as *mut u8 as *mut core::ffi::c_void;
-                    // see: https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputdata
-                    if -1i32 as u32 != GetRawInputData(ri, RID_INPUT, ptr, &mut size, std::mem::size_of::<RAWINPUTHEADER>() as u32) {
-                        let raw_mouse_data = ptr as *const RAWINPUT; // DT_TODO: Check casting of this - copy into a RAWINPUT Struct for safety? (or have array of RAWINPUT's up to a size?)
-                        let raw_data = &(*raw_mouse_data).data;
-                        if (raw_data.mouse.usFlags as u32 & MOUSE_MOVE_ABSOLUTE) != 0 {
-                            // mouse only reports absolute position
-                            // NOTE: This code is untested and will most likely behave wrong in Remote Desktop sessions.
-                            // (such remote desktop sessions are setting the MOUSE_MOVE_ABSOLUTE flag).
-                            // See: https://github.com/floooh/sokol/issues/806 and
-                            // https://github.com/microsoft/DirectXTK/commit/ef56b63f3739381e451f7a5a5bd2c9779d2a7555)
-                            let new_x = raw_data.mouse.lLastX;
-                            let new_y = raw_data.mouse.lLastY;
-                            if sapp.base.win32.raw_input_mousepos_valid {
-                                sapp.base.mouse.dx = (new_x - sapp.base.win32.raw_input_mousepos_x) as f32;
-                                sapp.base.mouse.dy = (new_y - sapp.base.win32.raw_input_mousepos_y) as f32;
-                            }                                
-                            sapp.base.win32.raw_input_mousepos_x = new_x;
-                            sapp.base.win32.raw_input_mousepos_y = new_y;
-                            sapp.base.win32.raw_input_mousepos_valid = true;
 
-                        }
-                        else {
-                            // mouse reports movement delta (this seems to be the common case)
-                            sapp.base.mouse.dx = raw_data.mouse.lLastX as f32;
-                            sapp.base.mouse.dy = raw_data.mouse.lLastY as f32;
-                        }
-                        sapp.call_event(&Event::MouseMove(Modifier::empty()));
-                    }
-
-                    //else _SAPP_ERROR(WIN32_GET_RAW_INPUT_DATA_FAILED); // DT_TODO:
-
-                }
+                //else _SAPP_ERROR(WIN32_GET_RAW_INPUT_DATA_FAILED); // DT_TODO:
             }
-
-            WM_MOUSELEAVE => {
-                if !sapp.base.mouse.locked {
-                    sapp.base.win32.mouse_tracked = false;
-                    sapp.call_event(&Event::MouseLeave);
-                }
-            }
-            
-            WM_MOUSEWHEEL => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::MouseScroll(MouseScrollEvent{scroll_x : 0.0, scroll_y : HIWORD(wparam as u32) as f32 / 30.0 }));
-            }
-            WM_MOUSEHWHEEL => {
-                sapp_win32_mouse_update(&mut sapp.base, lparam);
-                sapp.call_event(&Event::MouseScroll(MouseScrollEvent{scroll_x : HIWORD(wparam as u32) as f32 / -30.0, scroll_y : 0.0 }));                
-            }
-            WM_CHAR => {
-                let c = wparam as u32;  // DT_TODO: Lookup this - WM_CHAR
-                let key_repeat = lparam & 0x40000000 != 0;
-                let set_char = char::from_u32(c); // !!DT_TODO: How to handle surrogate code points - try WM_UNICHAR ? - Windows can generate these 
-                if c >= 32 {
-                    if let Some(char_code) = set_char {
-                        sapp.call_event(&Event::Char(CharEvent{ char_code, key_repeat, modifiers: Modifier::empty()}));
-                    }
-                }
-            }
-            WM_KEYDOWN | WM_SYSKEYDOWN => {
-
-                let key = (HIWORD(lparam as u32) & 0x1FF) as usize;
-                if key < sapp.base.keycodes.len() {
-
-                    let key_code = sapp.base.keycodes[key];
-                    let key_repeat = lparam & 0x40000000 != 0;                
-                    sapp.call_event(&Event::Key(KeyEvent{pressed : true, key_code, key_repeat, modifiers: Modifier::empty()}));
-
-                    /* check if a CLIPBOARD_PASTED event must be sent too */
-                    //if (sapp.clipboard.enabled &&
-                    //    (sapp.event.modifiers == SAPP_MODIFIER_CTRL) &&
-                    //    (sapp.event.key_code == SAPP_KEYCODE_V))
-                    //{
-                    //    _sapp_call_event(&_sapp.event);
-                    //}
-                }
-            }
-            WM_KEYUP | WM_SYSKEYUP => {
-
-                let key = (HIWORD(lparam as u32) & 0x1FF) as usize;
-                if key < sapp.base.keycodes.len() {
-
-                    let key_code = sapp.base.keycodes[key];
-                    let key_repeat = false;                
-                    sapp.call_event(&Event::Key(KeyEvent{pressed : false, key_code, key_repeat, modifiers: Modifier::empty()}));
-                }
-            }
-            WM_ENTERSIZEMOVE => {
-                SetTimer(sapp.base.win32.hwnd, 1, USER_TIMER_MINIMUM, None);
-            }
-            WM_EXITSIZEMOVE => {
-                KillTimer(sapp.base.win32.hwnd, 1);
-            }
-
-            WM_TIMER => {
-                //sapp_win32_timing_measure();
-                //sapp_frame();
-                //sapp_wgl_swap_buffers();
-
-                //NOTE: resizing the swap-chain during resize leads to a substantial
-                //   memory spike (hundreds of megabytes for a few seconds).
-            }
-            WM_NCLBUTTONDOWN => {
-                // workaround for half-second pause when starting to move window
-                //    see: https://gamedev.net/forums/topic/672094-keeping-things-moving-during-win32-moveresize-events/5254386/
-                if SendMessageW(sapp.base.win32.hwnd, WM_NCHITTEST, wparam, lparam) == HTCAPTION as isize {
-                    let mut point = POINT { x: 0, y:0 };
-                    GetCursorPos(&mut point);
-                    ScreenToClient(sapp.base.win32.hwnd, &mut point);
-                    PostMessageW(sapp.base.win32.hwnd, WM_MOUSEMOVE, 0, ((point.x as u32)|((point.y as u32) << 16)) as isize);
-                }
-            }
-            //WM_DROPFILES => sapp_win32_files_dropped((HDROP)wParam),
-            //WM_DISPLAYCHANGE => sapp_timing_reset(&_sapp.timing), // refresh rate might have changed
-
-            _ => {}
         }
+
+        WM_MOUSELEAVE => {
+            if !sapp.base.mouse.locked {
+                sapp.base.win32.mouse_tracked = false;
+                sapp.call_event(&Event::MouseLeave);
+            }
+        }
+
+        WM_MOUSEWHEEL => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::MouseScroll(MouseScrollEvent {
+                scroll_x: 0.0,
+                scroll_y: HIWORD(wparam as u32) as f32 / 30.0,
+            }));
+        }
+        WM_MOUSEHWHEEL => {
+            sapp_win32_mouse_update(&mut sapp.base, lparam);
+            sapp.call_event(&Event::MouseScroll(MouseScrollEvent {
+                scroll_x: HIWORD(wparam as u32) as f32 / -30.0,
+                scroll_y: 0.0,
+            }));
+        }
+        WM_CHAR => {
+            let c = wparam as u32; // DT_TODO: Lookup this - WM_CHAR
+            let key_repeat = lparam & 0x40000000 != 0;
+            let set_char = char::from_u32(c); // !!DT_TODO: How to handle surrogate code points - try WM_UNICHAR ? - Windows can generate these
+            if c >= 32 {
+                if let Some(char_code) = set_char {
+                    sapp.call_event(&Event::Char(CharEvent {
+                        char_code,
+                        key_repeat,
+                        modifiers: Modifier::empty(),
+                    }));
+                }
+            }
+        }
+        WM_KEYDOWN | WM_SYSKEYDOWN => {
+            let key = (HIWORD(lparam as u32) & 0x1FF) as usize;
+            if key < sapp.base.keycodes.len() {
+                let key_code = sapp.base.keycodes[key];
+                let key_repeat = lparam & 0x40000000 != 0;
+                sapp.call_event(&Event::Key(KeyEvent {
+                    pressed: true,
+                    key_code,
+                    key_repeat,
+                    modifiers: Modifier::empty(),
+                }));
+
+                /* check if a CLIPBOARD_PASTED event must be sent too */
+                //if (sapp.clipboard.enabled &&
+                //    (sapp.event.modifiers == SAPP_MODIFIER_CTRL) &&
+                //    (sapp.event.key_code == SAPP_KEYCODE_V))
+                //{
+                //    _sapp_call_event(&_sapp.event);
+                //}
+            }
+        }
+        WM_KEYUP | WM_SYSKEYUP => {
+            let key = (HIWORD(lparam as u32) & 0x1FF) as usize;
+            if key < sapp.base.keycodes.len() {
+                let key_code = sapp.base.keycodes[key];
+                let key_repeat = false;
+                sapp.call_event(&Event::Key(KeyEvent {
+                    pressed: false,
+                    key_code,
+                    key_repeat,
+                    modifiers: Modifier::empty(),
+                }));
+            }
+        }
+        WM_ENTERSIZEMOVE => {
+            SetTimer(sapp.base.win32.hwnd, 1, USER_TIMER_MINIMUM, None);
+        }
+        WM_EXITSIZEMOVE => {
+            KillTimer(sapp.base.win32.hwnd, 1);
+        }
+
+        WM_TIMER => {
+            //sapp_win32_timing_measure();
+            //sapp_frame();
+            //sapp_wgl_swap_buffers();
+
+            //NOTE: resizing the swap-chain during resize leads to a substantial
+            //   memory spike (hundreds of megabytes for a few seconds).
+        }
+        WM_NCLBUTTONDOWN => {
+            // workaround for half-second pause when starting to move window
+            //    see: https://gamedev.net/forums/topic/672094-keeping-things-moving-during-win32-moveresize-events/5254386/
+            if SendMessageW(sapp.base.win32.hwnd, WM_NCHITTEST, wparam, lparam)
+                == HTCAPTION as isize
+            {
+                let mut point = POINT { x: 0, y: 0 };
+                GetCursorPos(&mut point);
+                ScreenToClient(sapp.base.win32.hwnd, &mut point);
+                PostMessageW(
+                    sapp.base.win32.hwnd,
+                    WM_MOUSEMOVE,
+                    0,
+                    ((point.x as u32) | ((point.y as u32) << 16)) as isize,
+                );
+            }
+        }
+        //WM_DROPFILES => sapp_win32_files_dropped((HDROP)wParam),
+        //WM_DISPLAYCHANGE => sapp_timing_reset(&_sapp.timing), // refresh rate might have changed
+        _ => {}
+    }
 
     return DefWindowProcW(window, message, wparam, lparam);
 }
-
 
 unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
     // Manually loading entry points to support old windows versions - perhaps gate this behind a modern window feature version?
@@ -852,7 +924,8 @@ unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
     if shcore != 0 {
         fn_set_process_dpi_awareness =
             std::mem::transmute(GetProcAddress(shcore, s!("SetProcessDpiAwareness")));
-        fn_get_dpi_for_monitor = std::mem::transmute(GetProcAddress(shcore, s!("GetDpiForMonitor")));
+        fn_get_dpi_for_monitor =
+            std::mem::transmute(GetProcAddress(shcore, s!("GetDpiForMonitor")));
     }
 
     // NOTE on SetProcessDpiAware() vs SetProcessDpiAwareness() vs SetProcessDpiAwarenessContext():
@@ -862,7 +935,6 @@ unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
     // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 method.
     if let Some(set_process_dpi_awareness) = fn_set_process_dpi_awareness {
         if sapp.desc.high_dpi {
-
             // app requests HighDPI rendering, first try the Win10 Creator Update per-monitor-dpi awareness,
             // if that fails, fall back to system-dpi-awareness
             sapp.win32.dpi.aware = true;
@@ -1303,23 +1375,40 @@ impl<'a> SAppData<'a> {
     }
 }
 
-pub struct SApp<'a>
-{
+pub struct SApp<'a> {
     base: SAppData<'a>,
     app: &'a mut dyn SAppI,
 }
 
-impl<'a> SApp<'a>
-{
-    fn call_event(&mut self, event : &Event) {
+impl<'a> SApp<'a> {
+    fn call_event(&mut self, event: &Event) {
         if !self.base.cleanup_called && self.base.init_called {
             self.app.on_event(&mut self.base, event);
         }
     }
-} 
 
-pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc)
-{
+    fn call_init(&mut self) {
+        self.app.init(&mut self.base);
+        self.base.init_called = true;
+    }
+
+    fn frame(&mut self) {
+        if self.base.first_frame {
+            self.base.first_frame = false;
+            self.call_init();
+        }
+        self.call_frame();
+        self.base.frame_count += 1;
+    }
+
+    fn call_frame(&mut self) {
+        if (self.base.init_called && !self.base.cleanup_called) {
+            self.app.draw_frame(&mut self.base);
+        }
+    }
+}
+
+pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc) {
     let mut b = SApp {
         base: SAppData::new(desc),
         app,
@@ -1354,7 +1443,6 @@ pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc)
     while !done && !b.base.quit_ordered {
         //_sapp_win32_timing_measure();
         unsafe {
-
             let mut msg: MSG = std::mem::zeroed();
             while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
                 if WM_QUIT == msg.message {
@@ -1366,7 +1454,7 @@ pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc)
                 }
             }
         }
-        //_sapp_frame();
+        b.frame();
         //_sapp_wgl_swap_buffers();
 
         /* check for window resized, this cannot happen in WM_SIZE as it explodes memory usage */
