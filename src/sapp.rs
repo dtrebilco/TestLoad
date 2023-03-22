@@ -858,12 +858,10 @@ unsafe extern "system" fn wndproc(
         WM_KEYDOWN | WM_SYSKEYDOWN => {
             let key = (HIWORD(lparam as u32) & 0x1FF) as usize; // DT_TODO: Accessing lparam for scan codes??
             if key < sapp.base.keycodes.len() {
-                let key_code = sapp.base.keycodes[key];
-                let key_repeat = lparam & 0x40000000 != 0;
                 sapp.call_event(&Event::Key(KeyEvent {
                     pressed: true,
-                    key_code,
-                    key_repeat,
+                    key_code: sapp.base.keycodes[key],
+                    key_repeat: lparam & 0x40000000 != 0,
                     modifiers: Modifier::empty(),
                 }));
 
@@ -879,12 +877,10 @@ unsafe extern "system" fn wndproc(
         WM_KEYUP | WM_SYSKEYUP => {
             let key = (HIWORD(lparam as u32) & 0x1FF) as usize;
             if key < sapp.base.keycodes.len() {
-                let key_code = sapp.base.keycodes[key];
-                let key_repeat = false;
                 sapp.call_event(&Event::Key(KeyEvent {
                     pressed: false,
-                    key_code,
-                    key_repeat,
+                    key_code: sapp.base.keycodes[key],
+                    key_repeat: false,
                     modifiers: Modifier::empty(),
                 }));
             }
