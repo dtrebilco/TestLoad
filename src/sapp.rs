@@ -16,6 +16,8 @@ use windows_sys::Win32::UI::Input::{
     RIDEV_REMOVE, RID_INPUT,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
+use windows_sys::Win32::UI::Controls::WM_MOUSELEAVE;
+
 
 #[inline]
 pub fn LOWORD(l: u32) -> u16 {
@@ -202,6 +204,12 @@ pub struct MouseEvent {
     pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
 }
 
+pub struct MouseMoveEvent {
+    pub mouse_dx: f32, // relative horizontal mouse movement
+    pub mouse_dy: f32, // relative vertical mouse movement
+    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events    
+}
+
 pub struct MouseScrollEvent {
     pub scroll_x: f32, // horizontal mouse wheel scroll distance, valid in MOUSE_SCROLL events
     pub scroll_y: f32, // vertical mouse wheel scroll distance, valid in MOUSE_SCROLL events
@@ -212,7 +220,7 @@ pub enum Event {
     Char(CharEvent),
     Mouse(MouseEvent),
     MouseScroll(MouseScrollEvent),
-    MouseMove(Modifier),
+    MouseMove(MouseMoveEvent),
     MouseEnter(Modifier),
     MouseLeave,
     TouchesBegan,
@@ -735,7 +743,7 @@ unsafe extern "system" fn wndproc(
                     TrackMouseEvent(&mut tme);
                     sapp.call_event(&Event::MouseEnter(Modifier::empty()));
                 }
-                sapp.call_event(&Event::MouseMove(Modifier::empty()));
+                sapp.call_event(&Event::MouseMove(MouseMoveEvent{mouse_dx : sapp.base.mouse.dx, mouse_dy : sapp.base.mouse.dy, modifiers :Modifier::empty()}));
             }
         }
 
@@ -779,7 +787,7 @@ unsafe extern "system" fn wndproc(
                         sapp.base.mouse.dx = raw_data.mouse.lLastX as f32;
                         sapp.base.mouse.dy = raw_data.mouse.lLastY as f32;
                     }
-                    sapp.call_event(&Event::MouseMove(Modifier::empty()));
+                    sapp.call_event(&Event::MouseMove(MouseMoveEvent{mouse_dx : sapp.base.mouse.dx, mouse_dy : sapp.base.mouse.dy, modifiers :Modifier::empty()}));
                 }
 
                 //else _SAPP_ERROR(WIN32_GET_RAW_INPUT_DATA_FAILED); // DT_TODO:
@@ -822,7 +830,7 @@ unsafe extern "system" fn wndproc(
             }
         }
         WM_KEYDOWN | WM_SYSKEYDOWN => {
-            let key = (HIWORD(lparam as u32) & 0x1FF) as usize;
+            let key = (HIWORD(lparam as u32) & 0x1FF) as usize; // DT_TODO: Accessing lparam for scan codes??
             if key < sapp.base.keycodes.len() {
                 let key_code = sapp.base.keycodes[key];
                 let key_repeat = lparam & 0x40000000 != 0;
@@ -1373,6 +1381,19 @@ impl<'a> SAppData<'a> {
             desc,
         }
     }
+
+    pub fn request_quit(&mut self) {
+        self.quit_requested = true;
+    }
+
+    pub fn lock_mouse(&mut self, lock : bool) {
+        unsafe { sapp_win32_lock_mouse(self, lock); }
+    }
+
+    pub fn mouse_locked(&self) -> bool {
+        self.mouse.locked
+    }
+
 }
 
 pub struct SApp<'a> {
