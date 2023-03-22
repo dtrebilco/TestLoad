@@ -2,11 +2,13 @@ use bitflags::bitflags;
 use windows_sys::core::*;
 use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_ABSOLUTE;
 use windows_sys::Win32::Foundation::*;
+use windows_sys::Win32::Globalization::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::Graphics::OpenGL::*;
 use windows_sys::Win32::System::LibraryLoader::{
     FreeLibrary, GetModuleHandleW, GetProcAddress, LoadLibraryA,
 };
+use windows_sys::Win32::UI::Controls::WM_MOUSELEAVE;
 use windows_sys::Win32::UI::HiDpi::*;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
@@ -16,8 +18,6 @@ use windows_sys::Win32::UI::Input::{
     RIDEV_REMOVE, RID_INPUT,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
-use windows_sys::Win32::UI::Controls::WM_MOUSELEAVE;
-
 
 #[inline]
 pub fn LOWORD(l: u32) -> u16 {
@@ -205,9 +205,9 @@ pub struct MouseEvent {
 }
 
 pub struct MouseMoveEvent {
-    pub mouse_dx: f32, // relative horizontal mouse movement
-    pub mouse_dy: f32, // relative vertical mouse movement
-    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events    
+    pub mouse_dx: f32,       // relative horizontal mouse movement
+    pub mouse_dy: f32,       // relative vertical mouse movement
+    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
 }
 
 pub struct MouseScrollEvent {
@@ -743,7 +743,11 @@ unsafe extern "system" fn wndproc(
                     TrackMouseEvent(&mut tme);
                     sapp.call_event(&Event::MouseEnter(Modifier::empty()));
                 }
-                sapp.call_event(&Event::MouseMove(MouseMoveEvent{mouse_dx : sapp.base.mouse.dx, mouse_dy : sapp.base.mouse.dy, modifiers :Modifier::empty()}));
+                sapp.call_event(&Event::MouseMove(MouseMoveEvent {
+                    mouse_dx: sapp.base.mouse.dx,
+                    mouse_dy: sapp.base.mouse.dy,
+                    modifiers: Modifier::empty(),
+                }));
             }
         }
 
@@ -787,7 +791,11 @@ unsafe extern "system" fn wndproc(
                         sapp.base.mouse.dx = raw_data.mouse.lLastX as f32;
                         sapp.base.mouse.dy = raw_data.mouse.lLastY as f32;
                     }
-                    sapp.call_event(&Event::MouseMove(MouseMoveEvent{mouse_dx : sapp.base.mouse.dx, mouse_dy : sapp.base.mouse.dy, modifiers :Modifier::empty()}));
+                    sapp.call_event(&Event::MouseMove(MouseMoveEvent {
+                        mouse_dx: sapp.base.mouse.dx,
+                        mouse_dy: sapp.base.mouse.dy,
+                        modifiers: Modifier::empty(),
+                    }));
                 }
 
                 //else _SAPP_ERROR(WIN32_GET_RAW_INPUT_DATA_FAILED); // DT_TODO:
@@ -816,11 +824,29 @@ unsafe extern "system" fn wndproc(
             }));
         }
         WM_CHAR => {
-            let c = wparam as u32; // DT_TODO: Lookup this - WM_CHAR
+            let wparam_u32 = wparam as u32;
+            let is_high_surrogate =
+                (HIGH_SURROGATE_START..=HIGH_SURROGATE_END).contains(&wparam_u32);
+            let is_low_surrogate = (LOW_SURROGATE_START..=LOW_SURROGATE_END).contains(&wparam_u32);
+
+            let set_char = if is_high_surrogate {
+                sapp.base.win32.high_surrogate = wparam_u32 as u16;
+                None
+            } else if is_low_surrogate {
+                let high_surrogate = sapp.base.win32.high_surrogate;
+                if let Some(Ok(chr)) = char::decode_utf16([high_surrogate, wparam as u16]).next() {
+                    Some(chr)
+                } else {
+                    None
+                }
+            } else {
+                char::from_u32(wparam_u32)
+            };
+
             let key_repeat = lparam & 0x40000000 != 0;
-            let set_char = char::from_u32(c); // !!DT_TODO: How to handle surrogate code points - try WM_UNICHAR ? - Windows can generate these
-            if c >= 32 {
-                if let Some(char_code) = set_char {
+            if let Some(char_code) = set_char {
+                // DT_TODO: Why? perhaps handled in key events?
+                if char_code as u32 >= 32 {
                     sapp.call_event(&Event::Char(CharEvent {
                         char_code,
                         key_repeat,
@@ -1147,6 +1173,7 @@ struct SAppWin32 {
     mouse_tracked: bool,
     mouse_capture_mask: u8,
     dpi: DPI,
+    high_surrogate: u16, // Used to create the other side of a large unicode character
     raw_input_mousepos_valid: bool,
     raw_input_mousepos_x: i32,
     raw_input_mousepos_y: i32,
@@ -1181,6 +1208,7 @@ impl SAppWin32 {
                 window_scale: 0.0,
                 mouse_scale: 0.0,
             },
+            high_surrogate: 0,
             raw_input_mousepos_valid: false,
             raw_input_mousepos_x: 0,
             raw_input_mousepos_y: 0,
@@ -1386,14 +1414,15 @@ impl<'a> SAppData<'a> {
         self.quit_requested = true;
     }
 
-    pub fn lock_mouse(&mut self, lock : bool) {
-        unsafe { sapp_win32_lock_mouse(self, lock); }
+    pub fn lock_mouse(&mut self, lock: bool) {
+        unsafe {
+            sapp_win32_lock_mouse(self, lock);
+        }
     }
 
     pub fn mouse_locked(&self) -> bool {
         self.mouse.locked
     }
-
 }
 
 pub struct SApp<'a> {

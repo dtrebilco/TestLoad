@@ -49,9 +49,8 @@ impl Timer {
         1
     }
 
-    pub fn laptime(&self, last_time : &mut u64) -> u64 {
-
-        let mut dt : u64 = 0;
+    pub fn laptime(&self, last_time: &mut u64) -> u64 {
+        let mut dt: u64 = 0;
         let now = self.now();
         if 0 != *last_time {
             dt = Self::diff(now, *last_time);

@@ -158,21 +158,25 @@ where
                     self.base.wy -= mouse_sensibility * data.mouse_dx;
                 }
             }
-            Event::Key(key_data) => {
-                if key_data.pressed {
-                    if key_data.key_code == KeyCode::Escape {
+            Event::Char(data) => {
+                let a = data.char_code;
+            }
+
+            Event::Key(data) => {
+                if data.pressed {
+                    if data.key_code == KeyCode::Escape {
                         sapp.request_quit();
                     }
-                    if key_data.key_code == KeyCode::Enter {
+                    if data.key_code == KeyCode::Enter {
                         self.app.reset_camera(&mut self.base, sapp);
                     }
                 }
-                if !key_data.key_repeat {
-                    match key_data.key_code {
-                        KeyCode::W => self.base.key_forward = key_data.pressed,
-                        KeyCode::S => self.base.key_backward = key_data.pressed,
-                        KeyCode::A => self.base.key_left = key_data.pressed,
-                        KeyCode::D => self.base.key_right = key_data.pressed,
+                if !data.key_repeat {
+                    match data.key_code {
+                        KeyCode::W => self.base.key_forward = data.pressed,
+                        KeyCode::S => self.base.key_backward = data.pressed,
+                        KeyCode::A => self.base.key_left = data.pressed,
+                        KeyCode::D => self.base.key_right = data.pressed,
                         _ => (),
                     }
                 }
@@ -182,10 +186,11 @@ where
     }
 
     fn draw_frame(&mut self, data: &mut SAppData) {
-
         // Update delta time
-        self.base.frame_time = Timer::sec(self.base.timer.laptime(&mut self.base.time_ticks)) as f32;
-        self.base.app_time = Timer::sec(Timer::diff(self.base.time_ticks, self.base.start_ticks)) as f32;
+        self.base.frame_time =
+            Timer::sec(self.base.timer.laptime(&mut self.base.time_ticks)) as f32;
+        self.base.app_time =
+            Timer::sec(Timer::diff(self.base.time_ticks, self.base.start_ticks)) as f32;
 
         self.base.controls();
         self.app.draw_frame(&mut self.base, data);
@@ -194,7 +199,6 @@ where
     }
 
     fn shutdown(&mut self, data: &mut SAppData) {}
-
 }
 
 /*
