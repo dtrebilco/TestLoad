@@ -10,9 +10,7 @@ use windows_sys::Win32::System::LibraryLoader::{
 };
 use windows_sys::Win32::UI::Controls::WM_MOUSELEAVE;
 use windows_sys::Win32::UI::HiDpi::*;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT,
-};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 use windows_sys::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
     RIDEV_REMOVE, RID_INPUT,
@@ -189,25 +187,21 @@ pub struct KeyEvent {
     pub pressed: bool,       // true if the key is pressed
     pub key_code: KeyCode,   // the virtual key code, only valid in KEY_UP, KEY_DOWN
     pub key_repeat: bool, // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
-    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
 }
 
 pub struct CharEvent {
     pub char_code: char,     // the UTF-32 character code, only valid in CHAR events
     pub key_repeat: bool, // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
-    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
 }
 
 pub struct MouseEvent {
     pub pressed: bool,             // true if the mouse is pressed
     pub mouse_button: MouseButton, // mouse button that was pressed or released, valid in MOUSE_DOWN, MOUSE_UP
-    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
 }
 
 pub struct MouseMoveEvent {
     pub mouse_dx: f32,       // relative horizontal mouse movement
     pub mouse_dy: f32,       // relative vertical mouse movement
-    pub modifiers: Modifier, // current modifier keys, valid in all key-, char- and mouse-events
 }
 
 pub struct MouseScrollEvent {
@@ -221,7 +215,7 @@ pub enum Event {
     Mouse(MouseEvent),
     MouseScroll(MouseScrollEvent),
     MouseMove(MouseMoveEvent),
-    MouseEnter(Modifier),
+    MouseEnter,
     MouseLeave,
     TouchesBegan,
     TouchesMoved,
@@ -593,6 +587,33 @@ unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_r
     FreeLibrary(user32);
 }
 
+unsafe fn sapp_win32_mods() -> Modifier {
+    let mut mods = Modifier::empty();
+    if (GetKeyState(VK_SHIFT as i32) & (1<<15)) != 0 {
+        mods |= Modifier::Shift;
+    }
+    if (GetKeyState(VK_CONTROL as i32) & (1<<15)) != 0 {
+        mods |= Modifier::Ctrl;
+    }
+    if (GetKeyState(VK_MENU as i32) & (1<<15)) != 0 {
+        mods |= Modifier::Alt;
+    }
+    if ((GetKeyState(VK_LWIN as i32) | GetKeyState(VK_RWIN as i32)) & (1<<15)) != 0 {
+        mods |= Modifier::Super;
+    }
+    let swapped = TRUE == GetSystemMetrics(SM_SWAPBUTTON);
+    if GetAsyncKeyState(VK_LBUTTON as i32) != 0 { // DT_TODO: Should this use GetAsyncKeyState() here? Should it only check the top bit as above?
+        mods |= if swapped { Modifier::Rmb } else { Modifier::Lmb };
+    }
+    if GetAsyncKeyState(VK_RBUTTON as i32) != 0 {
+        mods |= if swapped { Modifier::Lmb } else { Modifier::Rmb };
+    }
+    if GetAsyncKeyState(VK_MBUTTON as i32) != 0 {
+        mods |= Modifier::Mmb;
+    }
+    return mods;
+}
+
 unsafe extern "system" fn wndproc(
     window: HWND,
     message: u32,
@@ -679,8 +700,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: true,
-                mouse_button: MouseButton::Left,
-                modifiers: Modifier::empty(),
+                mouse_button: MouseButton::Left
             }));
             sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
         }
@@ -688,8 +708,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: true,
-                mouse_button: MouseButton::Right,
-                modifiers: Modifier::empty(),
+                mouse_button: MouseButton::Right
             }));
             sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
         }
@@ -697,8 +716,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: true,
-                mouse_button: MouseButton::Middle,
-                modifiers: Modifier::empty(),
+                mouse_button: MouseButton::Middle
             }));
             sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
         }
@@ -706,8 +724,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: false,
-                mouse_button: MouseButton::Left,
-                modifiers: Modifier::empty(),
+                mouse_button: MouseButton::Left
             }));
             sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
         }
@@ -715,8 +732,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: false,
-                mouse_button: MouseButton::Right,
-                modifiers: Modifier::empty(),
+                mouse_button: MouseButton::Right
             }));
             sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
         }
@@ -724,8 +740,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: false,
-                mouse_button: MouseButton::Middle,
-                modifiers: Modifier::empty(),
+                mouse_button: MouseButton::Middle
             }));
             sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
         }
@@ -741,12 +756,11 @@ unsafe extern "system" fn wndproc(
                         dwHoverTime: 0,
                     };
                     TrackMouseEvent(&mut tme);
-                    sapp.call_event(&Event::MouseEnter(Modifier::empty()));
+                    sapp.call_event(&Event::MouseEnter);
                 }
                 sapp.call_event(&Event::MouseMove(MouseMoveEvent {
                     mouse_dx: sapp.base.mouse.dx,
-                    mouse_dy: sapp.base.mouse.dy,
-                    modifiers: Modifier::empty(),
+                    mouse_dy: sapp.base.mouse.dy
                 }));
             }
         }
@@ -793,8 +807,7 @@ unsafe extern "system" fn wndproc(
                     }
                     sapp.call_event(&Event::MouseMove(MouseMoveEvent {
                         mouse_dx: sapp.base.mouse.dx,
-                        mouse_dy: sapp.base.mouse.dy,
-                        modifiers: Modifier::empty(),
+                        mouse_dy: sapp.base.mouse.dy
                     }));
                 }
 
@@ -849,8 +862,7 @@ unsafe extern "system" fn wndproc(
                 if char_code as u32 >= 32 {
                     sapp.call_event(&Event::Char(CharEvent {
                         char_code,
-                        key_repeat,
-                        modifiers: Modifier::empty(),
+                        key_repeat
                     }));
                 }
             }
@@ -861,8 +873,7 @@ unsafe extern "system" fn wndproc(
                 sapp.call_event(&Event::Key(KeyEvent {
                     pressed: true,
                     key_code: sapp.base.keycodes[key],
-                    key_repeat: lparam & 0x40000000 != 0,
-                    modifiers: Modifier::empty(),
+                    key_repeat: lparam & 0x40000000 != 0
                 }));
 
                 /* check if a CLIPBOARD_PASTED event must be sent too */
@@ -880,8 +891,7 @@ unsafe extern "system" fn wndproc(
                 sapp.call_event(&Event::Key(KeyEvent {
                     pressed: false,
                     key_code: sapp.base.keycodes[key],
-                    key_repeat: false,
-                    modifiers: Modifier::empty(),
+                    key_repeat: false
                 }));
             }
         }
@@ -1418,6 +1428,10 @@ impl<'a> SAppData<'a> {
 
     pub fn mouse_locked(&self) -> bool {
         self.mouse.locked
+    }
+
+    pub fn get_modifiers() -> Modifier {
+        unsafe { sapp_win32_mods() }
     }
 }
 
