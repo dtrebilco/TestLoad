@@ -1155,6 +1155,263 @@ unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
     //DragAcceptFiles(sapp.win32.hwnd, 1);
 }
 
+fn sapp_setup_default_icon(sapp: &mut SAppData) {
+
+    let num_icons = 3;
+    let icon_sizes = [ 16, 32, 64 ];   // must be multiple of 8!
+
+    // allocate a pixel buffer for all icon pixels
+    let mut all_num_pixels = 0;
+    for size in icon_sizes {
+        all_num_pixels += size * size;
+    }
+    _sapp.default_icon_pixels = (uint32_t*) _sapp_malloc_clear((size_t)all_num_pixels * sizeof(uint32_t));
+
+    // initialize default_icon_desc struct
+    uint32_t* dst = _sapp.default_icon_pixels;
+    const uint32_t* dst_end = dst + all_num_pixels;
+    for dim in icon_sizes {
+        let num_pixels = dim * dim;
+        sapp_image_desc* img_desc = &_sapp.default_icon_desc.images[i];
+        img_desc->width = dim;
+        img_desc->height = dim;
+        img_desc->pixels.ptr = dst;
+        img_desc->pixels.size = (size_t)num_pixels * sizeof(uint32_t);
+        dst += num_pixels;
+    }
+    SOKOL_ASSERT(dst == dst_end);
+
+    // Amstrad CPC font 'S'
+    let tile: [u8; 8] = [
+        0x3C,
+        0x66,
+        0x60,
+        0x3C,
+        0x06,
+        0x66,
+        0x3C,
+        0x00,
+    ];
+    // rainbow colors
+    let colors: [u32; 8] = [
+        0xFF4370FF,
+        0xFF26A7FF,
+        0xFF58EEFF,
+        0xFF57E1D4,
+        0xFF65CC9C,
+        0xFF6ABB66,
+        0xFFF5A542,
+        0xFFC2577E,
+    ];
+    dst = _sapp.default_icon_pixels;
+    let blank : u32 = 0x00FFFFFF;
+    let shadow: u32 = 0xFF000000;
+    for dim in icon_sizes {
+        debug_assert!((dim % 8) == 0);
+        let scale = dim / 8;
+        for (int ty = 0, y = 0; ty < 8; ty++) {
+            const uint32_t color = colors[ty];
+            for (int sy = 0; sy < scale; sy++, y++) {
+                uint8_t bits = tile[ty];
+                for (int tx = 0, x = 0; tx < 8; tx++, bits<<=1) {
+                    uint32_t pixel = (0 == (bits & 0x80)) ? blank : color;
+                    for (int sx = 0; sx < scale; sx++, x++) {
+                        SOKOL_ASSERT(dst < dst_end);
+                        *dst++ = pixel;
+                    }
+                }
+            }
+        }
+    }
+    SOKOL_ASSERT(dst == dst_end);
+
+    // right shadow
+    dst = _sapp.default_icon_pixels;
+    for dim in icon_sizes {
+        for  y in 0..dim {
+            let mut prev_color = blank;
+            for x in 0..dim {
+                let dst_index = y * dim + x;
+                let cur_color = dst[dst_index];
+                if ((cur_color == blank) && (prev_color != blank)) {
+                    dst[dst_index] = shadow;
+                }
+                prev_color = cur_color;
+            }
+        }
+        dst += dim * dim;
+    }
+    SOKOL_ASSERT(dst == dst_end);
+
+    // bottom shadow
+    dst = _sapp.default_icon_pixels;
+    for dim in icon_sizes {
+        for x in 0..dim {
+            let mut prev_color = blank;
+            for y in 0..dim {
+                let dst_index = y * dim + x;
+                let cur_color = dst[dst_index];
+                if ((cur_color == blank) && (prev_color != blank)) {
+                    dst[dst_index] = shadow;
+                }
+                prev_color = cur_color;
+            }
+        }
+        dst += dim * dim;
+    }
+    SOKOL_ASSERT(dst == dst_end);
+}
+
+
+unsafe fn sapp_win32_create_icon_from_image(desc : &sapp_image_desc) -> HICON {
+    let bi = BITMAPV5HEADER {
+        bV5Size : std::mem::size_of::<BITMAPV5HEADER>() as u32,
+        bV5Width : desc.width as i32,
+        bV5Height : -(desc.height as i32),   // NOTE the '-' here to indicate that origin is top-left
+        bV5Planes : 1,
+        bV5BitCount : 32,
+        bV5Compression : BI_BITFIELDS,
+        bV5RedMask : 0x00FF0000,
+        bV5GreenMask : 0x0000FF00,
+        bV5BlueMask : 0x000000FF,
+        bV5AlphaMask : 0xFF000000,
+
+        bV5SizeImage: 0,
+        bV5XPelsPerMeter: 0,
+        bV5YPelsPerMeter: 0,
+        bV5ClrUsed: 0,
+        bV5ClrImportant: 0,
+        bV5CSType: 0,
+        bV5Endpoints: CIEXYZTRIPLE {
+            ciexyzRed: CIEXYZ {ciexyzX: 0,ciexyzY: 0, ciexyzZ: 0},
+            ciexyzGreen: CIEXYZ {ciexyzX: 0,ciexyzY: 0, ciexyzZ: 0},
+            ciexyzBlue: CIEXYZ {ciexyzX: 0,ciexyzY: 0, ciexyzZ: 0},
+        },
+        bV5GammaRed: 0,
+        bV5GammaGreen: 0,
+        bV5GammaBlue: 0,
+        bV5Intent: 0,
+        bV5ProfileData: 0,
+        bV5ProfileSize: 0,
+        bV5Reserved: 0,
+    };
+    let target: *mut u8 = std::ptr::null_mut();
+
+    let dc = GetDC(0);
+    let color = CreateDIBSection(dc, &bi as *const BITMAPV5HEADER as *const BITMAPINFO, DIB_RGB_COLORS, &mut (target as *mut ::core::ffi::c_void), 0, 0);
+    ReleaseDC(0, dc);
+    if 0 == color {
+        return 0;
+    }
+    debug_assert!(target != std::ptr::null_mut());
+
+    let mask = CreateBitmap(desc.width as i32, desc.height as i32, 1, 1, std::ptr::null());
+    if 0 == mask {
+        DeleteObject(color);
+        return 0;
+    }
+
+    // DT_TODO: Check if a better way of doing this
+    let mut source = desc.pixels.as_ptr();
+    for i in 0..(desc.width * desc.height) {
+
+        *target.add(0) = *source.add(2);
+        *target.add(1) = *source.add(1);
+        *target.add(2) = *source.add(0);
+        *target.add(3) = *source.add(3);                
+
+        target = target.add(4);
+        source = source.add(4);
+    }
+
+    let icon_info = ICONINFO{
+        fIcon : TRUE,
+        xHotspot : 0,
+        yHotspot : 0,
+        hbmMask : mask,
+        hbmColor : color,
+    };
+    let icon_handle = CreateIconIndirect(&icon_info);
+    DeleteObject(color);
+    DeleteObject(mask);
+
+    return icon_handle;
+}
+
+fn sapp_image_validate(desc : &sapp_image_desc) -> bool {
+    debug_assert!(desc.width > 0);
+    debug_assert!(desc.height > 0);
+    debug_assert!(desc.pixels.len() != 0);
+    let wh_size = (desc.width * desc.height) as usize * 4;
+    if wh_size != desc.pixels.len() {
+        //_SAPP_ERROR(IMAGE_DATA_SIZE_MISMATCH);
+        return false;
+    }
+    return true;
+}
+
+fn sapp_image_bestmatch(image_descs : &[sapp_image_desc], width : i32, height : i32) -> i32 {
+    let mut least_diff:i32 = 0x7FFFFFFF;
+    let mut least_index:i32 = 0;
+    for i in 0..image_descs.len() {
+        let diff:i32 = (image_descs[i].width * image_descs[i].height) as i32 - (width * height);
+        if diff < 0 {
+            diff = -diff;
+        }
+        if diff < least_diff {
+            least_diff = diff;
+            least_index = i as i32;
+        }
+    }
+    return least_index;
+}
+
+fn sapp_icon_num_images(desc : &sapp_icon_desc) -> u32 {
+    for index in 0..SAPP_MAX_ICONIMAGES {
+        if 0 == desc.images[index as usize].pixels.len() {
+            return index;
+        }
+    }
+    SAPP_MAX_ICONIMAGES
+}
+
+fn sapp_validate_icon_desc(desc :&sapp_icon_desc, num_images : u32) -> bool {
+    debug_assert!(num_images <= SAPP_MAX_ICONIMAGES);
+    for i in 0..num_images {
+        if (!sapp_image_validate(&desc.images[i as usize])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+unsafe fn sapp_win32_set_icon(sapp: &mut SAppData, icon_desc : &sapp_icon_desc, num_images : u32) {
+    debug_assert!((num_images > 0) && (num_images <= SAPP_MAX_ICONIMAGES));
+
+    let big_img_index = sapp_image_bestmatch(&icon_desc.images[0..num_images as usize], GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON));
+    let sml_img_index = sapp_image_bestmatch(&icon_desc.images[0..num_images as usize], GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON));
+    let big_icon = sapp_win32_create_icon_from_image(&icon_desc.images[big_img_index as usize]);
+    let sml_icon = sapp_win32_create_icon_from_image(&icon_desc.images[sml_img_index as usize]);
+
+    // if icon creation or lookup has failed for some reason, leave the currently set icon untouched
+    if 0 != big_icon {
+        SendMessageW(sapp.win32.hwnd, WM_SETICON, ICON_BIG as usize, big_icon);
+        if 0 != sapp.win32.big_icon {
+            DestroyIcon(sapp.win32.big_icon);
+        }
+        sapp.win32.big_icon = big_icon;
+    }
+    if 0 != sml_icon {
+        SendMessageW(sapp.win32.hwnd, WM_SETICON, ICON_SMALL as usize, sml_icon);
+        if 0 != sapp.win32.small_icon {
+            DestroyIcon(sapp.win32.small_icon);
+        }
+        sapp.win32.small_icon = sml_icon;
+    }
+}
+
+
 struct DPI {
     aware: bool,
     content_scale: f32,
@@ -1173,7 +1430,6 @@ struct SAppWin32 {
     mouse_locked_x: i32,
     mouse_locked_y: i32,
     stored_window_rect: RECT, // used to restore window pos/size when toggling fullscreen => windowed
-    is_win10_or_greater: bool,
     in_create_window: bool,
     iconified: bool,
     mouse_tracked: bool,
@@ -1203,7 +1459,6 @@ impl SAppWin32 {
                 right: 0,
                 bottom: 0,
             }, // used to restore window pos/size when toggling fullscreen => windowed
-            is_win10_or_greater: false,
             in_create_window: false,
             iconified: false,
             mouse_tracked: false,
@@ -1286,6 +1541,41 @@ struct SAppWgl {
 }
 */
 
+#[derive(Clone, Copy)]
+pub struct sapp_image_desc<'a> {
+    width : u32,
+    height : u32,
+    pixels : &'a [u8],
+}
+
+static EMPTY_ARRAY: [u8; 0] = [0; 0];
+impl<'a> sapp_image_desc<'a>{
+    pub fn new() -> sapp_image_desc<'a>
+    {
+        sapp_image_desc {
+            width : 0,
+            height : 0,
+            pixels : &EMPTY_ARRAY,
+        }
+    }
+}
+
+pub struct sapp_icon_desc<'a> {
+    sokol_default : bool,
+    images : [sapp_image_desc<'a>; SAPP_MAX_ICONIMAGES as usize],
+}
+
+impl<'a> sapp_icon_desc<'a>{
+    pub fn new() -> sapp_icon_desc<'a>
+    {
+        sapp_icon_desc {
+            sokol_default : false,
+            images : [sapp_image_desc::new(); SAPP_MAX_ICONIMAGES as usize]
+        }
+    }
+}
+
+
 pub struct SAppDesc<'a> {
     pub width: u32,  // the preferred width of the window / canvas
     pub height: u32, // the preferred height of the window / canvas
@@ -1303,7 +1593,7 @@ pub struct SAppDesc<'a> {
     pub enable_dragndrop: bool, // enable file dropping (drag'n'drop), default is false
     pub max_dropped_files: u32, // max number of dropped files to process (default: 1)
     pub max_dropped_file_path_length: u32, // max length in bytes of a dropped UTF-8 file path (default: 2048)
-    //sapp_icon_desc icon;                // the initial window icon to set
+    pub icon : sapp_icon_desc<'a>,         // the initial window icon to set
     pub gl_major_version: u32, // override GL major and minor version (the default GL version is 3.2)
     pub gl_minor_version: u32,
     pub win32_console_utf8: bool, // if true, set the output console codepage to UTF-8
@@ -1330,6 +1620,7 @@ impl<'a> SAppDesc<'a> {
             enable_dragndrop: false,
             max_dropped_files: 1,
             max_dropped_file_path_length: 2048,
+            icon : sapp_icon_desc::new(),
 
             gl_major_version: 3,
             gl_minor_version: 2,
@@ -1362,11 +1653,10 @@ pub struct SAppData<'a> {
     frame_count: u64,
 
     //_sapp_timing_t timing;
-    //sapp_event event;
     mouse: SAppMouse,
     //_sapp_clipboard_t clipboard;
     //_sapp_drop_t drop;
-    //sapp_icon_desc default_icon_desc;
+    //default_icon_desc : sapp_icon_desc<'a>, // DT_TODO: Needed? just use a temp?
     //uint32_t* default_icon_pixels;
     win32: SAppWin32,
     //wgl : SAppWgl,
@@ -1410,6 +1700,7 @@ impl<'a> SAppData<'a> {
             frame_count: 0,
             mouse: SAppMouse::new(),
             //_sapp_timing_init(&_sapp.timing);
+            //default_icon_desc : sapp_icon_desc::new(),
             win32: SAppWin32::new(),
             keycodes: [KeyCode::Invalid; SAPP_MAX_KEYCODES as usize],
             desc,
@@ -1433,6 +1724,26 @@ impl<'a> SAppData<'a> {
     pub fn get_modifiers() -> Modifier {
         unsafe { sapp_win32_mods() }
     }
+
+    pub fn set_icon(&mut self, desc: sapp_icon_desc) {
+
+        if desc.sokol_default {
+            if 0 == self.default_icon_pixels {
+                sapp_setup_default_icon();
+            }
+            debug_assert!(0 != self.default_icon_pixels);
+            desc = &self.default_icon_desc;
+        }
+        let num_images = sapp_icon_num_images(&desc);
+        if num_images == 0 || num_images > SAPP_MAX_ICONIMAGES {
+            return;
+        }
+        if !sapp_validate_icon_desc(&desc, num_images) {
+            return;
+        }
+        unsafe {sapp_win32_set_icon(self, &desc, num_images); }
+    }
+
 }
 
 pub struct SApp<'a> {
@@ -1475,9 +1786,7 @@ pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc) {
     };
 
     //_sapp_win32_init_console();
-    //_sapp.win32.is_win10_or_greater = _sapp_win32_is_win10_or_greater();
     sapp_win32_init_keytable(&mut b.base.keycodes);
-    //_sapp_win32_utf8_to_wide(_sapp.window_title, _sapp.window_title_wide, sizeof(_sapp.window_title_wide));
     unsafe {
         sapp_win32_init_dpi(&mut b.base);
     }
@@ -1545,8 +1854,6 @@ pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc) {
     //_sapp_win32_restore_console();
     //_sapp_discard_state();
 }
-
-//impl<'a, T> SApp<'a, T> where T: SAppI {}
 
 /*
 
