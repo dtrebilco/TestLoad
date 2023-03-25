@@ -20,7 +20,7 @@ impl AppI for App {
 
     fn init(&mut self, _app: &mut BaseData, sapp: &mut SAppData) {
 
-        let mut icon = sapp_icon_desc::new();
+        let mut icon = SappIconDesc::new();
         icon.sokol_default = true;
         sapp.set_icon(icon);
 
