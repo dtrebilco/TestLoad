@@ -6,6 +6,7 @@ mod sapp;
 mod timer;
 mod vector;
 
+use sapp::*;
 use base_app::*;
 use game_rand::GameRand;
 use model::*;
@@ -15,7 +16,18 @@ use vector::*;
 
 struct App {}
 
-impl AppI for App {}
+impl AppI for App {
+
+    fn init(&mut self, _app: &mut BaseData, sapp: &mut SAppData) {
+
+        let mut icon = sapp_icon_desc::new();
+        icon.sokol_default = true;
+        sapp.set_icon(icon);
+
+    }
+
+
+}
 
 fn main() {
     let mut title: String = "Test window title 😀".to_string();
@@ -23,7 +35,7 @@ fn main() {
     desc.window_title = &title;
 
     let App = App {};
-    run_app(App, desc);
+    base_app::run_app(App, desc);
 
     let mut p = ParticleSystem::new();
     p.set_color_scheme(ColorScheme::Rainbow);

@@ -1155,9 +1155,8 @@ unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
     //DragAcceptFiles(sapp.win32.hwnd, 1);
 }
 
-fn sapp_setup_default_icon(sapp: &mut SAppData) {
+fn sapp_setup_default_icon<'a>(icon_buffer : &'a mut Vec<u32>) -> sapp_icon_desc<'a> {
 
-    let num_icons = 3;
     let icon_sizes = [ 16, 32, 64 ];   // must be multiple of 8!
 
     // allocate a pixel buffer for all icon pixels
@@ -1165,21 +1164,12 @@ fn sapp_setup_default_icon(sapp: &mut SAppData) {
     for size in icon_sizes {
         all_num_pixels += size * size;
     }
-    _sapp.default_icon_pixels = (uint32_t*) _sapp_malloc_clear((size_t)all_num_pixels * sizeof(uint32_t));
 
-    // initialize default_icon_desc struct
-    uint32_t* dst = _sapp.default_icon_pixels;
-    const uint32_t* dst_end = dst + all_num_pixels;
-    for dim in icon_sizes {
-        let num_pixels = dim * dim;
-        sapp_image_desc* img_desc = &_sapp.default_icon_desc.images[i];
-        img_desc->width = dim;
-        img_desc->height = dim;
-        img_desc->pixels.ptr = dst;
-        img_desc->pixels.size = (size_t)num_pixels * sizeof(uint32_t);
-        dst += num_pixels;
-    }
-    SOKOL_ASSERT(dst == dst_end);
+    //let mut icon_buffer: Vec<u32> = vec![0; all_num_pixels];
+    icon_buffer.resize(all_num_pixels, 0);
+    let (first, back) = icon_buffer.split_at_mut(icon_sizes[0] * icon_sizes[0]);
+    let (second, third) = back.split_at_mut(icon_sizes[1] * icon_sizes[1]);
+    let mut buf_pixels = [first, second, third];
 
     // Amstrad CPC font 'S'
     let tile: [u8; 8] = [
@@ -1203,63 +1193,77 @@ fn sapp_setup_default_icon(sapp: &mut SAppData) {
         0xFFF5A542,
         0xFFC2577E,
     ];
-    dst = _sapp.default_icon_pixels;
+
     let blank : u32 = 0x00FFFFFF;
     let shadow: u32 = 0xFF000000;
-    for dim in icon_sizes {
+
+    for i in 0..icon_sizes.len() {
+        let dim = icon_sizes[i];        
+        let dst = &mut buf_pixels[i];
+        let mut index = 0;
         debug_assert!((dim % 8) == 0);
         let scale = dim / 8;
-        for (int ty = 0, y = 0; ty < 8; ty++) {
-            const uint32_t color = colors[ty];
-            for (int sy = 0; sy < scale; sy++, y++) {
-                uint8_t bits = tile[ty];
-                for (int tx = 0, x = 0; tx < 8; tx++, bits<<=1) {
-                    uint32_t pixel = (0 == (bits & 0x80)) ? blank : color;
-                    for (int sx = 0; sx < scale; sx++, x++) {
-                        SOKOL_ASSERT(dst < dst_end);
-                        *dst++ = pixel;
+        for ty in 0..8 {
+            let color = colors[ty];
+            for _sy in 0..scale {
+                let mut bits = tile[ty];
+                for _tx in 0..8 {
+                    let pixel = if 0 == (bits & 0x80) { blank } else { color };
+                    for _sx in 0..scale {
+                        dst[index] = pixel;
+                        index += 1;
                     }
+                    bits <<= 1;
                 }
             }
         }
     }
-    SOKOL_ASSERT(dst == dst_end);
 
     // right shadow
-    dst = _sapp.default_icon_pixels;
-    for dim in icon_sizes {
+    for i in 0..icon_sizes.len() {
+        let dim = icon_sizes[i];        
+        let dst = &mut buf_pixels[i];
         for  y in 0..dim {
             let mut prev_color = blank;
             for x in 0..dim {
                 let dst_index = y * dim + x;
                 let cur_color = dst[dst_index];
-                if ((cur_color == blank) && (prev_color != blank)) {
+                if (cur_color == blank) && (prev_color != blank) {
                     dst[dst_index] = shadow;
                 }
                 prev_color = cur_color;
             }
         }
-        dst += dim * dim;
     }
-    SOKOL_ASSERT(dst == dst_end);
 
     // bottom shadow
-    dst = _sapp.default_icon_pixels;
-    for dim in icon_sizes {
+    for i in 0..icon_sizes.len() {
+        let dim = icon_sizes[i];        
+        let dst = &mut buf_pixels[i];
         for x in 0..dim {
             let mut prev_color = blank;
             for y in 0..dim {
                 let dst_index = y * dim + x;
                 let cur_color = dst[dst_index];
-                if ((cur_color == blank) && (prev_color != blank)) {
+                if (cur_color == blank) && (prev_color != blank) {
                     dst[dst_index] = shadow;
                 }
                 prev_color = cur_color;
             }
         }
-        dst += dim * dim;
     }
-    SOKOL_ASSERT(dst == dst_end);
+
+    // initialize default_icon_desc struct
+    let mut desc = sapp_icon_desc::new();    
+    for i in 0..icon_sizes.len() {
+        let dim = icon_sizes[i];
+
+        let img_desc = &mut desc.images[i];
+        img_desc.width = dim as u32;
+        img_desc.height = dim as u32;
+        img_desc.pixels = buf_pixels[i];
+    }
+    desc
 }
 
 
@@ -1295,15 +1299,15 @@ unsafe fn sapp_win32_create_icon_from_image(desc : &sapp_image_desc) -> HICON {
         bV5ProfileSize: 0,
         bV5Reserved: 0,
     };
-    let target: *mut u8 = std::ptr::null_mut();
 
+    let mut target_void: *mut ::core::ffi::c_void = std::ptr::null_mut();
     let dc = GetDC(0);
-    let color = CreateDIBSection(dc, &bi as *const BITMAPV5HEADER as *const BITMAPINFO, DIB_RGB_COLORS, &mut (target as *mut ::core::ffi::c_void), 0, 0);
+    let color = CreateDIBSection(dc, &bi as *const BITMAPV5HEADER as *const BITMAPINFO, DIB_RGB_COLORS,  &mut target_void, 0, 0);
     ReleaseDC(0, dc);
     if 0 == color {
         return 0;
     }
-    debug_assert!(target != std::ptr::null_mut());
+    debug_assert!(target_void != std::ptr::null_mut());
 
     let mask = CreateBitmap(desc.width as i32, desc.height as i32, 1, 1, std::ptr::null());
     if 0 == mask {
@@ -1312,8 +1316,9 @@ unsafe fn sapp_win32_create_icon_from_image(desc : &sapp_image_desc) -> HICON {
     }
 
     // DT_TODO: Check if a better way of doing this
-    let mut source = desc.pixels.as_ptr();
-    for i in 0..(desc.width * desc.height) {
+    let mut target: *mut u8 = target_void as *mut u8;
+    let mut source = desc.pixels.as_ptr() as *mut u8;
+    for _ in 0..(desc.width * desc.height) {
 
         *target.add(0) = *source.add(2);
         *target.add(1) = *source.add(1);
@@ -1342,7 +1347,7 @@ fn sapp_image_validate(desc : &sapp_image_desc) -> bool {
     debug_assert!(desc.width > 0);
     debug_assert!(desc.height > 0);
     debug_assert!(desc.pixels.len() != 0);
-    let wh_size = (desc.width * desc.height) as usize * 4;
+    let wh_size = (desc.width * desc.height) as usize;
     if wh_size != desc.pixels.len() {
         //_SAPP_ERROR(IMAGE_DATA_SIZE_MISMATCH);
         return false;
@@ -1354,7 +1359,7 @@ fn sapp_image_bestmatch(image_descs : &[sapp_image_desc], width : i32, height : 
     let mut least_diff:i32 = 0x7FFFFFFF;
     let mut least_index:i32 = 0;
     for i in 0..image_descs.len() {
-        let diff:i32 = (image_descs[i].width * image_descs[i].height) as i32 - (width * height);
+        let mut diff:i32 = (image_descs[i].width * image_descs[i].height) as i32 - (width * height);
         if diff < 0 {
             diff = -diff;
         }
@@ -1378,7 +1383,7 @@ fn sapp_icon_num_images(desc : &sapp_icon_desc) -> u32 {
 fn sapp_validate_icon_desc(desc :&sapp_icon_desc, num_images : u32) -> bool {
     debug_assert!(num_images <= SAPP_MAX_ICONIMAGES);
     for i in 0..num_images {
-        if (!sapp_image_validate(&desc.images[i as usize])) {
+        if !sapp_image_validate(&desc.images[i as usize]) {
             return false;
         }
     }
@@ -1543,12 +1548,12 @@ struct SAppWgl {
 
 #[derive(Clone, Copy)]
 pub struct sapp_image_desc<'a> {
-    width : u32,
-    height : u32,
-    pixels : &'a [u8],
+    pub width : u32,
+    pub height : u32,
+    pub pixels : &'a [u32],
 }
 
-static EMPTY_ARRAY: [u8; 0] = [0; 0];
+static EMPTY_ARRAY: [u32; 0] = [0; 0];
 impl<'a> sapp_image_desc<'a>{
     pub fn new() -> sapp_image_desc<'a>
     {
@@ -1561,8 +1566,8 @@ impl<'a> sapp_image_desc<'a>{
 }
 
 pub struct sapp_icon_desc<'a> {
-    sokol_default : bool,
-    images : [sapp_image_desc<'a>; SAPP_MAX_ICONIMAGES as usize],
+    pub sokol_default : bool,
+    pub images : [sapp_image_desc<'a>; SAPP_MAX_ICONIMAGES as usize],
 }
 
 impl<'a> sapp_icon_desc<'a>{
@@ -1727,13 +1732,14 @@ impl<'a> SAppData<'a> {
 
     pub fn set_icon(&mut self, desc: sapp_icon_desc) {
 
-        if desc.sokol_default {
-            if 0 == self.default_icon_pixels {
-                sapp_setup_default_icon();
-            }
-            debug_assert!(0 != self.default_icon_pixels);
-            desc = &self.default_icon_desc;
+        let mut icon_buffer: Vec<u32> = vec![0; 0];
+        let desc = if desc.sokol_default {
+            sapp_setup_default_icon(&mut icon_buffer)
         }
+        else
+        {
+            desc
+        };
         let num_images = sapp_icon_num_images(&desc);
         if num_images == 0 || num_images > SAPP_MAX_ICONIMAGES {
             return;
@@ -1773,7 +1779,7 @@ impl<'a> SApp<'a> {
     }
 
     fn call_frame(&mut self) {
-        if (self.base.init_called && !self.base.cleanup_called) {
+        if self.base.init_called && !self.base.cleanup_called {
             self.app.draw_frame(&mut self.base);
         }
     }
