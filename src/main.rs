@@ -6,27 +6,22 @@ mod sapp;
 mod timer;
 mod vector;
 
-use sapp::*;
 use base_app::*;
 use game_rand::GameRand;
 use model::*;
 use particle_system::*;
+use sapp::*;
 use timer::*;
 use vector::*;
 
 struct App {}
 
 impl AppI for App {
-
     fn init(&mut self, _app: &mut BaseData, sapp: &mut SAppData) {
-
         let mut icon = SappIconDesc::new();
         icon.sokol_default = true;
         sapp.set_icon(icon);
-
     }
-
-
 }
 
 fn main() {

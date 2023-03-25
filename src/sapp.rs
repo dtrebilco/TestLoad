@@ -184,13 +184,13 @@ bitflags! {
 }
 
 pub struct KeyEvent {
-    pub pressed: bool,       // true if the key is pressed
-    pub key_code: KeyCode,   // the virtual key code, only valid in KEY_UP, KEY_DOWN
-    pub key_repeat: bool, // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
+    pub pressed: bool,     // true if the key is pressed
+    pub key_code: KeyCode, // the virtual key code, only valid in KEY_UP, KEY_DOWN
+    pub key_repeat: bool,  // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
 }
 
 pub struct CharEvent {
-    pub char_code: char,     // the UTF-32 character code, only valid in CHAR events
+    pub char_code: char,  // the UTF-32 character code, only valid in CHAR events
     pub key_repeat: bool, // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
 }
 
@@ -200,8 +200,8 @@ pub struct MouseEvent {
 }
 
 pub struct MouseMoveEvent {
-    pub mouse_dx: f32,       // relative horizontal mouse movement
-    pub mouse_dy: f32,       // relative vertical mouse movement
+    pub mouse_dx: f32, // relative horizontal mouse movement
+    pub mouse_dy: f32, // relative vertical mouse movement
 }
 
 pub struct MouseScrollEvent {
@@ -589,24 +589,33 @@ unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_r
 
 unsafe fn sapp_win32_mods() -> Modifier {
     let mut mods = Modifier::empty();
-    if (GetKeyState(VK_SHIFT as i32) & (1<<15)) != 0 {
+    if (GetKeyState(VK_SHIFT as i32) & (1 << 15)) != 0 {
         mods |= Modifier::Shift;
     }
-    if (GetKeyState(VK_CONTROL as i32) & (1<<15)) != 0 {
+    if (GetKeyState(VK_CONTROL as i32) & (1 << 15)) != 0 {
         mods |= Modifier::Ctrl;
     }
-    if (GetKeyState(VK_MENU as i32) & (1<<15)) != 0 {
+    if (GetKeyState(VK_MENU as i32) & (1 << 15)) != 0 {
         mods |= Modifier::Alt;
     }
-    if ((GetKeyState(VK_LWIN as i32) | GetKeyState(VK_RWIN as i32)) & (1<<15)) != 0 {
+    if ((GetKeyState(VK_LWIN as i32) | GetKeyState(VK_RWIN as i32)) & (1 << 15)) != 0 {
         mods |= Modifier::Super;
     }
     let swapped = TRUE == GetSystemMetrics(SM_SWAPBUTTON);
-    if GetAsyncKeyState(VK_LBUTTON as i32) != 0 { // DT_TODO: Should this use GetAsyncKeyState() here? Should it only check the top bit as above?
-        mods |= if swapped { Modifier::Rmb } else { Modifier::Lmb };
+    if GetAsyncKeyState(VK_LBUTTON as i32) != 0 {
+        // DT_TODO: Should this use GetAsyncKeyState() here? Should it only check the top bit as above?
+        mods |= if swapped {
+            Modifier::Rmb
+        } else {
+            Modifier::Lmb
+        };
     }
     if GetAsyncKeyState(VK_RBUTTON as i32) != 0 {
-        mods |= if swapped { Modifier::Lmb } else { Modifier::Rmb };
+        mods |= if swapped {
+            Modifier::Lmb
+        } else {
+            Modifier::Rmb
+        };
     }
     if GetAsyncKeyState(VK_MBUTTON as i32) != 0 {
         mods |= Modifier::Mmb;
@@ -700,7 +709,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: true,
-                mouse_button: MouseButton::Left
+                mouse_button: MouseButton::Left,
             }));
             sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
         }
@@ -708,7 +717,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: true,
-                mouse_button: MouseButton::Right
+                mouse_button: MouseButton::Right,
             }));
             sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
         }
@@ -716,7 +725,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: true,
-                mouse_button: MouseButton::Middle
+                mouse_button: MouseButton::Middle,
             }));
             sapp_win32_capture_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
         }
@@ -724,7 +733,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: false,
-                mouse_button: MouseButton::Left
+                mouse_button: MouseButton::Left,
             }));
             sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Left as u8);
         }
@@ -732,7 +741,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: false,
-                mouse_button: MouseButton::Right
+                mouse_button: MouseButton::Right,
             }));
             sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Right as u8);
         }
@@ -740,7 +749,7 @@ unsafe extern "system" fn wndproc(
             sapp_win32_mouse_update(&mut sapp.base, lparam);
             sapp.call_event(&Event::Mouse(MouseEvent {
                 pressed: false,
-                mouse_button: MouseButton::Middle
+                mouse_button: MouseButton::Middle,
             }));
             sapp_win32_release_mouse(&mut sapp.base, 1u8 << MouseButton::Middle as u8);
         }
@@ -760,7 +769,7 @@ unsafe extern "system" fn wndproc(
                 }
                 sapp.call_event(&Event::MouseMove(MouseMoveEvent {
                     mouse_dx: sapp.base.mouse.dx,
-                    mouse_dy: sapp.base.mouse.dy
+                    mouse_dy: sapp.base.mouse.dy,
                 }));
             }
         }
@@ -807,7 +816,7 @@ unsafe extern "system" fn wndproc(
                     }
                     sapp.call_event(&Event::MouseMove(MouseMoveEvent {
                         mouse_dx: sapp.base.mouse.dx,
-                        mouse_dy: sapp.base.mouse.dy
+                        mouse_dy: sapp.base.mouse.dy,
                     }));
                 }
 
@@ -862,7 +871,7 @@ unsafe extern "system" fn wndproc(
                 if char_code as u32 >= 32 {
                     sapp.call_event(&Event::Char(CharEvent {
                         char_code,
-                        key_repeat
+                        key_repeat,
                     }));
                 }
             }
@@ -873,7 +882,7 @@ unsafe extern "system" fn wndproc(
                 sapp.call_event(&Event::Key(KeyEvent {
                     pressed: true,
                     key_code: sapp.base.keycodes[key],
-                    key_repeat: lparam & 0x40000000 != 0
+                    key_repeat: lparam & 0x40000000 != 0,
                 }));
 
                 /* check if a CLIPBOARD_PASTED event must be sent too */
@@ -891,7 +900,7 @@ unsafe extern "system" fn wndproc(
                 sapp.call_event(&Event::Key(KeyEvent {
                     pressed: false,
                     key_code: sapp.base.keycodes[key],
-                    key_repeat: false
+                    key_repeat: false,
                 }));
             }
         }
@@ -1155,9 +1164,8 @@ unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
     //DragAcceptFiles(sapp.win32.hwnd, 1);
 }
 
-fn sapp_setup_default_icon<'a>(icon_buffer : &'a mut Vec<u32>) -> SappIconDesc<'a> {
-
-    let icon_sizes = [ 16, 32, 64 ];   // must be multiple of 8!
+fn sapp_setup_default_icon<'a>(icon_buffer: &'a mut Vec<u32>) -> SappIconDesc<'a> {
+    let icon_sizes = [16, 32, 64]; // must be multiple of 8!
 
     // allocate a pixel buffer for all icon pixels
     let mut all_num_pixels = 0;
@@ -1172,33 +1180,18 @@ fn sapp_setup_default_icon<'a>(icon_buffer : &'a mut Vec<u32>) -> SappIconDesc<'
     let mut buf_pixels = [first, second, third];
 
     // Amstrad CPC font 'S'
-    let tile: [u8; 8] = [
-        0x3C,
-        0x66,
-        0x60,
-        0x3C,
-        0x06,
-        0x66,
-        0x3C,
-        0x00,
-    ];
+    let tile: [u8; 8] = [0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C, 0x00];
     // rainbow colors
     let colors: [u32; 8] = [
-        0xFF4370FF,
-        0xFF26A7FF,
-        0xFF58EEFF,
-        0xFF57E1D4,
-        0xFF65CC9C,
-        0xFF6ABB66,
-        0xFFF5A542,
+        0xFF4370FF, 0xFF26A7FF, 0xFF58EEFF, 0xFF57E1D4, 0xFF65CC9C, 0xFF6ABB66, 0xFFF5A542,
         0xFFC2577E,
     ];
 
-    let blank : u32 = 0x00FFFFFF;
+    let blank: u32 = 0x00FFFFFF;
     let shadow: u32 = 0xFF000000;
 
     for i in 0..icon_sizes.len() {
-        let dim = icon_sizes[i];        
+        let dim = icon_sizes[i];
         let dst = &mut buf_pixels[i];
         let mut index = 0;
         debug_assert!((dim % 8) == 0);
@@ -1221,9 +1214,9 @@ fn sapp_setup_default_icon<'a>(icon_buffer : &'a mut Vec<u32>) -> SappIconDesc<'
 
     // right shadow
     for i in 0..icon_sizes.len() {
-        let dim = icon_sizes[i];        
+        let dim = icon_sizes[i];
         let dst = &mut buf_pixels[i];
-        for  y in 0..dim {
+        for y in 0..dim {
             let mut prev_color = blank;
             for x in 0..dim {
                 let dst_index = y * dim + x;
@@ -1238,7 +1231,7 @@ fn sapp_setup_default_icon<'a>(icon_buffer : &'a mut Vec<u32>) -> SappIconDesc<'
 
     // bottom shadow
     for i in 0..icon_sizes.len() {
-        let dim = icon_sizes[i];        
+        let dim = icon_sizes[i];
         let dst = &mut buf_pixels[i];
         for x in 0..dim {
             let mut prev_color = blank;
@@ -1254,7 +1247,7 @@ fn sapp_setup_default_icon<'a>(icon_buffer : &'a mut Vec<u32>) -> SappIconDesc<'
     }
 
     // initialize default_icon_desc struct
-    let mut desc = SappIconDesc::new();    
+    let mut desc = SappIconDesc::new();
     for i in 0..icon_sizes.len() {
         let dim = icon_sizes[i];
 
@@ -1266,19 +1259,18 @@ fn sapp_setup_default_icon<'a>(icon_buffer : &'a mut Vec<u32>) -> SappIconDesc<'
     desc
 }
 
-
-unsafe fn sapp_win32_create_icon_from_image(desc : &SappImageDesc) -> HICON {
+unsafe fn sapp_win32_create_icon_from_image(desc: &SappImageDesc) -> HICON {
     let bi = BITMAPV5HEADER {
-        bV5Size : std::mem::size_of::<BITMAPV5HEADER>() as u32,
-        bV5Width : desc.width as i32,
-        bV5Height : -(desc.height as i32),   // NOTE the '-' here to indicate that origin is top-left
-        bV5Planes : 1,
-        bV5BitCount : 32,
-        bV5Compression : BI_BITFIELDS,
-        bV5RedMask : 0x00FF0000,
-        bV5GreenMask : 0x0000FF00,
-        bV5BlueMask : 0x000000FF,
-        bV5AlphaMask : 0xFF000000,
+        bV5Size: std::mem::size_of::<BITMAPV5HEADER>() as u32,
+        bV5Width: desc.width as i32,
+        bV5Height: -(desc.height as i32), // NOTE the '-' here to indicate that origin is top-left
+        bV5Planes: 1,
+        bV5BitCount: 32,
+        bV5Compression: BI_BITFIELDS,
+        bV5RedMask: 0x00FF0000,
+        bV5GreenMask: 0x0000FF00,
+        bV5BlueMask: 0x000000FF,
+        bV5AlphaMask: 0xFF000000,
 
         bV5SizeImage: 0,
         bV5XPelsPerMeter: 0,
@@ -1287,9 +1279,21 @@ unsafe fn sapp_win32_create_icon_from_image(desc : &SappImageDesc) -> HICON {
         bV5ClrImportant: 0,
         bV5CSType: 0,
         bV5Endpoints: CIEXYZTRIPLE {
-            ciexyzRed: CIEXYZ {ciexyzX: 0,ciexyzY: 0, ciexyzZ: 0},
-            ciexyzGreen: CIEXYZ {ciexyzX: 0,ciexyzY: 0, ciexyzZ: 0},
-            ciexyzBlue: CIEXYZ {ciexyzX: 0,ciexyzY: 0, ciexyzZ: 0},
+            ciexyzRed: CIEXYZ {
+                ciexyzX: 0,
+                ciexyzY: 0,
+                ciexyzZ: 0,
+            },
+            ciexyzGreen: CIEXYZ {
+                ciexyzX: 0,
+                ciexyzY: 0,
+                ciexyzZ: 0,
+            },
+            ciexyzBlue: CIEXYZ {
+                ciexyzX: 0,
+                ciexyzY: 0,
+                ciexyzZ: 0,
+            },
         },
         bV5GammaRed: 0,
         bV5GammaGreen: 0,
@@ -1302,14 +1306,27 @@ unsafe fn sapp_win32_create_icon_from_image(desc : &SappImageDesc) -> HICON {
 
     let mut target_void: *mut ::core::ffi::c_void = std::ptr::null_mut();
     let dc = GetDC(0);
-    let color = CreateDIBSection(dc, &bi as *const BITMAPV5HEADER as *const BITMAPINFO, DIB_RGB_COLORS,  &mut target_void, 0, 0);
+    let color = CreateDIBSection(
+        dc,
+        &bi as *const BITMAPV5HEADER as *const BITMAPINFO,
+        DIB_RGB_COLORS,
+        &mut target_void,
+        0,
+        0,
+    );
     ReleaseDC(0, dc);
     if 0 == color {
         return 0;
     }
     debug_assert!(target_void != std::ptr::null_mut());
 
-    let mask = CreateBitmap(desc.width as i32, desc.height as i32, 1, 1, std::ptr::null());
+    let mask = CreateBitmap(
+        desc.width as i32,
+        desc.height as i32,
+        1,
+        1,
+        std::ptr::null(),
+    );
     if 0 == mask {
         DeleteObject(color);
         return 0;
@@ -1319,22 +1336,21 @@ unsafe fn sapp_win32_create_icon_from_image(desc : &SappImageDesc) -> HICON {
     let mut target: *mut u8 = target_void as *mut u8;
     let mut source = desc.pixels.as_ptr() as *mut u8;
     for _ in 0..(desc.width * desc.height) {
-
         *target.add(0) = *source.add(2);
         *target.add(1) = *source.add(1);
         *target.add(2) = *source.add(0);
-        *target.add(3) = *source.add(3);                
+        *target.add(3) = *source.add(3);
 
         target = target.add(4);
         source = source.add(4);
     }
 
-    let icon_info = ICONINFO{
-        fIcon : TRUE,
-        xHotspot : 0,
-        yHotspot : 0,
-        hbmMask : mask,
-        hbmColor : color,
+    let icon_info = ICONINFO {
+        fIcon: TRUE,
+        xHotspot: 0,
+        yHotspot: 0,
+        hbmMask: mask,
+        hbmColor: color,
     };
     let icon_handle = CreateIconIndirect(&icon_info);
     DeleteObject(color);
@@ -1343,7 +1359,7 @@ unsafe fn sapp_win32_create_icon_from_image(desc : &SappImageDesc) -> HICON {
     return icon_handle;
 }
 
-fn sapp_image_validate(desc : &SappImageDesc) -> bool {
+fn sapp_image_validate(desc: &SappImageDesc) -> bool {
     debug_assert!(desc.width > 0);
     debug_assert!(desc.height > 0);
     debug_assert!(desc.pixels.len() != 0);
@@ -1355,11 +1371,12 @@ fn sapp_image_validate(desc : &SappImageDesc) -> bool {
     return true;
 }
 
-fn sapp_image_bestmatch(image_descs : &[SappImageDesc], width : i32, height : i32) -> i32 {
-    let mut least_diff:i32 = 0x7FFFFFFF;
-    let mut least_index:i32 = 0;
+fn sapp_image_bestmatch(image_descs: &[SappImageDesc], width: i32, height: i32) -> i32 {
+    let mut least_diff: i32 = 0x7FFFFFFF;
+    let mut least_index: i32 = 0;
     for i in 0..image_descs.len() {
-        let mut diff:i32 = (image_descs[i].width * image_descs[i].height) as i32 - (width * height);
+        let mut diff: i32 =
+            (image_descs[i].width * image_descs[i].height) as i32 - (width * height);
         if diff < 0 {
             diff = -diff;
         }
@@ -1371,7 +1388,7 @@ fn sapp_image_bestmatch(image_descs : &[SappImageDesc], width : i32, height : i3
     return least_index;
 }
 
-fn sapp_icon_num_images(desc : &SappIconDesc) -> u32 {
+fn sapp_icon_num_images(desc: &SappIconDesc) -> u32 {
     for index in 0..SAPP_MAX_ICONIMAGES {
         if 0 == desc.images[index as usize].pixels.len() {
             return index;
@@ -1380,7 +1397,7 @@ fn sapp_icon_num_images(desc : &SappIconDesc) -> u32 {
     SAPP_MAX_ICONIMAGES
 }
 
-fn sapp_validate_icon_desc(desc :&SappIconDesc, num_images : u32) -> bool {
+fn sapp_validate_icon_desc(desc: &SappIconDesc, num_images: u32) -> bool {
     debug_assert!(num_images <= SAPP_MAX_ICONIMAGES);
     for i in 0..num_images {
         if !sapp_image_validate(&desc.images[i as usize]) {
@@ -1390,12 +1407,19 @@ fn sapp_validate_icon_desc(desc :&SappIconDesc, num_images : u32) -> bool {
     return true;
 }
 
-
-unsafe fn sapp_win32_set_icon(sapp: &mut SAppData, icon_desc : &SappIconDesc, num_images : u32) {
+unsafe fn sapp_win32_set_icon(sapp: &mut SAppData, icon_desc: &SappIconDesc, num_images: u32) {
     debug_assert!((num_images > 0) && (num_images <= SAPP_MAX_ICONIMAGES));
 
-    let big_img_index = sapp_image_bestmatch(&icon_desc.images[0..num_images as usize], GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON));
-    let sml_img_index = sapp_image_bestmatch(&icon_desc.images[0..num_images as usize], GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON));
+    let big_img_index = sapp_image_bestmatch(
+        &icon_desc.images[0..num_images as usize],
+        GetSystemMetrics(SM_CXICON),
+        GetSystemMetrics(SM_CYICON),
+    );
+    let sml_img_index = sapp_image_bestmatch(
+        &icon_desc.images[0..num_images as usize],
+        GetSystemMetrics(SM_CXSMICON),
+        GetSystemMetrics(SM_CYSMICON),
+    );
     let big_icon = sapp_win32_create_icon_from_image(&icon_desc.images[big_img_index as usize]);
     let sml_icon = sapp_win32_create_icon_from_image(&icon_desc.images[sml_img_index as usize]);
 
@@ -1415,7 +1439,6 @@ unsafe fn sapp_win32_set_icon(sapp: &mut SAppData, icon_desc : &SappIconDesc, nu
         sapp.win32.small_icon = sml_icon;
     }
 }
-
 
 struct DPI {
     aware: bool,
@@ -1548,38 +1571,35 @@ struct SAppWgl {
 
 #[derive(Clone, Copy)]
 pub struct SappImageDesc<'a> {
-    pub width : u32,
-    pub height : u32,
-    pub pixels : &'a [u32],
+    pub width: u32,
+    pub height: u32,
+    pub pixels: &'a [u32],
 }
 
 static EMPTY_ARRAY: [u32; 0] = [0; 0];
-impl<'a> SappImageDesc<'a>{
-    pub fn new() -> SappImageDesc<'a>
-    {
+impl<'a> SappImageDesc<'a> {
+    pub fn new() -> SappImageDesc<'a> {
         SappImageDesc {
-            width : 0,
-            height : 0,
-            pixels : &EMPTY_ARRAY,
+            width: 0,
+            height: 0,
+            pixels: &EMPTY_ARRAY,
         }
     }
 }
 
 pub struct SappIconDesc<'a> {
-    pub sokol_default : bool,
-    pub images : [SappImageDesc<'a>; SAPP_MAX_ICONIMAGES as usize],
+    pub sokol_default: bool,
+    pub images: [SappImageDesc<'a>; SAPP_MAX_ICONIMAGES as usize],
 }
 
-impl<'a> SappIconDesc<'a>{
-    pub fn new() -> SappIconDesc<'a>
-    {
+impl<'a> SappIconDesc<'a> {
+    pub fn new() -> SappIconDesc<'a> {
         SappIconDesc {
-            sokol_default : false,
-            images : [SappImageDesc::new(); SAPP_MAX_ICONIMAGES as usize]
+            sokol_default: false,
+            images: [SappImageDesc::new(); SAPP_MAX_ICONIMAGES as usize],
         }
     }
 }
-
 
 pub struct SAppDesc<'a> {
     pub width: u32,  // the preferred width of the window / canvas
@@ -1598,7 +1618,7 @@ pub struct SAppDesc<'a> {
     pub enable_dragndrop: bool, // enable file dropping (drag'n'drop), default is false
     pub max_dropped_files: u32, // max number of dropped files to process (default: 1)
     pub max_dropped_file_path_length: u32, // max length in bytes of a dropped UTF-8 file path (default: 2048)
-    pub icon : SappIconDesc<'a>,         // the initial window icon to set
+    pub icon: SappIconDesc<'a>,            // the initial window icon to set
     pub gl_major_version: u32, // override GL major and minor version (the default GL version is 3.2)
     pub gl_minor_version: u32,
     pub win32_console_utf8: bool, // if true, set the output console codepage to UTF-8
@@ -1625,7 +1645,7 @@ impl<'a> SAppDesc<'a> {
             enable_dragndrop: false,
             max_dropped_files: 1,
             max_dropped_file_path_length: 2048,
-            icon : SappIconDesc::new(),
+            icon: SappIconDesc::new(),
 
             gl_major_version: 3,
             gl_minor_version: 2,
@@ -1731,13 +1751,10 @@ impl<'a> SAppData<'a> {
     }
 
     pub fn set_icon(&mut self, desc: SappIconDesc) {
-
         let mut icon_buffer: Vec<u32> = vec![0; 0];
         let desc = if desc.sokol_default {
             sapp_setup_default_icon(&mut icon_buffer)
-        }
-        else
-        {
+        } else {
             desc
         };
         let num_images = sapp_icon_num_images(&desc);
@@ -1747,9 +1764,10 @@ impl<'a> SAppData<'a> {
         if !sapp_validate_icon_desc(&desc, num_images) {
             return;
         }
-        unsafe {sapp_win32_set_icon(self, &desc, num_images); }
+        unsafe {
+            sapp_win32_set_icon(self, &desc, num_images);
+        }
     }
-
 }
 
 pub struct SApp<'a> {
