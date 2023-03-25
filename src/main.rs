@@ -20,7 +20,7 @@ impl AppI for App {
     fn init(&mut self, _app: &mut BaseData, sapp: &mut SAppData) {
         let mut icon = SappIconDesc::new();
         icon.sokol_default = true;
-        sapp.set_icon(icon);
+        sapp.set_icon(&icon);
     }
 }
 
@@ -30,7 +30,7 @@ fn main() {
     desc.window_title = &title;
 
     let App = App {};
-    base_app::run_app(App, desc);
+    base_app::run_app(App, &desc);
 
     let mut p = ParticleSystem::new();
     p.set_color_scheme(ColorScheme::Rainbow);

@@ -558,7 +558,7 @@ unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_r
     // called on WM_DPICHANGED, which will only be sent to the application
     //    if sapp_desc.high_dpi is true and the Windows version is recent enough
     //    to support DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
-    debug_assert!(sapp.desc.high_dpi);
+    debug_assert!(sapp.high_dpi);
     let user32 = LoadLibraryA(s!("user32.dll"));
     if user32 == 0 {
         return;
@@ -983,7 +983,7 @@ unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
     // to newest. SetProcessDpiAwarenessContext() is required for the new
     // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 method.
     if let Some(set_process_dpi_awareness) = fn_set_process_dpi_awareness {
-        if sapp.desc.high_dpi {
+        if sapp.high_dpi {
             // app requests HighDPI rendering, first try the Win10 Creator Update per-monitor-dpi awareness,
             // if that fails, fall back to system-dpi-awareness
             sapp.win32.dpi.aware = true;
@@ -1020,7 +1020,7 @@ unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
         }
     }
 
-    if sapp.desc.high_dpi {
+    if sapp.high_dpi {
         sapp.win32.dpi.content_scale = sapp.win32.dpi.window_scale;
         sapp.win32.dpi.mouse_scale = 1.0;
     } else {
@@ -1073,7 +1073,7 @@ unsafe fn sapp_win32_update_dimensions(sapp: &mut SAppData) -> bool {
     return false;
 }
 
-unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
+unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
     let instance = GetModuleHandleW(std::ptr::null());
     let wndclassw = WNDCLASSW {
         hCursor: LoadCursorW(0, IDC_ARROW),
@@ -1119,8 +1119,8 @@ unsafe fn sapp_win32_create_window(sapp: &mut SAppData) {
 
     // DT_TODO: See about setting active code page in the manifest to utf8 to not have to do this
     // UTF16 null terminated string
-    let mut title = Vec::with_capacity(sapp.desc.window_title.encode_utf16().count() + 1);
-    title.extend(sapp.desc.window_title.encode_utf16());
+    let mut title = Vec::with_capacity(desc.window_title.encode_utf16().count() + 1);
+    title.extend(desc.window_title.encode_utf16());
     title.push(0);
 
     sapp.win32.hwnd = CreateWindowExW(
@@ -1656,8 +1656,7 @@ impl<'a> SAppDesc<'a> {
     }
 }
 
-pub struct SAppData<'a> {
-    desc: SAppDesc<'a>,
+pub struct SAppData {
     valid: bool,
     fullscreen: bool,
 
@@ -1674,6 +1673,7 @@ pub struct SAppData<'a> {
     framebuffer_height: u32,
     sample_count: u32,
     swap_interval: u32,
+    high_dpi: bool,
     dpi_scale: f32,
     frame_count: u64,
 
@@ -1690,8 +1690,8 @@ pub struct SAppData<'a> {
     keycodes: [KeyCode; SAPP_MAX_KEYCODES as usize],
 }
 
-impl<'a> SAppData<'a> {
-    fn new(desc: SAppDesc) -> SAppData {
+impl SAppData {
+    fn new(desc: &SAppDesc) -> SAppData {
         SAppData {
             valid: false,
             fullscreen: desc.fullscreen,
@@ -1721,6 +1721,7 @@ impl<'a> SAppData<'a> {
             //    _sapp.drop.buf_size = _sapp.drop.max_files * _sapp.drop.max_path_length;
             //    _sapp.drop.buffer = (char*) _sapp_malloc_clear((size_t)_sapp.drop.buf_size);
             //}
+            high_dpi : desc.high_dpi,
             dpi_scale: 1.0,
             frame_count: 0,
             mouse: SAppMouse::new(),
@@ -1728,7 +1729,6 @@ impl<'a> SAppData<'a> {
             //default_icon_desc : sapp_icon_desc::new(),
             win32: SAppWin32::new(),
             keycodes: [KeyCode::Invalid; SAPP_MAX_KEYCODES as usize],
-            desc,
         }
     }
 
@@ -1750,10 +1750,14 @@ impl<'a> SAppData<'a> {
         unsafe { sapp_win32_mods() }
     }
 
-    pub fn set_icon(&mut self, desc: SappIconDesc) {
+    pub fn set_icon(&mut self, desc: &SappIconDesc) {
+        
         let mut icon_buffer: Vec<u32> = vec![0; 0];
+        let mut def_desc = SappIconDesc::new();
+
         let desc = if desc.sokol_default {
-            sapp_setup_default_icon(&mut icon_buffer)
+            def_desc = sapp_setup_default_icon(&mut icon_buffer);
+            &def_desc
         } else {
             desc
         };
@@ -1771,7 +1775,7 @@ impl<'a> SAppData<'a> {
 }
 
 pub struct SApp<'a> {
-    base: SAppData<'a>,
+    base: SAppData,
     app: &'a mut dyn SAppI,
 }
 
@@ -1803,9 +1807,9 @@ impl<'a> SApp<'a> {
     }
 }
 
-pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc) {
+pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
     let mut b = SApp {
-        base: SAppData::new(desc),
+        base: SAppData::new(&desc),
         app,
     };
 
@@ -1816,9 +1820,9 @@ pub fn run_app(app: &mut dyn SAppI, desc: SAppDesc) {
     }
     //_sapp_win32_init_cursors();
     unsafe {
-        sapp_win32_create_window(&mut b.base);
+        sapp_win32_create_window(&desc, &mut b.base);
     }
-    //sapp_set_icon(&desc->icon);
+    b.base.set_icon(&desc.icon);
     //_sapp_wgl_init();
     //_sapp_wgl_load_extensions();
     //_sapp_wgl_create_context();
