@@ -1721,7 +1721,7 @@ impl SAppData {
             //    _sapp.drop.buf_size = _sapp.drop.max_files * _sapp.drop.max_path_length;
             //    _sapp.drop.buffer = (char*) _sapp_malloc_clear((size_t)_sapp.drop.buf_size);
             //}
-            high_dpi : desc.high_dpi,
+            high_dpi: desc.high_dpi,
             dpi_scale: 1.0,
             frame_count: 0,
             mouse: SAppMouse::new(),
@@ -1751,16 +1751,11 @@ impl SAppData {
     }
 
     pub fn set_icon(&mut self, desc: &SappIconDesc) {
-        
-        let mut icon_buffer: Vec<u32> = vec![0; 0];
-        let mut def_desc = SappIconDesc::new();
-
-        let desc = if desc.sokol_default {
-            def_desc = sapp_setup_default_icon(&mut icon_buffer);
-            &def_desc
-        } else {
-            desc
-        };
+        if desc.sokol_default {
+            let mut icon_buffer: Vec<u32> = vec![0; 0];
+            self.set_icon(&sapp_setup_default_icon(&mut icon_buffer));
+            return;
+        }
         let num_images = sapp_icon_num_images(&desc);
         if num_images == 0 || num_images > SAPP_MAX_ICONIMAGES {
             return;
