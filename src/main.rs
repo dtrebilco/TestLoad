@@ -21,6 +21,8 @@ impl AppI for App {
         let mut icon = SappIconDesc::new();
         icon.sokol_default = true;
         sapp.set_icon(&icon);
+
+        sapp.set_mouse_cursor(MouseCursor::ResizeAll);
     }
 }
 

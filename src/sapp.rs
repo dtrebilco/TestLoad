@@ -1893,6 +1893,29 @@ impl SAppData {
             sapp_win32_set_icon(self, &desc, num_images);
         }
     }
+
+    // NOTE that sapp_show_mouse() does not "stack" like the Win32 or macOS API functions!
+    pub fn show_mouse(&mut self, show: bool) {
+        if (self.mouse.shown != show) {
+            sapp_win32_update_cursor(&self, self.mouse.current_cursor, show, false);
+            self.mouse.shown = show;
+        }
+    }
+
+    pub fn mouse_shown(&self) -> bool {
+        self.mouse.shown
+    }
+
+    pub fn set_mouse_cursor(&mut self, cursor: MouseCursor) {
+        if (self.mouse.current_cursor != cursor) {
+            sapp_win32_update_cursor(&self, cursor, self.mouse.shown, false);
+            self.mouse.current_cursor = cursor;
+        }
+    }
+
+    pub fn get_mouse_cursor(&self) -> MouseCursor {
+        self.mouse.current_cursor
+    }
 }
 
 pub struct SApp<'a> {
