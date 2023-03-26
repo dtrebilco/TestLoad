@@ -11,6 +11,7 @@ impl From<EnumLoadError> for std::io::Error {
     }
 }
 
+#[macro_export]
 macro_rules! enum_load {
     ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $member:ident = $value:expr),+ $(,)? }) => {
         $(#[$derives])*
@@ -41,6 +42,7 @@ macro_rules! enum_load {
     };
 }
 
+#[macro_export]
 macro_rules! enum_sequential {
     ($(#[$derives:meta])* $vis:vis enum $name:ident { $($(#[$nested_meta:meta])* $member:ident),+ $(,)? }) => {
 

@@ -17,6 +17,10 @@ use windows_sys::Win32::UI::Input::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
+use crate::enum_sequential;
+use crate::static_assert;
+use crate::EnumLoadError;
+
 #[inline]
 pub fn LOWORD(l: u32) -> u16 {
     (l & 0xffff) as u16
@@ -34,6 +38,11 @@ pub fn GET_X_LPARAM(lp: LPARAM) -> i16 {
 #[inline]
 pub fn GET_Y_LPARAM(lp: LPARAM) -> i16 {
     HIWORD(lp as u32) as i16
+}
+
+#[inline]
+pub fn MAKEINTRESOURCEW(i: u16) -> PCWSTR {
+    i as usize as PCWSTR
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -169,6 +178,24 @@ pub enum MouseButton {
     Invalid = 0x100,
 }
 
+enum_sequential! {
+    #[derive(PartialEq, Clone, Copy)]
+    pub enum MouseCursor {
+        Default,   // equivalent with system default cursor
+        Arrow,
+        Ibeam,
+        Crosshair,
+        PointingHand,
+        ResizeEW,
+        ResizeNS,
+        ResizeNWSE,
+        ResizeNESW,
+        ResizeAll,
+        NotAllowed,
+    }
+}
+const SAPP_MOUSECURSOR_NUM: u32 = MouseCursor::len() as u32;
+
 // These are currently pressed modifier keys (and mouse buttons) which are
 // passed in the event struct field sapp_event.modifiers.
 bitflags! {
@@ -295,7 +322,7 @@ struct SAppMouse {
     shown: bool,
     locked: bool,
     pos_valid: bool,
-    //sapp_mouse_cursor current_cursor; // Cursor icon enum
+    current_cursor: MouseCursor, // Cursor icon enum
 }
 impl SAppMouse {
     fn new() -> SAppMouse {
@@ -307,6 +334,7 @@ impl SAppMouse {
             shown: true,
             locked: false,
             pos_valid: false,
+            current_cursor: MouseCursor::Default,
         }
     }
 }
@@ -554,6 +582,103 @@ fn sapp_win32_mouse_update(sapp: &mut SAppData, lParam: LPARAM) {
     }
 }
 
+fn sapp_win32_init_cursor(sapp: &mut SAppData, cursor: MouseCursor) {
+    let id = match cursor {
+        MouseCursor::Default => OCR_NORMAL,
+        MouseCursor::Arrow => OCR_NORMAL,
+        MouseCursor::Ibeam => OCR_IBEAM,
+        MouseCursor::Crosshair => OCR_CROSS,
+        MouseCursor::PointingHand => OCR_HAND,
+        MouseCursor::ResizeEW => OCR_SIZEWE,
+        MouseCursor::ResizeNS => OCR_SIZENS,
+        MouseCursor::ResizeNWSE => OCR_SIZENWSE,
+        MouseCursor::ResizeNESW => OCR_SIZENESW,
+        MouseCursor::ResizeAll => OCR_SIZEALL,
+        MouseCursor::NotAllowed => OCR_NO,
+    };
+
+    let cursor_index = cursor as usize;
+    if id != 0 {
+        sapp.win32.cursors[cursor_index] = unsafe {
+            LoadImageW(
+                0,
+                MAKEINTRESOURCEW(id as u16),
+                IMAGE_CURSOR,
+                0,
+                0,
+                LR_DEFAULTSIZE | LR_SHARED,
+            )
+        };
+    }
+    // fallback: default cursor
+    if 0 == sapp.win32.cursors[cursor_index] {
+        sapp.win32.cursors[cursor_index] =
+            unsafe { LoadCursorW(0, MAKEINTRESOURCEW(IDC_ARROW as u16)) };
+    }
+    debug_assert!(0 != sapp.win32.cursors[cursor_index]);
+}
+
+fn sapp_win32_init_cursors(sapp: &mut SAppData) {
+    for i in MouseCursor::iter() {
+        sapp_win32_init_cursor(sapp, i);
+    }
+}
+
+unsafe fn sapp_win32_cursor_in_content_area(sapp: &SAppData) -> bool {
+    let mut pos = POINT { x: 0, y: 0 };
+    if GetCursorPos(&mut pos) == 0 {
+        return false;
+    }
+    if WindowFromPoint(pos) != sapp.win32.hwnd {
+        return false;
+    }
+    let mut area = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    GetClientRect(sapp.win32.hwnd, &mut area);
+
+    let mut left_top = POINT {
+        x: area.left,
+        y: area.top,
+    };
+    let mut right_bottom = POINT {
+        x: area.right,
+        y: area.bottom,
+    };
+    ClientToScreen(sapp.win32.hwnd, &mut left_top);
+    ClientToScreen(sapp.win32.hwnd, &mut right_bottom);
+    area.left = left_top.x;
+    area.top = left_top.y;
+    area.right = right_bottom.x;
+    area.bottom = right_bottom.y;
+    return PtInRect(&area, pos) == TRUE;
+}
+
+fn sapp_win32_update_cursor(
+    sapp: &SAppData,
+    cursor: MouseCursor,
+    shown: bool,
+    skip_area_test: bool,
+) {
+    // NOTE: when called from WM_SETCURSOR, the area test would be redundant
+    unsafe {
+        if !skip_area_test {
+            if !sapp_win32_cursor_in_content_area(sapp) {
+                return;
+            }
+        }
+        if !shown {
+            SetCursor(0);
+        } else {
+            debug_assert!(0 != sapp.win32.cursors[cursor as usize]);
+            SetCursor(sapp.win32.cursors[cursor as usize]);
+        }
+    }
+}
+
 unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_rect: &RECT) {
     // called on WM_DPICHANGED, which will only be sent to the application
     //    if sapp_desc.high_dpi is true and the Windows version is recent enough
@@ -691,10 +816,15 @@ unsafe extern "system" fn wndproc(
             sapp.call_event(&Event::Unfocused);
         }
         WM_SETCURSOR => {
-            //if (LOWORD(lParam) == HTCLIENT) {
-            //    sapp_win32_update_cursor(_sapp.mouse.current_cursor, _sapp.mouse.shown, true);
-            //    return TRUE;
-            //}
+            if LOWORD(lparam as u32) == HTCLIENT as u16 {
+                sapp_win32_update_cursor(
+                    &sapp.base,
+                    sapp.base.mouse.current_cursor,
+                    sapp.base.mouse.shown,
+                    true,
+                );
+                return TRUE as isize;
+            }
         }
         WM_DPICHANGED => {
             // DT_TODO: Test this and look at https://learn.microsoft.com/en-us/windows/win32/hidpi/wm-dpichanged - why not access g_dpi = HIWORD(wParam); ??
@@ -1453,7 +1583,7 @@ struct SAppWin32 {
     dc: HDC,
     big_icon: HICON,
     small_icon: HICON,
-    //cursors: [HCURSOR; _SAPP_MOUSECURSOR_NUM],
+    cursors: [HCURSOR; SAPP_MOUSECURSOR_NUM as usize],
     orig_codepage: u32,
     mouse_locked_x: i32,
     mouse_locked_y: i32,
@@ -1477,7 +1607,7 @@ impl SAppWin32 {
             dc: 0,
             big_icon: 0,
             small_icon: 0,
-            //cursors: [HCURSOR; _SAPP_MOUSECURSOR_NUM],
+            cursors: [0; SAPP_MOUSECURSOR_NUM as usize],
             orig_codepage: 0,
             mouse_locked_x: 0,
             mouse_locked_y: 0,
@@ -1681,12 +1811,8 @@ pub struct SAppData {
     mouse: SAppMouse,
     //_sapp_clipboard_t clipboard;
     //_sapp_drop_t drop;
-    //default_icon_desc : sapp_icon_desc<'a>, // DT_TODO: Needed? just use a temp?
-    //uint32_t* default_icon_pixels;
     win32: SAppWin32,
     //wgl : SAppWgl,
-    //char window_title[_SAPP_MAX_TITLE_LENGTH];      /* UTF-8 */
-    //wchar_t window_title_wide[_SAPP_MAX_TITLE_LENGTH];   /* UTF-32 or UCS-2 */
     keycodes: [KeyCode; SAPP_MAX_KEYCODES as usize],
 }
 
@@ -1813,7 +1939,7 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
     unsafe {
         sapp_win32_init_dpi(&mut b.base);
     }
-    //_sapp_win32_init_cursors();
+    sapp_win32_init_cursors(&mut b.base);
     unsafe {
         sapp_win32_create_window(&desc, &mut b.base);
     }
