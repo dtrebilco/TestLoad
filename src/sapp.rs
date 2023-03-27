@@ -800,11 +800,7 @@ unsafe fn sapp_win32_get_clipboard_string(sapp: &mut SAppData) {
     sapp.clipboard.buffer.clear();
     for c in char::decode_utf16(CWideStringIterator{ string: wchar_buf}) {
         if let Ok(c) = c {
-            if c != 0 as char {
-                sapp.clipboard.buffer.push(c);
-            } else {
-                break;
-            }
+            sapp.clipboard.buffer.push(c);
         } else {
             break;
         }
