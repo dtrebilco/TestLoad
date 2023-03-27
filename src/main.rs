@@ -23,6 +23,10 @@ impl AppI for App {
         sapp.set_icon(&icon);
 
         sapp.set_mouse_cursor(MouseCursor::ResizeAll);
+
+
+        sapp.set_clipboard_string("test string 😀");
+        println!("Clipboard:{}", sapp.get_clipboard_string());
     }
 }
 
@@ -30,6 +34,8 @@ fn main() {
     let mut title: String = "Test window title 😀".to_string();
     let mut desc = sapp::SAppDesc::new();
     desc.window_title = &title;
+    desc.enable_clipboard = true;
+    desc.clipboard_size = 1024;
 
     let App = App {};
     base_app::run_app(App, &desc);

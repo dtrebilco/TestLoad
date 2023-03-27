@@ -18,7 +18,7 @@ use windows_sys::Win32::UI::Input::{
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 use windows_sys::Win32::System::DataExchange::*;
 use windows_sys::Win32::System::Ole::CF_UNICODETEXT;
-use windows_sys::Win32::System::Memory::{GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+use windows_sys::Win32::System::Memory::{GlobalLock, GlobalFree, GlobalUnlock, GlobalAlloc, GMEM_MOVEABLE};
 
 use crate::enum_sequential;
 use crate::static_assert;
@@ -719,37 +719,41 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
     debug_assert!(sapp.win32.hwnd != 0);
     debug_assert!(sapp.clipboard.enabled && (sapp.clipboard.buffer.capacity() > 0));
 
-    wchar_t* wchar_buf = 0;
-    const SIZE_T wchar_buf_size = (SIZE_T)_sapp.clipboard.buf_size * sizeof(wchar_t);
-    HANDLE object = GlobalAlloc(GMEM_MOVEABLE, wchar_buf_size);
-    if (!object) {
-        goto error;
-    }
-    wchar_buf = (wchar_t*) GlobalLock(object);
-    if (!wchar_buf) {
-        goto error;
-    }
-    if (!_sapp_win32_utf8_to_wide(str, wchar_buf, (int)wchar_buf_size)) {
-        goto error;
-    }
-    GlobalUnlock(wchar_buf);
-    wchar_buf = 0;
-    if (!OpenClipboard(_sapp.win32.hwnd)) {
-        goto error;
-    }
-    EmptyClipboard();
-    SetClipboardData(CF_UNICODETEXT, object);
-    CloseClipboard();
-    return true;
+    let str_utf16_length = str.encode_utf16().count();
 
-error:
-    if (wchar_buf) {
+    let wchar_buf_size = (str_utf16_length + 1) * std::mem::size_of::<u16>();
+    let object = GlobalAlloc(GMEM_MOVEABLE, wchar_buf_size);
+    if object == 0 {
+        return false;
+    }
+
+    // Lock and unlock to copy the buffer
+    {
+        let mut wchar_buf = GlobalLock(object) as *mut u16;
+        if wchar_buf == std::ptr::null_mut() {
+            GlobalFree(object);
+            return false;        
+        }
+
+        let mut utf16_iter = str.encode_utf16();
+        while let Some(val) = utf16_iter.next() {
+            *wchar_buf = val;
+            wchar_buf = wchar_buf.add(1);
+        }
+        *wchar_buf = 0; // Add null terminator
+
         GlobalUnlock(object);
     }
-    if (object) {
+
+    if OpenClipboard(sapp.win32.hwnd) == FALSE {
         GlobalFree(object);
+        return false;        
     }
-    return false;
+    EmptyClipboard();
+    SetClipboardData(CF_UNICODETEXT as u32, object);
+    CloseClipboard();
+
+    return true;
 }
 
 struct CWideStringIterator {
@@ -796,7 +800,11 @@ unsafe fn sapp_win32_get_clipboard_string(sapp: &mut SAppData) {
     sapp.clipboard.buffer.clear();
     for c in char::decode_utf16(CWideStringIterator{ string: wchar_buf}) {
         if let Ok(c) = c {
-            sapp.clipboard.buffer.push(c);
+            if c != 0 as char {
+                sapp.clipboard.buffer.push(c);
+            } else {
+                break;
+            }
         } else {
             break;
         }
