@@ -719,11 +719,16 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
     debug_assert!(sapp.win32.hwnd != 0);
     debug_assert!(sapp.clipboard.enabled && (sapp.clipboard.buffer.capacity() > 0));
 
+    if OpenClipboard(sapp.win32.hwnd) == FALSE {
+        return false;        
+    }
+
     let str_utf16_length = str.encode_utf16().count();
 
     let wchar_buf_size = (str_utf16_length + 1) * std::mem::size_of::<u16>();
     let object = GlobalAlloc(GMEM_MOVEABLE, wchar_buf_size);
     if object == 0 {
+        CloseClipboard();        
         return false;
     }
 
@@ -732,6 +737,7 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
         let mut wchar_buf = GlobalLock(object) as *mut u16;
         if wchar_buf == std::ptr::null_mut() {
             GlobalFree(object);
+            CloseClipboard();
             return false;        
         }
 
@@ -745,12 +751,14 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
         GlobalUnlock(object);
     }
 
-    if OpenClipboard(sapp.win32.hwnd) == FALSE {
+    EmptyClipboard();
+
+    // NOTE: when successful, SetClipboardData() takes ownership of memory object!
+    if SetClipboardData(CF_UNICODETEXT as u32, object) == 0 {
         GlobalFree(object);
+        CloseClipboard();
         return false;        
     }
-    EmptyClipboard();
-    SetClipboardData(CF_UNICODETEXT as u32, object);
     CloseClipboard();
 
     return true;
