@@ -5,9 +5,14 @@ use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Globalization::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::Graphics::OpenGL::*;
+use windows_sys::Win32::System::DataExchange::*;
 use windows_sys::Win32::System::LibraryLoader::{
     FreeLibrary, GetModuleHandleW, GetProcAddress, LoadLibraryA,
 };
+use windows_sys::Win32::System::Memory::{
+    GlobalAlloc, GlobalFree, GlobalLock, GlobalUnlock, GMEM_MOVEABLE,
+};
+use windows_sys::Win32::System::Ole::CF_UNICODETEXT;
 use windows_sys::Win32::UI::Controls::WM_MOUSELEAVE;
 use windows_sys::Win32::UI::HiDpi::*;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
@@ -15,10 +20,8 @@ use windows_sys::Win32::UI::Input::{
     GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
     RIDEV_REMOVE, RID_INPUT,
 };
+use windows_sys::Win32::UI::Shell::{DragAcceptFiles, DragFinish, DragQueryFileW, HDROP};
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
-use windows_sys::Win32::System::DataExchange::*;
-use windows_sys::Win32::System::Ole::CF_UNICODETEXT;
-use windows_sys::Win32::System::Memory::{GlobalLock, GlobalFree, GlobalUnlock, GlobalAlloc, GMEM_MOVEABLE};
 
 use crate::enum_sequential;
 use crate::static_assert;
@@ -464,26 +467,6 @@ fn sapp_win32_init_keytable(keycodes: &mut [KeyCode; SAPP_MAX_KEYCODES as usize]
     keycodes[0x04A] = KeyCode::KpSubtract;
 }
 
-/*
-extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    unsafe {
-        match message {
-            WM_PAINT => {
-                //println!("WM_PAINT");
-                ValidateRect(window, std::ptr::null());
-                0
-            }
-            WM_DESTROY => {
-                //println!("WM_DESTROY");
-                PostQuitMessage(0);
-                0
-            }
-            _ => DefWindowProcW(window, message, wparam, lparam),
-        }
-    }
-}
-*/
-
 fn sapp_win32_capture_mouse(sapp: &mut SAppData, btn_mask: u8) {
     if 0 == sapp.win32.mouse_capture_mask {
         unsafe {
@@ -720,7 +703,7 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
     debug_assert!(sapp.clipboard.enabled && (sapp.clipboard.buffer.capacity() > 0));
 
     if OpenClipboard(sapp.win32.hwnd) == FALSE {
-        return false;        
+        return false;
     }
 
     let str_utf16_length = str.encode_utf16().count();
@@ -728,7 +711,7 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
     let wchar_buf_size = (str_utf16_length + 1) * std::mem::size_of::<u16>();
     let object = GlobalAlloc(GMEM_MOVEABLE, wchar_buf_size);
     if object == 0 {
-        CloseClipboard();        
+        CloseClipboard();
         return false;
     }
 
@@ -738,7 +721,7 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
         if wchar_buf == std::ptr::null_mut() {
             GlobalFree(object);
             CloseClipboard();
-            return false;        
+            return false;
         }
 
         let mut utf16_iter = str.encode_utf16();
@@ -757,7 +740,7 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
     if SetClipboardData(CF_UNICODETEXT as u32, object) == 0 {
         GlobalFree(object);
         CloseClipboard();
-        return false;        
+        return false;
     }
     CloseClipboard();
 
@@ -771,13 +754,12 @@ impl Iterator for CWideStringIterator {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        unsafe{
+        unsafe {
             let val = *self.string;
 
             if val == 0 {
                 None
-            }
-            else {
+            } else {
                 self.string = self.string.add(1);
                 Some(val)
             }
@@ -806,7 +788,7 @@ unsafe fn sapp_win32_get_clipboard_string(sapp: &mut SAppData) {
 
     // Add all the characters into the buffer until the limit (or bad data) // DT_TODO: Stop at clipboard capacity?
     sapp.clipboard.buffer.clear();
-    for c in char::decode_utf16(CWideStringIterator{ string: wchar_buf}) {
+    for c in char::decode_utf16(CWideStringIterator { string: wchar_buf }) {
         if let Ok(c) = c {
             sapp.clipboard.buffer.push(c);
         } else {
@@ -815,6 +797,59 @@ unsafe fn sapp_win32_get_clipboard_string(sapp: &mut SAppData) {
     }
     GlobalUnlock(object);
     CloseClipboard();
+}
+
+fn sapp_win32_files_dropped(sapp: &mut SApp, hdrop: HDROP) {
+    if sapp.base.drop.max_files <= 0 {
+        return;
+    }
+
+    let mut drop_failed = false;
+    unsafe {
+        let mut count = DragQueryFileW(hdrop, 0xffffffff, std::ptr::null_mut(), 0);
+        if count > sapp.base.drop.max_files {
+            count = sapp.base.drop.max_files;
+        }
+        sapp.base
+            .drop
+            .file_paths
+            .resize(count as usize, String::new());
+
+        // Get max needed buffer size
+        let mut max_chars = 0;
+        for i in 0..count {
+            let num_chars = DragQueryFileW(hdrop, i, std::ptr::null_mut(), 0) + 1; // DragQueryFileW expects space for a null terminator
+            if num_chars > max_chars {
+                max_chars = num_chars;
+            }
+        }
+
+        // Get each filename
+        let mut buffer = vec![0; max_chars as usize];
+        for i in 0..count {
+            let num_chars = DragQueryFileW(hdrop, i, buffer.as_mut_ptr(), max_chars);
+            if num_chars == 0 {
+                drop_failed = true;
+                break;
+            }
+            let str = &mut sapp.base.drop.file_paths[i as usize];
+            str.clear();
+            str.reserve(num_chars as usize + 10);
+            for c in char::decode_utf16(buffer[..num_chars as usize].iter().copied()) {
+                if let Ok(c) = c {
+                    str.push(c);
+                } else {
+                    break;
+                }
+            }
+        }
+        DragFinish(hdrop);
+    }
+    if !drop_failed {
+        sapp.call_event(&Event::FilesDropped);
+    } else {
+        sapp.base.drop.file_paths.clear();
+    }
 }
 
 unsafe fn sapp_win32_mods() -> Modifier {
@@ -1122,9 +1157,10 @@ unsafe extern "system" fn wndproc(
                 }));
 
                 // check if a CLIPBOARD_PASTED event must be sent too
-                if sapp.base.clipboard.enabled &&
-                    (key_code == KeyCode::V) &&
-                    (sapp_win32_mods() == Modifier::Ctrl) {
+                if sapp.base.clipboard.enabled
+                    && (key_code == KeyCode::V)
+                    && (sapp_win32_mods() == Modifier::Ctrl)
+                {
                     sapp.call_event(&Event::ClipboardPasted);
                 }
             }
@@ -1171,7 +1207,7 @@ unsafe extern "system" fn wndproc(
                 );
             }
         }
-        //WM_DROPFILES => sapp_win32_files_dropped((HDROP)wParam),
+        WM_DROPFILES => sapp_win32_files_dropped(sapp, wparam as HDROP),
         //WM_DISPLAYCHANGE => sapp_timing_reset(&_sapp.timing), // refresh rate might have changed
         _ => {}
     }
@@ -1396,7 +1432,9 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
         //sapp_win32_update_dimensions(sapp);
     }
     ShowWindow(sapp.win32.hwnd, SW_SHOW);
-    //DragAcceptFiles(sapp.win32.hwnd, 1);
+    if sapp.drop.max_files > 0 {
+        DragAcceptFiles(sapp.win32.hwnd, 1);
+    }
 }
 
 fn sapp_setup_default_icon<'a>(icon_buffer: &'a mut Vec<u32>) -> SappIconDesc<'a> {
@@ -1840,6 +1878,11 @@ pub struct Clipboard {
     buffer: String,
 }
 
+pub struct SDrop {
+    max_files: u32,
+    file_paths: Vec<String>,
+}
+
 pub struct SAppDesc<'a> {
     pub width: u32,  // the preferred width of the window / canvas
     pub height: u32, // the preferred height of the window / canvas
@@ -1854,10 +1897,8 @@ pub struct SAppDesc<'a> {
     pub window_title: &'a str,  // the window title as UTF-8 encoded string
     pub enable_clipboard: bool, // enable clipboard access, default is false
     pub clipboard_size: u32,    // max size of clipboard content in bytes
-    pub enable_dragndrop: bool, // enable file dropping (drag'n'drop), default is false
-    pub max_dropped_files: u32, // max number of dropped files to process (default: 1)
-    pub max_dropped_file_path_length: u32, // max length in bytes of a dropped UTF-8 file path (default: 2048)
-    pub icon: SappIconDesc<'a>,            // the initial window icon to set
+    pub max_dropped_files: u32, // enable file dropping (drag'n'drop) if > 1 - max number of dropped files to process
+    pub icon: SappIconDesc<'a>, // the initial window icon to set
     pub gl_major_version: u32, // override GL major and minor version (the default GL version is 3.2)
     pub gl_minor_version: u32,
     pub win32_console_utf8: bool, // if true, set the output console codepage to UTF-8
@@ -1881,9 +1922,7 @@ impl<'a> SAppDesc<'a> {
             window_title: "Title",
             enable_clipboard: false,
             clipboard_size: 0,
-            enable_dragndrop: false,
-            max_dropped_files: 1,
-            max_dropped_file_path_length: 2048,
+            max_dropped_files: 0,
             icon: SappIconDesc::new(),
 
             gl_major_version: 3,
@@ -1919,7 +1958,7 @@ pub struct SAppData {
     //_sapp_timing_t timing;
     mouse: SAppMouse,
     clipboard: Clipboard,
-    //_sapp_drop_t drop;
+    drop: SDrop,
     win32: SAppWin32,
     //wgl : SAppWgl,
     keycodes: [KeyCode; SAPP_MAX_KEYCODES as usize],
@@ -1948,13 +1987,10 @@ impl SAppData {
                 enabled: desc.enable_clipboard,
                 buffer: String::with_capacity(desc.clipboard_size as usize),
             },
-            //_sapp.drop.enabled = _sapp.desc.enable_dragndrop;
-            //if (_sapp.drop.enabled) {
-            //    _sapp.drop.max_files = _sapp.desc.max_dropped_files;
-            //    _sapp.drop.max_path_length = _sapp.desc.max_dropped_file_path_length;
-            //    _sapp.drop.buf_size = _sapp.drop.max_files * _sapp.drop.max_path_length;
-            //    _sapp.drop.buffer = (char*) _sapp_malloc_clear((size_t)_sapp.drop.buf_size);
-            //}
+            drop: SDrop {
+                max_files: desc.max_dropped_files,
+                file_paths: Vec::with_capacity(desc.max_dropped_files as usize),
+            },
             high_dpi: desc.high_dpi,
             dpi_scale: 1.0,
             frame_count: 0,
@@ -2025,11 +2061,13 @@ impl SAppData {
     }
 
     /* NOTE: on HTML5, sapp_set_clipboard_string() must be called from within event handler! */
-    pub fn set_clipboard_string(&mut self, str : &str) {
+    pub fn set_clipboard_string(&mut self, str: &str) {
         if !self.clipboard.enabled {
             return;
         }
-        unsafe { sapp_win32_set_clipboard_string(self, str); }
+        unsafe {
+            sapp_win32_set_clipboard_string(self, str);
+        }
 
         self.clipboard.buffer.clear();
         self.clipboard.buffer.push_str(str);
@@ -2039,10 +2077,15 @@ impl SAppData {
         if !self.clipboard.enabled {
             return "";
         }
-        unsafe { sapp_win32_get_clipboard_string(self); }
+        unsafe {
+            sapp_win32_get_clipboard_string(self);
+        }
         self.clipboard.buffer.as_str()
     }
 
+    pub fn get_dropped_file_paths(&self) -> &Vec<String> {
+        &self.drop.file_paths
+    }
 }
 
 pub struct SApp<'a> {
@@ -2155,21 +2198,6 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
 }
 
 /*
-
-typedef struct {
-    bool enabled;
-    int buf_size;
-    char* buffer;
-} _sapp_clipboard_t;
-
-typedef struct {
-    bool enabled;
-    int max_files;
-    int max_path_length;
-    int num_files;
-    int buf_size;
-    char* buffer;
-} _sapp_drop_t;
 
 typedef struct {
     float x, y;

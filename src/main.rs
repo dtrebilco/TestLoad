@@ -24,9 +24,18 @@ impl AppI for App {
 
         sapp.set_mouse_cursor(MouseCursor::ResizeAll);
 
-
         sapp.set_clipboard_string("test string 😀");
         println!("Clipboard:{}", sapp.get_clipboard_string());
+    }
+
+    fn on_event(&mut self, _app: &mut BaseData, sapp: &mut SAppData, event: &Event) -> bool {
+        if let Event::FilesDropped = event {
+            for str in sapp.get_dropped_file_paths() {
+                println!("File path {str}");
+            }
+        }
+
+        false // DT_TODO: Use enum here
     }
 }
 
@@ -36,6 +45,7 @@ fn main() {
     desc.window_title = &title;
     desc.enable_clipboard = true;
     desc.clipboard_size = 1024;
+    desc.max_dropped_files = 5;
 
     let App = App {};
     base_app::run_app(App, &desc);
