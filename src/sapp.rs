@@ -5,6 +5,7 @@ use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Globalization::*;
 use windows_sys::Win32::Graphics::Gdi::*;
 use windows_sys::Win32::Graphics::OpenGL::*;
+use windows_sys::Win32::System::Console::*;
 use windows_sys::Win32::System::DataExchange::*;
 use windows_sys::Win32::System::LibraryLoader::{
     FreeLibrary, GetModuleHandleW, GetProcAddress, LoadLibraryA,
@@ -1710,14 +1711,13 @@ unsafe fn sapp_win32_set_icon(sapp: &mut SAppData, icon_desc: &SappIconDesc, num
     }
 }
 
-
-unsafe fn sapp_win32_destroy_window(sapp : &mut SAppData) {
-    DestroyWindow(sapp.win32.hwnd); 
+unsafe fn sapp_win32_destroy_window(sapp: &mut SAppData) {
+    DestroyWindow(sapp.win32.hwnd);
     sapp.win32.hwnd = 0;
     UnregisterClassW(w!("SOKOLAPP"), GetModuleHandleW(std::ptr::null()));
 }
 
-unsafe fn sapp_win32_destroy_icons(sapp : &mut SAppData) {
+unsafe fn sapp_win32_destroy_icons(sapp: &mut SAppData) {
     if sapp.win32.big_icon != 0 {
         DestroyIcon(sapp.win32.big_icon);
         sapp.win32.big_icon = 0;
@@ -1725,6 +1725,40 @@ unsafe fn sapp_win32_destroy_icons(sapp : &mut SAppData) {
     if sapp.win32.small_icon != 0 {
         DestroyIcon(sapp.win32.small_icon);
         sapp.win32.small_icon = 0;
+    }
+}
+
+unsafe fn sapp_win32_init_console(sapp: &mut SAppData) {
+    if sapp.win32.console_create || sapp.win32.console_attach {
+        let mut con_valid = FALSE;
+        if sapp.win32.console_create {
+            con_valid = AllocConsole();
+        } else if sapp.win32.console_attach {
+            con_valid = AttachConsole(ATTACH_PARENT_PROCESS);
+        }
+        /*       //DT_TODO: This should not be needed for a new console
+                if con_valid != FALSE {
+                    FILE* res_fp = 0;
+                    errno_t err;
+                    err = freopen_s(&res_fp, "CON", "w", stdout);
+                    (void)err;
+                    err = freopen_s(&res_fp, "CON", "w", stderr);
+                    (void)err;
+                }
+        */
+    }
+    if sapp.win32.console_utf8 {
+        sapp.win32.orig_codepage = GetConsoleOutputCP();
+        SetConsoleOutputCP(CP_UTF8);
+    }
+}
+
+unsafe fn sapp_win32_restore_console(sapp: &mut SAppData) {
+    if sapp.win32.console_utf8 {
+        SetConsoleOutputCP(sapp.win32.orig_codepage);
+    }
+    if sapp.win32.console_create || sapp.win32.console_attach {
+        FreeConsole();
     }
 }
 
@@ -1752,13 +1786,18 @@ struct SAppWin32 {
     mouse_capture_mask: u8,
     dpi: DPI,
     high_surrogate: u16, // Used to create the other side of a large unicode character
+
     raw_input_mousepos_valid: bool,
     raw_input_mousepos_x: i32,
     raw_input_mousepos_y: i32,
     raw_input_data: [u8; 256],
+
+    console_utf8: bool,   // if true, set the output console codepage to UTF-8
+    console_create: bool, // if true, attach stdout/stderr to a new console window
+    console_attach: bool, // if true, attach stdout/stderr to parent process
 }
 impl SAppWin32 {
-    fn new() -> SAppWin32 {
+    fn new(desc: &SAppDesc) -> SAppWin32 {
         SAppWin32 {
             hwnd: 0,
             hmonitor: 0,
@@ -1790,6 +1829,10 @@ impl SAppWin32 {
             raw_input_mousepos_x: 0,
             raw_input_mousepos_y: 0,
             raw_input_data: [0; 256],
+
+            console_utf8: desc.win32_console_utf8,
+            console_create: desc.win32_console_create,
+            console_attach: desc.win32_console_attach,
         }
     }
 }
@@ -2010,7 +2053,7 @@ impl SAppData {
             dpi_scale: 1.0,
             frame_count: 0,
             mouse: SAppMouse::new(),
-            win32: SAppWin32::new(),
+            win32: SAppWin32::new(desc),
             keycodes: [KeyCode::Invalid; SAPP_MAX_KEYCODES as usize],
         }
     }
@@ -2140,7 +2183,6 @@ impl<'a> SApp<'a> {
             self.base.cleanup_called = true;
         }
     }
-
 }
 
 pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
@@ -2149,7 +2191,9 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
         app,
     };
 
-    //_sapp_win32_init_console();
+    unsafe {
+        sapp_win32_init_console(&mut sapp.base);
+    }
     sapp_win32_init_keytable(&mut sapp.base.keycodes);
     unsafe {
         sapp_win32_init_dpi(&mut sapp.base);
@@ -2174,7 +2218,6 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
 
     let mut done = false;
     while !done && !sapp.base.quit_ordered {
-
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
             while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
@@ -2216,8 +2259,8 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
     unsafe {
         sapp_win32_destroy_window(&mut sapp.base);
         sapp_win32_destroy_icons(&mut sapp.base);
+        sapp_win32_restore_console(&mut sapp.base);
     }
-    //_sapp_win32_restore_console();
 }
 
 /*
