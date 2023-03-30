@@ -1183,7 +1183,6 @@ unsafe extern "system" fn wndproc(
         }
 
         WM_TIMER => {
-            //sapp_win32_timing_measure();
             //sapp_frame();
             //sapp_wgl_swap_buffers();
 
@@ -1208,7 +1207,6 @@ unsafe extern "system" fn wndproc(
             }
         }
         WM_DROPFILES => sapp_win32_files_dropped(sapp, wparam as HDROP),
-        //WM_DISPLAYCHANGE => sapp_timing_reset(&_sapp.timing), // refresh rate might have changed
         _ => {}
     }
 
@@ -1955,7 +1953,6 @@ pub struct SAppData {
     dpi_scale: f32,
     frame_count: u64,
 
-    //_sapp_timing_t timing;
     mouse: SAppMouse,
     clipboard: Clipboard,
     drop: SDrop,
@@ -1995,7 +1992,6 @@ impl SAppData {
             dpi_scale: 1.0,
             frame_count: 0,
             mouse: SAppMouse::new(),
-            //_sapp_timing_init(&_sapp.timing);
             win32: SAppWin32::new(),
             keycodes: [KeyCode::Invalid; SAPP_MAX_KEYCODES as usize],
         }
@@ -2119,40 +2115,48 @@ impl<'a> SApp<'a> {
             self.app.draw_frame(&mut self.base);
         }
     }
+
+    fn call_cleanup(&mut self) {
+        if !self.base.cleanup_called {
+            self.app.shutdown(&mut self.base);
+            self.base.cleanup_called = true;
+        }
+    }
+
 }
 
 pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
-    let mut b = SApp {
+    let mut sapp = SApp {
         base: SAppData::new(&desc),
         app,
     };
 
     //_sapp_win32_init_console();
-    sapp_win32_init_keytable(&mut b.base.keycodes);
+    sapp_win32_init_keytable(&mut sapp.base.keycodes);
     unsafe {
-        sapp_win32_init_dpi(&mut b.base);
+        sapp_win32_init_dpi(&mut sapp.base);
     }
-    sapp_win32_init_cursors(&mut b.base);
+    sapp_win32_init_cursors(&mut sapp.base);
     unsafe {
-        sapp_win32_create_window(&desc, &mut b.base);
+        sapp_win32_create_window(&desc, &mut sapp.base);
     }
-    b.base.set_icon(&desc.icon);
+    sapp.base.set_icon(&desc.icon);
     //_sapp_wgl_init();
     //_sapp_wgl_load_extensions();
     //_sapp_wgl_create_context();
-    b.base.valid = true;
+    sapp.base.valid = true;
 
-    let user_data = &mut b;
+    let user_data = &mut sapp;
     let ptr = user_data as *mut SApp;
 
     unsafe {
         // DT_TODO: check safety of doing this
-        SetWindowLongPtrW(b.base.win32.hwnd, GWL_USERDATA, ptr as isize);
+        SetWindowLongPtrW(sapp.base.win32.hwnd, GWL_USERDATA, ptr as isize);
     }
 
     let mut done = false;
-    while !done && !b.base.quit_ordered {
-        //_sapp_win32_timing_measure();
+    while !done && !sapp.base.quit_ordered {
+
         unsafe {
             let mut msg: MSG = std::mem::zeroed();
             while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
@@ -2165,7 +2169,7 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
                 }
             }
         }
-        b.frame();
+        sapp.frame();
         //_sapp_wgl_swap_buffers();
 
         /* check for window resized, this cannot happen in WM_SIZE as it explodes memory usage */
@@ -2178,23 +2182,22 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
         //if (_sapp_win32_update_monitor()) {
         //    _sapp_timing_reset(&_sapp.timing);
         //}
-        if b.base.quit_requested {
+        if sapp.base.quit_requested {
             unsafe {
-                PostMessageW(b.base.win32.hwnd, WM_CLOSE, 0, 0);
+                PostMessageW(sapp.base.win32.hwnd, WM_CLOSE, 0, 0);
             }
         }
     }
     //DT_TODO Unset pointer on the window
     //SetWindowLongPtrW(b.base.win32.hwnd, GWL_USERDATA, 0);
 
-    //_sapp_call_cleanup();
+    sapp.call_cleanup();
 
     //_sapp_wgl_destroy_context();
     //_sapp_wgl_shutdown();
     //_sapp_win32_destroy_window();
     //_sapp_win32_destroy_icons();
     //_sapp_win32_restore_console();
-    //_sapp_discard_state();
 }
 
 /*
