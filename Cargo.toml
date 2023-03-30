@@ -5,6 +5,20 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+#strip = "debuginfo" # Removing this prevent the cargo bloat from working
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+
+
+# Need to add panic_immediate_abort ? "cargo bloat --release" shows a lot of backtrace things
+# https://github.com/rust-lang/rust/issues/54981
+
 [dependencies]
 bitflags = "1.3"
 
