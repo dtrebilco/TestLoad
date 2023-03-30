@@ -1710,6 +1710,24 @@ unsafe fn sapp_win32_set_icon(sapp: &mut SAppData, icon_desc: &SappIconDesc, num
     }
 }
 
+
+unsafe fn sapp_win32_destroy_window(sapp : &mut SAppData) {
+    DestroyWindow(sapp.win32.hwnd); 
+    sapp.win32.hwnd = 0;
+    UnregisterClassW(w!("SOKOLAPP"), GetModuleHandleW(std::ptr::null()));
+}
+
+unsafe fn sapp_win32_destroy_icons(sapp : &mut SAppData) {
+    if sapp.win32.big_icon != 0 {
+        DestroyIcon(sapp.win32.big_icon);
+        sapp.win32.big_icon = 0;
+    }
+    if sapp.win32.small_icon != 0 {
+        DestroyIcon(sapp.win32.small_icon);
+        sapp.win32.small_icon = 0;
+    }
+}
+
 struct DPI {
     aware: bool,
     content_scale: f32,
@@ -2195,8 +2213,10 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
 
     //_sapp_wgl_destroy_context();
     //_sapp_wgl_shutdown();
-    //_sapp_win32_destroy_window();
-    //_sapp_win32_destroy_icons();
+    unsafe {
+        sapp_win32_destroy_window(&mut sapp.base);
+        sapp_win32_destroy_icons(&mut sapp.base);
+    }
     //_sapp_win32_restore_console();
 }
 
