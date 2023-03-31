@@ -1736,16 +1736,13 @@ unsafe fn sapp_win32_init_console(sapp: &mut SAppData) {
         } else if sapp.win32.console_attach {
             con_valid = AttachConsole(ATTACH_PARENT_PROCESS);
         }
-        /*       //DT_TODO: This should not be needed for a new console
-                if con_valid != FALSE {
-                    FILE* res_fp = 0;
-                    errno_t err;
-                    err = freopen_s(&res_fp, "CON", "w", stdout);
-                    (void)err;
-                    err = freopen_s(&res_fp, "CON", "w", stderr);
-                    (void)err;
-                }
-        */
+
+        // Not needed as if the above succeeds, the console output is already setup?
+        //if con_valid != FALSE {
+        //let file_handle = CreateFileA(s!("CONOUT$"), GENERIC_WRITE, FILE_SHARE_WRITE, std::ptr::null(), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+        //SetStdHandle(STD_OUTPUT_HANDLE, file_handle);
+        //SetStdHandle(STD_ERROR_HANDLE , file_handle);
+        //}
     }
     if sapp.win32.console_utf8 {
         sapp.win32.orig_codepage = GetConsoleOutputCP();
@@ -1757,9 +1754,7 @@ unsafe fn sapp_win32_restore_console(sapp: &mut SAppData) {
     if sapp.win32.console_utf8 {
         SetConsoleOutputCP(sapp.win32.orig_codepage);
     }
-    if sapp.win32.console_create || sapp.win32.console_attach {
-        FreeConsole();
-    }
+    // Not closing any created console as it may still be used
 }
 
 struct DPI {

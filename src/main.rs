@@ -46,6 +46,9 @@ fn main() {
     desc.enable_clipboard = true;
     desc.clipboard_size = 1024;
     desc.max_dropped_files = 5;
+    desc.win32_console_utf8 = true;
+    desc.win32_console_create = true;
+    //desc.win32_console_attach = true;
 
     let App = App {};
     base_app::run_app(App, &desc);
