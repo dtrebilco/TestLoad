@@ -1307,6 +1307,77 @@ unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
     }
 }
 
+unsafe fn sapp_win32_set_fullscreen(sapp: &mut SAppData, fullscreen: bool, swp_flags: u32) {
+    let monitor = MonitorFromWindow(sapp.win32.hwnd, MONITOR_DEFAULTTONEAREST);
+    let mut minfo = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        rcMonitor: RECT {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        },
+        rcWork: RECT {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        },
+        dwFlags: 0,
+    };
+    GetMonitorInfoW(monitor, &mut minfo);
+    let mr = minfo.rcMonitor;
+    let monitor_w = mr.right - mr.left;
+    let monitor_h = mr.bottom - mr.top;
+
+    let win_ex_style = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+    let mut win_style = 0;
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+
+    sapp.fullscreen = fullscreen;
+    if !sapp.fullscreen {
+        win_style = WS_CLIPSIBLINGS
+            | WS_CLIPCHILDREN
+            | WS_CAPTION
+            | WS_SYSMENU
+            | WS_MINIMIZEBOX
+            | WS_MAXIMIZEBOX
+            | WS_SIZEBOX;
+        rect = sapp.win32.stored_window_rect;
+    } else {
+        GetWindowRect(sapp.win32.hwnd, &mut sapp.win32.stored_window_rect);
+        win_style = WS_POPUP | WS_SYSMENU | WS_VISIBLE;
+        rect.left = mr.left;
+        rect.top = mr.top;
+        rect.right = rect.left + monitor_w;
+        rect.bottom = rect.top + monitor_h;
+        AdjustWindowRectEx(&mut rect, win_style, FALSE, win_ex_style);
+    }
+    let win_w = rect.right - rect.left;
+    let win_h = rect.bottom - rect.top;
+    let win_x = rect.left;
+    let win_y = rect.top;
+    SetWindowLongPtrW(sapp.win32.hwnd, GWL_STYLE, win_style as isize);
+    SetWindowPos(
+        sapp.win32.hwnd,
+        HWND_TOP,
+        win_x,
+        win_y,
+        win_w,
+        win_h,
+        swp_flags | SWP_FRAMECHANGED,
+    );
+}
+
+fn sapp_win32_toggle_fullscreen(sapp: &mut SAppData) {
+    unsafe { sapp_win32_set_fullscreen(sapp, !sapp.fullscreen, SWP_SHOWWINDOW) };
+}
+
 unsafe fn sapp_win32_update_dimensions(sapp: &mut SAppData) -> bool {
     let mut rect = RECT {
         left: 0,
@@ -1427,8 +1498,8 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
     */
     sapp_win32_update_dimensions(sapp);
     if sapp.fullscreen {
-        //_sapp_win32_set_fullscreen(_sapp.fullscreen, SWP_HIDEWINDOW);
-        //sapp_win32_update_dimensions(sapp);
+        sapp_win32_set_fullscreen(sapp, sapp.fullscreen, SWP_HIDEWINDOW);
+        sapp_win32_update_dimensions(sapp);
     }
     ShowWindow(sapp.win32.hwnd, SW_SHOW);
     if sapp.drop.max_files > 0 {
@@ -2138,6 +2209,14 @@ impl SAppData {
     pub fn get_dropped_file_paths(&self) -> &Vec<String> {
         &self.drop.file_paths
     }
+
+    pub fn is_fullscreen(&self) -> bool {
+        self.fullscreen
+    }
+
+    pub fn toggle_fullscreen(&mut self) {
+        sapp_win32_toggle_fullscreen(self);
+    }
 }
 
 pub struct SApp<'a> {
@@ -2209,43 +2288,36 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
     unsafe {
         // DT_TODO: check safety of doing this
         SetWindowLongPtrW(sapp.base.win32.hwnd, GWL_USERDATA, ptr as isize);
-    }
 
-    let mut done = false;
-    while !done && !sapp.base.quit_ordered {
-        unsafe {
-            let mut msg: MSG = std::mem::zeroed();
-            while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
-                if WM_QUIT == msg.message {
-                    done = true;
-                    continue;
-                } else {
-                    TranslateMessage(&msg);
-                    DispatchMessageW(&msg);
+        let mut done = false;
+        while !done && !sapp.base.quit_ordered {
+            unsafe {
+                let mut msg: MSG = std::mem::zeroed();
+                while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
+                    if WM_QUIT == msg.message {
+                        done = true;
+                        continue;
+                    } else {
+                        TranslateMessage(&msg);
+                        DispatchMessageW(&msg);
+                    }
                 }
             }
-        }
-        sapp.frame();
-        //_sapp_wgl_swap_buffers();
+            sapp.frame();
+            //_sapp_wgl_swap_buffers();
 
-        /* check for window resized, this cannot happen in WM_SIZE as it explodes memory usage */
-        //if (_sapp_win32_update_dimensions()) {
-        //    _sapp_win32_app_event(SAPP_EVENTTYPE_RESIZED);
-        //}
-        /* check if the window monitor has changed, need to reset timing because
-           the new monitor might have a different refresh rate
-        */
-        //if (_sapp_win32_update_monitor()) {
-        //    _sapp_timing_reset(&_sapp.timing);
-        //}
-        if sapp.base.quit_requested {
-            unsafe {
+            // check for window resized, this cannot happen in WM_SIZE as it explodes memory usage
+            if sapp_win32_update_dimensions(&mut sapp.base) {
+                sapp.call_event(&Event::Resized)
+            }
+
+            if sapp.base.quit_requested {
                 PostMessageW(sapp.base.win32.hwnd, WM_CLOSE, 0, 0);
             }
         }
+        //DT_TODO Unset pointer on the window
+        SetWindowLongPtrW(sapp.base.win32.hwnd, GWL_USERDATA, 0);
     }
-    //DT_TODO Unset pointer on the window
-    //SetWindowLongPtrW(b.base.win32.hwnd, GWL_USERDATA, 0);
 
     sapp.call_cleanup();
 

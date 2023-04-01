@@ -34,6 +34,11 @@ impl AppI for App {
                 println!("File path {str}");
             }
         }
+        if let Event::Key(data) = event {
+            if data.pressed && data.key_code == KeyCode::T {
+                sapp.toggle_fullscreen();
+            }
+        }
 
         false // DT_TODO: Use enum here
     }
@@ -49,6 +54,7 @@ fn main() {
     desc.win32_console_utf8 = true;
     desc.win32_console_create = true;
     //desc.win32_console_attach = true;
+    //desc.fullscreen = true;
 
     let App = App {};
     base_app::run_app(App, &desc);
