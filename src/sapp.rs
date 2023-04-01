@@ -1214,6 +1214,44 @@ unsafe extern "system" fn wndproc(
     return DefWindowProcW(window, message, wparam, lparam);
 }
 
+unsafe fn win32_process_loop(sapp : *mut SApp) {
+
+    // Very unsure of Rust rules of lifetimes when having a pointer to that data stored with the window
+    // To be sure, leaving as a pointer always except in the message loop when it is made into a reference temporarily
+    SetWindowLongPtrW((*sapp).base.win32.hwnd, GWL_USERDATA, sapp as isize);
+
+    let mut done = false;
+    while !done && !(*sapp).base.quit_ordered {
+        unsafe {
+            let mut msg: MSG = std::mem::zeroed();
+            while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
+                if WM_QUIT == msg.message {
+                    done = true;
+                    continue;
+                } else {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+            }
+        }
+        (*sapp).frame();
+        sapp_wgl_swap_buffers(&mut (*sapp).base);
+
+        // check for window resized, this cannot happen in WM_SIZE as it explodes memory usage
+        if sapp_win32_update_dimensions(&mut (*sapp).base) {
+            (*sapp).call_event(&Event::Resized)
+        }
+
+        if (*sapp).base.quit_requested {
+            PostMessageW((*sapp).base.win32.hwnd, WM_CLOSE, 0, 0);
+        }
+    }
+
+    // Unset pointer on the window to ensure no more processing with the data
+    SetWindowLongPtrW((*sapp).base.win32.hwnd, GWL_USERDATA, 0);
+
+}
+
 unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
     // Manually loading entry points to support old windows versions - perhaps gate this behind a modern window feature version?
     type FnSetProcessDPIAwareT = extern "system" fn() -> BOOL;
@@ -1903,6 +1941,118 @@ impl SAppWin32 {
     }
 }
 
+
+struct sapp_gl_fbconfig {
+    red_bits : i32,
+    green_bits : i32,
+    blue_bits : i32,
+    alpha_bits : i32,
+    depth_bits : i32,
+    stencil_bits : i32,
+    samples : i32,
+    doublebuffer : bool,
+    handle : usize,
+}
+impl sapp_gl_fbconfig {
+    fn new() -> sapp_gl_fbconfig {
+        sapp_gl_fbconfig {
+            // -1 means "don't care"
+            red_bits : -1,
+            green_bits : -1,
+            blue_bits : -1,
+            alpha_bits : -1,
+            depth_bits : -1,
+            stencil_bits : -1,
+            samples : -1,
+            doublebuffer : false,
+            handle : 0,
+        }
+    }
+}
+
+fn sapp_gl_choose_fbconfig<'a>(desired : &'a sapp_gl_fbconfig, alternatives : &'a [sapp_gl_fbconfig]) -> Option<&'a sapp_gl_fbconfig> {
+
+    let mut least_missing = 1000000;
+    let mut least_color_diff = 10000000;
+    let mut least_extra_diff = 10000000;
+    let mut ret = None;
+
+    for current in alternatives {
+
+        if desired.doublebuffer != current.doublebuffer {
+            continue;
+        }
+        let mut missing = 0;
+        if desired.alpha_bits > 0 && current.alpha_bits == 0 {
+            missing += 1;
+        }
+        if desired.depth_bits > 0 && current.depth_bits == 0 {
+            missing += 1;
+        }
+        if desired.stencil_bits > 0 && current.stencil_bits == 0 {
+            missing += 1;
+        }
+        if desired.samples > 0 && current.samples == 0 {
+            // Technically, several multisampling buffers could be
+            // involved, but that's a lower level implementation detail and
+            // not important to us here, so we count them as one
+            missing += 1;
+        }
+
+        // These polynomials make many small channel size differences matter
+        // less than one large channel size difference
+        // Calculate color channel size difference value
+        let mut color_diff = 0;
+        if desired.red_bits != -1 {
+            color_diff += (desired.red_bits - current.red_bits) * (desired.red_bits - current.red_bits);
+        }
+        if desired.green_bits != -1 {
+            color_diff += (desired.green_bits - current.green_bits) * (desired.green_bits - current.green_bits);
+        }
+        if desired.blue_bits != -1 {
+            color_diff += (desired.blue_bits - current.blue_bits) * (desired.blue_bits - current.blue_bits);
+        }
+
+        // Calculate non-color channel size difference value
+        let mut extra_diff = 0;
+        if desired.alpha_bits != -1 {
+            extra_diff += (desired.alpha_bits - current.alpha_bits) * (desired.alpha_bits - current.alpha_bits);
+        }
+        if desired.depth_bits != -1 {
+            extra_diff += (desired.depth_bits - current.depth_bits) * (desired.depth_bits - current.depth_bits);
+        }
+        if desired.stencil_bits != -1 {
+            extra_diff += (desired.stencil_bits - current.stencil_bits) * (desired.stencil_bits - current.stencil_bits);
+        }
+        if desired.samples != -1 {
+            extra_diff += (desired.samples - current.samples) * (desired.samples - current.samples);
+        }
+
+        // Figure out if the current one is better than the best one found so far
+        // Least number of missing buffers is the most important heuristic,
+        // then color buffer size match and lastly size match for other buffers
+        let mut update = false;
+        if missing < least_missing {
+            ret = Some(current);
+            update = true;
+        }
+        else if missing == least_missing {
+            if (color_diff < least_color_diff) ||
+               (color_diff == least_color_diff && extra_diff < least_extra_diff)
+            {
+                ret = Some(current);
+                update = true;                
+            }
+        }
+        if update {
+            least_missing = missing;
+            least_color_diff = color_diff;
+            least_extra_diff = extra_diff;
+        }
+    }
+    ret
+}
+
 const WGL_NUMBER_PIXEL_FORMATS_ARB: u32 = 0x2000;
 const WGL_SUPPORT_OPENGL_ARB: u32 = 0x2010;
 const WGL_DRAW_TO_WINDOW_ARB: u32 = 0x2001;
@@ -1942,7 +2092,7 @@ typedef HDC (WINAPI * PFN_wglGetCurrentDC)(void);
 typedef BOOL (WINAPI * PFN_wglMakeCurrent)(HDC,HGLRC);
 */
 
-/*
+
 struct SAppWgl {
     HINSTANCE opengl32;
     HGLRC gl_ctx;
@@ -1964,7 +2114,253 @@ struct SAppWgl {
     HWND msg_hwnd;
     HDC msg_dc;
 }
-*/
+
+unsafe fn sapp_wgl_init(sapp : &mut SAppData) {
+    sapp.wgl.opengl32 = LoadLibraryA("opengl32.dll");
+    if (!sapp.wgl.opengl32) {
+        _SAPP_PANIC(WIN32_LOAD_OPENGL32_DLL_FAILED);
+    }
+    SOKOL_ASSERT(_sapp.wgl.opengl32);
+    _sapp.wgl.CreateContext = (PFN_wglCreateContext)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglCreateContext");
+    SOKOL_ASSERT(_sapp.wgl.CreateContext);
+    _sapp.wgl.DeleteContext = (PFN_wglDeleteContext)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglDeleteContext");
+    SOKOL_ASSERT(_sapp.wgl.DeleteContext);
+    _sapp.wgl.GetProcAddress = (PFN_wglGetProcAddress)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglGetProcAddress");
+    SOKOL_ASSERT(_sapp.wgl.GetProcAddress);
+    _sapp.wgl.GetCurrentDC = (PFN_wglGetCurrentDC)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglGetCurrentDC");
+    SOKOL_ASSERT(_sapp.wgl.GetCurrentDC);
+    _sapp.wgl.MakeCurrent = (PFN_wglMakeCurrent)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglMakeCurrent");
+    SOKOL_ASSERT(_sapp.wgl.MakeCurrent);
+
+    _sapp.wgl.msg_hwnd = CreateWindowExW(WS_EX_OVERLAPPEDWINDOW,
+        L"SOKOLAPP",
+        L"sokol-app message window",
+        WS_CLIPSIBLINGS|WS_CLIPCHILDREN,
+        0, 0, 1, 1,
+        NULL, NULL,
+        GetModuleHandleW(NULL),
+        NULL);
+    if (!_sapp.wgl.msg_hwnd) {
+        _SAPP_PANIC(WIN32_CREATE_HELPER_WINDOW_FAILED);
+    }
+    SOKOL_ASSERT(_sapp.wgl.msg_hwnd);
+    ShowWindow(_sapp.wgl.msg_hwnd, SW_HIDE);
+    MSG msg;
+    while (PeekMessageW(&msg, _sapp.wgl.msg_hwnd, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+    _sapp.wgl.msg_dc = GetDC(_sapp.wgl.msg_hwnd);
+    if (!_sapp.wgl.msg_dc) {
+        _SAPP_PANIC(WIN32_HELPER_WINDOW_GETDC_FAILED);
+    }
+}
+
+fn sapp_wgl_shutdown(sapp : &mut SAppData) {
+    SOKOL_ASSERT(_sapp.wgl.opengl32 && _sapp.wgl.msg_hwnd);
+    DestroyWindow(_sapp.wgl.msg_hwnd); _sapp.wgl.msg_hwnd = 0;
+    FreeLibrary(_sapp.wgl.opengl32); _sapp.wgl.opengl32 = 0;
+}
+
+fn sapp_wgl_has_ext(sapp : &SAppData, const char* ext, const char* extensions) -> bool {
+    SOKOL_ASSERT(ext && extensions);
+    const char* start = extensions;
+    while (true) {
+        const char* where = strstr(start, ext);
+        if (!where) {
+            return false;
+        }
+        const char* terminator = where + strlen(ext);
+        if ((where == start) || (*(where - 1) == ' ')) {
+            if (*terminator == ' ' || *terminator == '\0') {
+                break;
+            }
+        }
+        start = terminator;
+    }
+    return true;
+}
+
+fn sapp_wgl_ext_supported(sapp : &SAppData, const char* ext) -> bool {
+    SOKOL_ASSERT(ext);
+    if (_sapp.wgl.GetExtensionsStringEXT) {
+        const char* extensions = _sapp.wgl.GetExtensionsStringEXT();
+        if (extensions) {
+            if (_sapp_wgl_has_ext(ext, extensions)) {
+                return true;
+            }
+        }
+    }
+    if (_sapp.wgl.GetExtensionsStringARB) {
+        const char* extensions = _sapp.wgl.GetExtensionsStringARB(_sapp.wgl.GetCurrentDC());
+        if (extensions) {
+            if (_sapp_wgl_has_ext(ext, extensions)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+fn sapp_wgl_load_extensions(sapp : &mut SAppData) {
+    SOKOL_ASSERT(_sapp.wgl.msg_dc);
+    PIXELFORMATDESCRIPTOR pfd;
+    _sapp_clear(&pfd, sizeof(pfd));
+    pfd.nSize = sizeof(pfd);
+    pfd.nVersion = 1;
+    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 24;
+    if (!SetPixelFormat(_sapp.wgl.msg_dc, ChoosePixelFormat(_sapp.wgl.msg_dc, &pfd), &pfd)) {
+        _SAPP_PANIC(WIN32_DUMMY_CONTEXT_SET_PIXELFORMAT_FAILED);
+    }
+    HGLRC rc = _sapp.wgl.CreateContext(_sapp.wgl.msg_dc);
+    if (!rc) {
+        _SAPP_PANIC(WIN32_CREATE_DUMMY_CONTEXT_FAILED);
+    }
+    if (!_sapp.wgl.MakeCurrent(_sapp.wgl.msg_dc, rc)) {
+        _SAPP_PANIC(WIN32_DUMMY_CONTEXT_MAKE_CURRENT_FAILED);
+    }
+    _sapp.wgl.GetExtensionsStringEXT = (PFNWGLGETEXTENSIONSSTRINGEXTPROC)(void*) _sapp.wgl.GetProcAddress("wglGetExtensionsStringEXT");
+    _sapp.wgl.GetExtensionsStringARB = (PFNWGLGETEXTENSIONSSTRINGARBPROC)(void*) _sapp.wgl.GetProcAddress("wglGetExtensionsStringARB");
+    _sapp.wgl.CreateContextAttribsARB = (PFNWGLCREATECONTEXTATTRIBSARBPROC)(void*) _sapp.wgl.GetProcAddress("wglCreateContextAttribsARB");
+    _sapp.wgl.SwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)(void*) _sapp.wgl.GetProcAddress("wglSwapIntervalEXT");
+    _sapp.wgl.GetPixelFormatAttribivARB = (PFNWGLGETPIXELFORMATATTRIBIVARBPROC)(void*) _sapp.wgl.GetProcAddress("wglGetPixelFormatAttribivARB");
+    _sapp.wgl.arb_multisample = _sapp_wgl_ext_supported("WGL_ARB_multisample");
+    _sapp.wgl.arb_create_context = _sapp_wgl_ext_supported("WGL_ARB_create_context");
+    _sapp.wgl.arb_create_context_profile = _sapp_wgl_ext_supported("WGL_ARB_create_context_profile");
+    _sapp.wgl.ext_swap_control = _sapp_wgl_ext_supported("WGL_EXT_swap_control");
+    _sapp.wgl.arb_pixel_format = _sapp_wgl_ext_supported("WGL_ARB_pixel_format");
+    _sapp.wgl.MakeCurrent(_sapp.wgl.msg_dc, 0);
+    _sapp.wgl.DeleteContext(rc);
+}
+
+fn sapp_wgl_attrib(int pixel_format, int attrib) -> i32 {
+    SOKOL_ASSERT(_sapp.wgl.arb_pixel_format);
+    int value = 0;
+    if (!_sapp.wgl.GetPixelFormatAttribivARB(_sapp.win32.dc, pixel_format, 0, 1, &attrib, &value)) {
+        _SAPP_PANIC(WIN32_GET_PIXELFORMAT_ATTRIB_FAILED);
+    }
+    return value;
+}
+
+fn sapp_wgl_find_pixel_format(sapp : &mut SAppData) -> i32 {
+    SOKOL_ASSERT(_sapp.win32.dc);
+    SOKOL_ASSERT(_sapp.wgl.arb_pixel_format);
+    const _sapp_gl_fbconfig* closest;
+
+    int native_count = _sapp_wgl_attrib(1, WGL_NUMBER_PIXEL_FORMATS_ARB);
+    _sapp_gl_fbconfig* usable_configs = (_sapp_gl_fbconfig*) _sapp_malloc_clear((size_t)native_count * sizeof(_sapp_gl_fbconfig));
+    SOKOL_ASSERT(usable_configs);
+    int usable_count = 0;
+    for (int i = 0; i < native_count; i++) {
+        const int n = i + 1;
+        _sapp_gl_fbconfig* u = usable_configs + usable_count;
+        _sapp_gl_init_fbconfig(u);
+        if (!_sapp_wgl_attrib(n, WGL_SUPPORT_OPENGL_ARB) || !_sapp_wgl_attrib(n, WGL_DRAW_TO_WINDOW_ARB)) {
+            continue;
+        }
+        if (_sapp_wgl_attrib(n, WGL_PIXEL_TYPE_ARB) != WGL_TYPE_RGBA_ARB) {
+            continue;
+        }
+        if (_sapp_wgl_attrib(n, WGL_ACCELERATION_ARB) == WGL_NO_ACCELERATION_ARB) {
+            continue;
+        }
+        u->red_bits     = _sapp_wgl_attrib(n, WGL_RED_BITS_ARB);
+        u->green_bits   = _sapp_wgl_attrib(n, WGL_GREEN_BITS_ARB);
+        u->blue_bits    = _sapp_wgl_attrib(n, WGL_BLUE_BITS_ARB);
+        u->alpha_bits   = _sapp_wgl_attrib(n, WGL_ALPHA_BITS_ARB);
+        u->depth_bits   = _sapp_wgl_attrib(n, WGL_DEPTH_BITS_ARB);
+        u->stencil_bits = _sapp_wgl_attrib(n, WGL_STENCIL_BITS_ARB);
+        if (_sapp_wgl_attrib(n, WGL_DOUBLE_BUFFER_ARB)) {
+            u->doublebuffer = true;
+        }
+        if (_sapp.wgl.arb_multisample) {
+            u->samples = _sapp_wgl_attrib(n, WGL_SAMPLES_ARB);
+        }
+        u->handle = (uintptr_t)n;
+        usable_count++;
+    }
+    SOKOL_ASSERT(usable_count > 0);
+    _sapp_gl_fbconfig desired;
+    _sapp_gl_init_fbconfig(&desired);
+    desired.red_bits = 8;
+    desired.green_bits = 8;
+    desired.blue_bits = 8;
+    desired.alpha_bits = 8;
+    desired.depth_bits = 24;
+    desired.stencil_bits = 8;
+    desired.doublebuffer = true;
+    desired.samples = _sapp.sample_count > 1 ? _sapp.sample_count : 0;
+    closest = _sapp_gl_choose_fbconfig(&desired, usable_configs, usable_count);
+    int pixel_format = 0;
+    if (closest) {
+        pixel_format = (int) closest->handle;
+    }
+    _sapp_free(usable_configs);
+    return pixel_format;
+}
+
+unsafe fn sapp_wgl_create_context(sapp : &mut SAppData) {
+    int pixel_format = _sapp_wgl_find_pixel_format();
+    if (0 == pixel_format) {
+        _SAPP_PANIC(WIN32_WGL_FIND_PIXELFORMAT_FAILED);
+    }
+    PIXELFORMATDESCRIPTOR pfd;
+    if (!DescribePixelFormat(_sapp.win32.dc, pixel_format, sizeof(pfd), &pfd)) {
+        _SAPP_PANIC(WIN32_WGL_DESCRIBE_PIXELFORMAT_FAILED);
+    }
+    if (!SetPixelFormat(_sapp.win32.dc, pixel_format, &pfd)) {
+        _SAPP_PANIC(WIN32_WGL_SET_PIXELFORMAT_FAILED);
+    }
+    if (!_sapp.wgl.arb_create_context) {
+        _SAPP_PANIC(WIN32_WGL_ARB_CREATE_CONTEXT_REQUIRED);
+    }
+    if (!_sapp.wgl.arb_create_context_profile) {
+        _SAPP_PANIC(WIN32_WGL_ARB_CREATE_CONTEXT_PROFILE_REQUIRED);
+    }
+    const int attrs[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, _sapp.desc.gl_major_version,
+        WGL_CONTEXT_MINOR_VERSION_ARB, _sapp.desc.gl_minor_version,
+        WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        0, 0
+    };
+    _sapp.wgl.gl_ctx = _sapp.wgl.CreateContextAttribsARB(_sapp.win32.dc, 0, attrs);
+    if (!_sapp.wgl.gl_ctx) {
+        const DWORD err = GetLastError();
+        if (err == (0xc0070000 | ERROR_INVALID_VERSION_ARB)) {
+            _SAPP_PANIC(WIN32_WGL_OPENGL_3_2_NOT_SUPPORTED);
+        }
+        else if (err == (0xc0070000 | ERROR_INVALID_PROFILE_ARB)) {
+            _SAPP_PANIC(WIN32_WGL_OPENGL_PROFILE_NOT_SUPPORTED);
+        }
+        else if (err == (0xc0070000 | ERROR_INCOMPATIBLE_DEVICE_CONTEXTS_ARB)) {
+            _SAPP_PANIC(WIN32_WGL_INCOMPATIBLE_DEVICE_CONTEXT);
+        }
+        else {
+            _SAPP_PANIC(WIN32_WGL_CREATE_CONTEXT_ATTRIBS_FAILED_OTHER);
+        }
+    }
+    _sapp.wgl.MakeCurrent(_sapp.win32.dc, _sapp.wgl.gl_ctx);
+    if (_sapp.wgl.ext_swap_control) {
+        /* FIXME: DwmIsCompositionEnabled() (see GLFW) */
+        _sapp.wgl.SwapIntervalEXT(_sapp.swap_interval);
+    }
+}
+
+fn sapp_wgl_destroy_context(sapp : &mut SAppData) {
+    debug_assert!(sapp.wgl.gl_ctx);
+    sapp.wgl.DeleteContext(sapp.wgl.gl_ctx);
+    sapp.wgl.gl_ctx = 0;
+}
+
+unsafe fn sapp_wgl_swap_buffers(sapp : &SAppData) {
+    debug_assert!(sapp.win32.dc != 0);
+    /* FIXME: DwmIsCompositionEnabled? (see GLFW) */
+    SwapBuffers(sapp.win32.dc);
+}
+
 
 #[derive(Clone, Copy)]
 pub struct SappImageDesc<'a> {
@@ -2084,7 +2480,7 @@ pub struct SAppData {
     clipboard: Clipboard,
     drop: SDrop,
     win32: SAppWin32,
-    //wgl : SAppWgl,
+    wgl : SAppWgl,
     keycodes: [KeyCode; SAPP_MAX_KEYCODES as usize],
 }
 
@@ -2277,125 +2673,23 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
         sapp_win32_create_window(&desc, &mut sapp.base);
     }
     sapp.base.set_icon(&desc.icon);
-    //_sapp_wgl_init();
-    //_sapp_wgl_load_extensions();
-    //_sapp_wgl_create_context();
+    unsafe {
+        sapp_wgl_init(&mut sapp.base);
+        sapp_wgl_load_extensions(&mut sapp.base);
+        sapp_wgl_create_context(&mut sapp.base);
+    }
     sapp.base.valid = true;
 
-    let user_data = &mut sapp;
-    let ptr = user_data as *mut SApp;
-
-    unsafe {
-        // DT_TODO: check safety of doing this
-        SetWindowLongPtrW(sapp.base.win32.hwnd, GWL_USERDATA, ptr as isize);
-
-        let mut done = false;
-        while !done && !sapp.base.quit_ordered {
-            unsafe {
-                let mut msg: MSG = std::mem::zeroed();
-                while PeekMessageW(&mut msg, 0, 0, 0, PM_REMOVE) == TRUE {
-                    if WM_QUIT == msg.message {
-                        done = true;
-                        continue;
-                    } else {
-                        TranslateMessage(&msg);
-                        DispatchMessageW(&msg);
-                    }
-                }
-            }
-            sapp.frame();
-            //_sapp_wgl_swap_buffers();
-
-            // check for window resized, this cannot happen in WM_SIZE as it explodes memory usage
-            if sapp_win32_update_dimensions(&mut sapp.base) {
-                sapp.call_event(&Event::Resized)
-            }
-
-            if sapp.base.quit_requested {
-                PostMessageW(sapp.base.win32.hwnd, WM_CLOSE, 0, 0);
-            }
-        }
-        //DT_TODO Unset pointer on the window
-        SetWindowLongPtrW(sapp.base.win32.hwnd, GWL_USERDATA, 0);
-    }
+    unsafe { win32_process_loop(&mut sapp) };
 
     sapp.call_cleanup();
 
-    //_sapp_wgl_destroy_context();
-    //_sapp_wgl_shutdown();
     unsafe {
+        sapp_wgl_destroy_context(&mut sapp.base);
+        sapp_wgl_shutdown(&mut sapp.base);
         sapp_win32_destroy_window(&mut sapp.base);
         sapp_win32_destroy_icons(&mut sapp.base);
         sapp_win32_restore_console(&mut sapp.base);
     }
 }
 
-/*
-
-typedef struct {
-    float x, y;
-    float dx, dy;
-    bool shown;
-    bool locked;
-    bool pos_valid;
-    sapp_mouse_cursor current_cursor;
-} _sapp_mouse_t;
-
-_SOKOL_PRIVATE void _sapp_win32_run(const sapp_desc* desc) {
-    _sapp_init_state(desc);
-    _sapp_win32_init_console();
-    _sapp.win32.is_win10_or_greater = _sapp_win32_is_win10_or_greater();
-    _sapp_win32_init_keytable();
-    _sapp_win32_utf8_to_wide(_sapp.window_title, _sapp.window_title_wide, sizeof(_sapp.window_title_wide));
-    _sapp_win32_init_dpi();
-    _sapp_win32_init_cursors();
-    _sapp_win32_create_window();
-    sapp_set_icon(&desc->icon);
-    _sapp_wgl_init();
-    _sapp_wgl_load_extensions();
-    _sapp_wgl_create_context();
-    _sapp.valid = true;
-
-    bool done = false;
-    while (!(done || _sapp.quit_ordered)) {
-        _sapp_win32_timing_measure();
-        MSG msg;
-        while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
-            if (WM_QUIT == msg.message) {
-                done = true;
-                continue;
-            }
-            else {
-                TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-            }
-        }
-        _sapp_frame();
-        _sapp_wgl_swap_buffers();
-
-        /* check for window resized, this cannot happen in WM_SIZE as it explodes memory usage */
-        if (_sapp_win32_update_dimensions()) {
-            _sapp_win32_app_event(SAPP_EVENTTYPE_RESIZED);
-        }
-        /* check if the window monitor has changed, need to reset timing because
-           the new monitor might have a different refresh rate
-        */
-        if (_sapp_win32_update_monitor()) {
-            _sapp_timing_reset(&_sapp.timing);
-        }
-        if (_sapp.quit_requested) {
-            PostMessage(_sapp.win32.hwnd, WM_CLOSE, 0, 0);
-        }
-    }
-    _sapp_call_cleanup();
-
-    _sapp_wgl_destroy_context();
-    _sapp_wgl_shutdown();
-    _sapp_win32_destroy_window();
-    _sapp_win32_destroy_icons();
-    _sapp_win32_restore_console();
-    _sapp_discard_state();
-}
-
-
-*/
