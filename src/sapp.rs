@@ -2078,88 +2078,89 @@ const ERROR_INVALID_VERSION_ARB: u32 = 0x2095;
 const ERROR_INVALID_PROFILE_ARB: u32 = 0x2096;
 const ERROR_INCOMPATIBLE_DEVICE_CONTEXTS_ARB: u32 = 0x2054;
 
-//type PFNWGLSWAPINTERVALEXTPROC = extern "system" fn(u32) -> bool;
-/*
-typedef BOOL (WINAPI * PFNWGLSWAPINTERVALEXTPROC)(int);
-typedef BOOL (WINAPI * PFNWGLGETPIXELFORMATATTRIBIVARBPROC)(HDC,int,int,UINT,const int*,int*);
-typedef const char* (WINAPI * PFNWGLGETEXTENSIONSSTRINGEXTPROC)(void);
-typedef const char* (WINAPI * PFNWGLGETEXTENSIONSSTRINGARBPROC)(HDC);
-typedef HGLRC (WINAPI * PFNWGLCREATECONTEXTATTRIBSARBPROC)(HDC,HGLRC,const int*);
-typedef HGLRC (WINAPI * PFN_wglCreateContext)(HDC);
-typedef BOOL (WINAPI * PFN_wglDeleteContext)(HGLRC);
-typedef PROC (WINAPI * PFN_wglGetProcAddress)(LPCSTR);
-typedef HDC (WINAPI * PFN_wglGetCurrentDC)(void);
-typedef BOOL (WINAPI * PFN_wglMakeCurrent)(HDC,HGLRC);
-*/
+type FnWGLCreateContextT = extern "system" fn(HDC) -> HGLRC;
+type FnWGLDeleteContextT = extern "system" fn(HGLRC) -> BOOL;
+type FnWGLGetProcAddressT = extern "system" fn(PCSTR) -> FARPROC;
+type FnWGLGetCurrentDCT = extern "system" fn() -> HDC;
+type FnWGLMakeCurrentT = extern "system" fn(HDC,HGLRC) -> BOOL;
 
+type FnWGLSwapIntervalEXTT = extern "system" fn(u32) -> BOOL;
+type FnWGLGetPixelFormatAttribivARBT = extern "system" fn(HDC,i32,i32,u32,* const i32,* mut i32) -> BOOL;
+
+type FnWGLGetExtensionsStringEXTT = extern "system" fn() -> PCSTR;
+type FnWGLGetExtensionsStringARBT = extern "system" fn(HDC) -> PCSTR;
+type FnWGLCreateContextAttribsARBT = extern "system" fn(HDC,HGLRC,* const i32) -> HGLRC;
 
 struct SAppWgl {
-    HINSTANCE opengl32;
-    HGLRC gl_ctx;
-    PFN_wglCreateContext CreateContext;
-    PFN_wglDeleteContext DeleteContext;
-    PFN_wglGetProcAddress GetProcAddress;
-    PFN_wglGetCurrentDC GetCurrentDC;
-    PFN_wglMakeCurrent MakeCurrent;
-    PFNWGLSWAPINTERVALEXTPROC SwapIntervalEXT;
-    PFNWGLGETPIXELFORMATATTRIBIVARBPROC GetPixelFormatAttribivARB;
-    PFNWGLGETEXTENSIONSSTRINGEXTPROC GetExtensionsStringEXT;
-    PFNWGLGETEXTENSIONSSTRINGARBPROC GetExtensionsStringARB;
-    PFNWGLCREATECONTEXTATTRIBSARBPROC CreateContextAttribsARB;
-    bool ext_swap_control;
-    bool arb_multisample;
-    bool arb_pixel_format;
-    bool arb_create_context;
-    bool arb_create_context_profile;
-    HWND msg_hwnd;
-    HDC msg_dc;
+    opengl32 : HINSTANCE,
+    gl_ctx : HGLRC, 
+    CreateContext : Option<FnWGLCreateContextT>,
+    DeleteContext : Option<FnWGLDeleteContextT>,
+    GetProcAddress : Option<FnWGLGetProcAddressT>,
+    GetCurrentDC : Option<FnWGLGetCurrentDCT>,
+    MakeCurrent : Option<FnWGLMakeCurrentT>,
+    SwapIntervalEXT : Option<FnWGLSwapIntervalEXTT>,
+    GetPixelFormatAttribivARB : Option<FnWGLGetPixelFormatAttribivARBT>,
+    GetExtensionsStringEXT: Option<FnWGLGetExtensionsStringEXTT>,
+    GetExtensionsStringARB : Option<FnWGLGetExtensionsStringARBT>,
+    CreateContextAttribsARB : Option<FnWGLCreateContextAttribsARBT>,
+    ext_swap_control : bool,
+    arb_multisample : bool,
+    arb_pixel_format : bool, 
+    arb_create_context : bool,
+    arb_create_context_profile : bool,
+    msg_hwnd : HWND,
+    msg_dc : HDC,
 }
 
 unsafe fn sapp_wgl_init(sapp : &mut SAppData) {
-    sapp.wgl.opengl32 = LoadLibraryA("opengl32.dll");
-    if (!sapp.wgl.opengl32) {
-        _SAPP_PANIC(WIN32_LOAD_OPENGL32_DLL_FAILED);
+    sapp.wgl.opengl32 = LoadLibraryA(s!("opengl32.dll"));
+    if sapp.wgl.opengl32 == 0 {
+        panic!(); // DT_TODO:
+        //_SAPP_PANIC(WIN32_LOAD_OPENGL32_DLL_FAILED);
     }
-    SOKOL_ASSERT(_sapp.wgl.opengl32);
-    _sapp.wgl.CreateContext = (PFN_wglCreateContext)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglCreateContext");
-    SOKOL_ASSERT(_sapp.wgl.CreateContext);
-    _sapp.wgl.DeleteContext = (PFN_wglDeleteContext)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglDeleteContext");
-    SOKOL_ASSERT(_sapp.wgl.DeleteContext);
-    _sapp.wgl.GetProcAddress = (PFN_wglGetProcAddress)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglGetProcAddress");
-    SOKOL_ASSERT(_sapp.wgl.GetProcAddress);
-    _sapp.wgl.GetCurrentDC = (PFN_wglGetCurrentDC)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglGetCurrentDC");
-    SOKOL_ASSERT(_sapp.wgl.GetCurrentDC);
-    _sapp.wgl.MakeCurrent = (PFN_wglMakeCurrent)(void*) GetProcAddress(_sapp.wgl.opengl32, "wglMakeCurrent");
-    SOKOL_ASSERT(_sapp.wgl.MakeCurrent);
+    debug_assert!(sapp.wgl.opengl32 != 0);
+    sapp.wgl.CreateContext = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglCreateContext")));
+    //debug_assert!(sapp.wgl.CreateContext != None);
+    sapp.wgl.DeleteContext = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglDeleteContext")));
+    //debug_assert!(_sapp.wgl.DeleteContext);
+    sapp.wgl.GetProcAddress = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglGetProcAddress")));
+    //debug_assert!(_sapp.wgl.GetProcAddress);
+    sapp.wgl.GetCurrentDC = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglGetCurrentDC")));
+    //debug_assert!(_sapp.wgl.GetCurrentDC);
+    sapp.wgl.MakeCurrent = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglMakeCurrent")));
+    //debug_assert!(_sapp.wgl.MakeCurrent);
 
-    _sapp.wgl.msg_hwnd = CreateWindowExW(WS_EX_OVERLAPPEDWINDOW,
-        L"SOKOLAPP",
-        L"sokol-app message window",
+    sapp.wgl.msg_hwnd = CreateWindowExW(WS_EX_OVERLAPPEDWINDOW,
+        w!("SOKOLAPP"),
+        w!("sokol-app message window"),
         WS_CLIPSIBLINGS|WS_CLIPCHILDREN,
         0, 0, 1, 1,
-        NULL, NULL,
-        GetModuleHandleW(NULL),
-        NULL);
-    if (!_sapp.wgl.msg_hwnd) {
-        _SAPP_PANIC(WIN32_CREATE_HELPER_WINDOW_FAILED);
+        0, 0,
+        GetModuleHandleW(std::ptr::null()),
+        std::ptr::null());
+    if sapp.wgl.msg_hwnd == 0 {
+        panic!(); // DT_TODO:
+        //_SAPP_PANIC(WIN32_CREATE_HELPER_WINDOW_FAILED);
     }
-    SOKOL_ASSERT(_sapp.wgl.msg_hwnd);
-    ShowWindow(_sapp.wgl.msg_hwnd, SW_HIDE);
-    MSG msg;
-    while (PeekMessageW(&msg, _sapp.wgl.msg_hwnd, 0, 0, PM_REMOVE)) {
+    debug_assert!(sapp.wgl.msg_hwnd != 0);
+    ShowWindow(sapp.wgl.msg_hwnd, SW_HIDE);
+    let mut msg : MSG = std::mem::zeroed();
+    while PeekMessageW(&mut msg, sapp.wgl.msg_hwnd, 0, 0, PM_REMOVE) == TRUE {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
-    _sapp.wgl.msg_dc = GetDC(_sapp.wgl.msg_hwnd);
-    if (!_sapp.wgl.msg_dc) {
-        _SAPP_PANIC(WIN32_HELPER_WINDOW_GETDC_FAILED);
+    sapp.wgl.msg_dc = GetDC(sapp.wgl.msg_hwnd);
+    if sapp.wgl.msg_dc == 0 {
+        panic!(); // DT_TODO:
+        //_SAPP_PANIC(WIN32_HELPER_WINDOW_GETDC_FAILED);
     }
 }
 
-fn sapp_wgl_shutdown(sapp : &mut SAppData) {
-    SOKOL_ASSERT(_sapp.wgl.opengl32 && _sapp.wgl.msg_hwnd);
-    DestroyWindow(_sapp.wgl.msg_hwnd); _sapp.wgl.msg_hwnd = 0;
-    FreeLibrary(_sapp.wgl.opengl32); _sapp.wgl.opengl32 = 0;
+unsafe fn sapp_wgl_shutdown(sapp : &mut SAppData) {
+    debug_assert!(sapp.wgl.opengl32 != 0 && sapp.wgl.msg_hwnd != 0);
+    DestroyWindow(sapp.wgl.msg_hwnd); sapp.wgl.msg_hwnd = 0;
+    FreeLibrary(sapp.wgl.opengl32); sapp.wgl.opengl32 = 0;
 }
 
 fn sapp_wgl_has_ext(sapp : &SAppData, const char* ext, const char* extensions) -> bool {
@@ -2292,7 +2293,7 @@ fn sapp_wgl_find_pixel_format(sapp : &mut SAppData) -> i32 {
     desired.stencil_bits = 8;
     desired.doublebuffer = true;
     desired.samples = _sapp.sample_count > 1 ? _sapp.sample_count : 0;
-    closest = _sapp_gl_choose_fbconfig(&desired, usable_configs, usable_count);
+    closest = sapp_gl_choose_fbconfig(&desired, usable_configs, usable_count);
     int pixel_format = 0;
     if (closest) {
         pixel_format = (int) closest->handle;
@@ -2350,7 +2351,7 @@ unsafe fn sapp_wgl_create_context(sapp : &mut SAppData) {
 }
 
 fn sapp_wgl_destroy_context(sapp : &mut SAppData) {
-    debug_assert!(sapp.wgl.gl_ctx);
+    debug_assert!(sapp.wgl.gl_ctx != 0);
     sapp.wgl.DeleteContext(sapp.wgl.gl_ctx);
     sapp.wgl.gl_ctx = 0;
 }
