@@ -748,6 +748,26 @@ unsafe fn sapp_win32_set_clipboard_string(sapp: &SAppData, str: &str) -> bool {
     return true;
 }
 
+struct CStringIterator {
+    string: *const u8,
+}
+impl Iterator for CStringIterator {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+            let val = *self.string;
+
+            if val == 0 {
+                None
+            } else {
+                self.string = self.string.add(1);
+                Some(val)
+            }
+        }
+    }
+}
+
 struct CWideStringIterator {
     string: *const u16,
 }
@@ -2163,24 +2183,65 @@ unsafe fn sapp_wgl_shutdown(sapp : &mut SAppData) {
     FreeLibrary(sapp.wgl.opengl32); sapp.wgl.opengl32 = 0;
 }
 
-fn sapp_wgl_has_ext(sapp : &SAppData, const char* ext, const char* extensions) -> bool {
-    SOKOL_ASSERT(ext && extensions);
-    const char* start = extensions;
-    while (true) {
-        const char* where = strstr(start, ext);
-        if (!where) {
-            return false;
+
+pub fn sapp_wgl_has_ext(ext: &[u8], extensions: CStringIterator) -> bool {
+
+    // Don't really need to check for zero length strings
+    //if ext.len() == 0 {
+    //    return true;
+    //}
+
+    let mut valid = true;
+    let mut iter = ext.iter();
+    for c in extensions {
+
+        // Reset search at spaces
+        if c == ' ' as u8 {
+            if valid && iter.next() == None {
+                return true;
+            }
+            valid = true;
+            iter = ext.iter();
         }
-        const char* terminator = where + strlen(ext);
-        if ((where == start) || (*(where - 1) == ' ')) {
-            if (*terminator == ' ' || *terminator == '\0') {
-                break;
+        else if valid {
+
+            // If matching the string still
+            valid = false;
+            if let Some(v) = iter.next() {
+                if c == *v {
+                    valid = true;
+                }
             }
         }
-        start = terminator;
+    }
+
+    return valid && iter.next() == None;
+}
+
+/*
+fn sapp_wgl_has_ext(ext: &str, extensions: &str) -> bool {
+
+    let mut start = extensions;
+    loop {
+        if let Some(offset) = start.find(ext) {
+            
+            let terminator = &start[offset + ext.len()..];
+
+            if (offset == 0) || start[offset - 1..offset].starts_with(' ') {
+                if terminator.starts_with(' ') || terminator.is_empty() {
+                    break;
+                }
+            }
+            start = terminator;
+        }
+        else
+        {
+            return false;
+        }
     }
     return true;
 }
+*/
 
 fn sapp_wgl_ext_supported(sapp : &SAppData, const char* ext) -> bool {
     SOKOL_ASSERT(ext);
