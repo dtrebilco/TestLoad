@@ -182,7 +182,6 @@ pub enum MouseButton {
     Left = 0x0,
     Right = 0x1,
     Middle = 0x2,
-    Invalid = 0x100,
 }
 
 enum_sequential! {
@@ -267,45 +266,6 @@ pub enum Event {
     FilesDropped,
 }
 
-/*
-    sapp_event
-
-    This is an all-in-one event struct passed to the event handler
-    user callback function. Note that it depends on the event
-    type what struct fields actually contain useful values, so you
-    should first check the event type before reading other struct
-    fields.
-*/
-/*
-struct Event {
-
-    sapp_event_type type;               // the event type, always valid
-
-    sapp_keycode key_code;              // the virtual key code, only valid in KEY_UP, KEY_DOWN
-    uint32_t char_code;                 // the UTF-32 character code, only valid in CHAR events
-    bool key_repeat;                    // true if this is a key-repeat event, valid in KEY_UP, KEY_DOWN and CHAR
-
-    uint32_t modifiers;                 // current modifier keys, valid in all key-, char- and mouse-events
-    sapp_mousebutton mouse_button;      // mouse button that was pressed or released, valid in MOUSE_DOWN, MOUSE_UP
-
-    float scroll_x;                     // horizontal mouse wheel scroll distance, valid in MOUSE_SCROLL events
-    float scroll_y;                     // vertical mouse wheel scroll distance, valid in MOUSE_SCROLL events
-    //int num_touches;                    // number of valid items in the touches[] array
-    //sapp_touchpoint touches[SAPP_MAX_TOUCHPOINTS];  // current touch points, valid in TOUCHES_BEGIN, TOUCHES_MOVED, TOUCHES_ENDED
-
-    uint64_t frame_count;               // current frame counter, always valid, useful for checking if two events were issued in the same frame
-    float mouse_x;                      // current horizontal mouse position in pixels, always valid except during mouse lock
-    float mouse_y;                      // current vertical mouse position in pixels, always valid except during mouse lock
-    float mouse_dx;                     // relative horizontal mouse movement since last frame, always valid
-    float mouse_dy;                     // relative vertical mouse movement since last frame, always valid
-
-    int window_width;                   // current window- and framebuffer sizes in pixels, always valid
-    int window_height;
-    int framebuffer_width;              // = window_width * dpi_scale
-    int framebuffer_height;             // = window_height * dpi_scale
-}
-*/
-
 pub trait SAppI {
     fn init(&mut self, _app: &mut SAppData) {}
 
@@ -316,8 +276,8 @@ pub trait SAppI {
     fn shutdown(&mut self, _app: &mut SAppData) {}
 }
 
-const SAPP_MAX_TOUCHPOINTS: u32 = 8;
-const SAPP_MAX_MOUSEBUTTONS: u32 = 3;
+//const SAPP_MAX_TOUCHPOINTS: u32 = 8;
+//const SAPP_MAX_MOUSEBUTTONS: u32 = 3;
 const SAPP_MAX_KEYCODES: u32 = 512;
 const SAPP_MAX_ICONIMAGES: u32 = 8;
 
@@ -666,7 +626,7 @@ fn sapp_win32_update_cursor(
     }
 }
 
-unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_rect: &RECT) {
+unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hwnd: HWND, proposed_win_rect: &RECT) {
     // called on WM_DPICHANGED, which will only be sent to the application
     //    if sapp_desc.high_dpi is true and the Windows version is recent enough
     //    to support DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
@@ -677,8 +637,8 @@ unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_r
     }
 
     type FnGetDpiForWindowT = extern "system" fn(hwnd: HWND) -> u32;
-    let mut fn_get_dpi_for_window = Option::<FnGetDpiForWindowT>::None;
-    fn_get_dpi_for_window = std::mem::transmute(GetProcAddress(user32, s!("GetDpiForWindow")));
+    let fn_get_dpi_for_window: Option<FnGetDpiForWindowT> =
+        std::mem::transmute(GetProcAddress(user32, s!("GetDpiForWindow")));
 
     if let Some(get_dpi_for_window) = fn_get_dpi_for_window {
         let dpix = get_dpi_for_window(sapp.win32.hwnd);
@@ -687,7 +647,7 @@ unsafe fn sapp_win32_dpi_changed(sapp: &mut SAppData, hWnd: HWND, proposed_win_r
         sapp.win32.dpi.content_scale = sapp.win32.dpi.window_scale;
         sapp.dpi_scale = sapp.win32.dpi.window_scale;
         SetWindowPos(
-            hWnd,
+            hwnd,
             0,
             proposed_win_rect.left,
             proposed_win_rect.top,
@@ -1204,8 +1164,8 @@ unsafe extern "system" fn wndproc(
         }
 
         WM_TIMER => {
-            //sapp_frame();
-            //sapp_wgl_swap_buffers();
+            sapp.call_frame();
+            sapp_wgl_swap_buffers(&mut sapp.base);
 
             //NOTE: resizing the swap-chain during resize leads to a substantial
             //   memory spike (hundreds of megabytes for a few seconds).
@@ -1234,8 +1194,7 @@ unsafe extern "system" fn wndproc(
     return DefWindowProcW(window, message, wparam, lparam);
 }
 
-unsafe fn win32_process_loop(sapp : *mut SApp) {
-
+unsafe fn win32_process_loop(sapp: *mut SApp) {
     // Very unsure of Rust rules of lifetimes when having a pointer to that data stored with the window
     // To be sure, leaving as a pointer always except in the message loop when it is made into a reference temporarily
     SetWindowLongPtrW((*sapp).base.win32.hwnd, GWL_USERDATA, sapp as isize);
@@ -1269,7 +1228,6 @@ unsafe fn win32_process_loop(sapp : *mut SApp) {
 
     // Unset pointer on the window to ensure no more processing with the data
     SetWindowLongPtrW((*sapp).base.win32.hwnd, GWL_USERDATA, 0);
-
 }
 
 unsafe fn sapp_win32_init_dpi(sapp: &mut SAppData) {
@@ -1961,44 +1919,44 @@ impl SAppWin32 {
     }
 }
 
-
-struct sapp_gl_fbconfig {
-    red_bits : i32,
-    green_bits : i32,
-    blue_bits : i32,
-    alpha_bits : i32,
-    depth_bits : i32,
-    stencil_bits : i32,
-    samples : i32,
-    doublebuffer : bool,
-    handle : usize,
+struct GLFBConfig {
+    red_bits: i32,
+    green_bits: i32,
+    blue_bits: i32,
+    alpha_bits: i32,
+    depth_bits: i32,
+    stencil_bits: i32,
+    samples: i32,
+    doublebuffer: bool,
+    handle: usize,
 }
-impl sapp_gl_fbconfig {
-    fn new() -> sapp_gl_fbconfig {
-        sapp_gl_fbconfig {
+impl GLFBConfig {
+    fn new() -> GLFBConfig {
+        GLFBConfig {
             // -1 means "don't care"
-            red_bits : -1,
-            green_bits : -1,
-            blue_bits : -1,
-            alpha_bits : -1,
-            depth_bits : -1,
-            stencil_bits : -1,
-            samples : -1,
-            doublebuffer : false,
-            handle : 0,
+            red_bits: -1,
+            green_bits: -1,
+            blue_bits: -1,
+            alpha_bits: -1,
+            depth_bits: -1,
+            stencil_bits: -1,
+            samples: -1,
+            doublebuffer: false,
+            handle: 0,
         }
     }
 }
 
-fn sapp_gl_choose_fbconfig<'a>(desired : &'a sapp_gl_fbconfig, alternatives : &'a [sapp_gl_fbconfig]) -> Option<&'a sapp_gl_fbconfig> {
-
+fn sapp_gl_choose_fbconfig<'a>(
+    desired: &'a GLFBConfig,
+    alternatives: &'a [GLFBConfig],
+) -> Option<&'a GLFBConfig> {
     let mut least_missing = 1000000;
     let mut least_color_diff = 10000000;
     let mut least_extra_diff = 10000000;
     let mut ret = None;
 
     for current in alternatives {
-
         if desired.doublebuffer != current.doublebuffer {
             continue;
         }
@@ -2024,25 +1982,31 @@ fn sapp_gl_choose_fbconfig<'a>(desired : &'a sapp_gl_fbconfig, alternatives : &'
         // Calculate color channel size difference value
         let mut color_diff = 0;
         if desired.red_bits != -1 {
-            color_diff += (desired.red_bits - current.red_bits) * (desired.red_bits - current.red_bits);
+            color_diff +=
+                (desired.red_bits - current.red_bits) * (desired.red_bits - current.red_bits);
         }
         if desired.green_bits != -1 {
-            color_diff += (desired.green_bits - current.green_bits) * (desired.green_bits - current.green_bits);
+            color_diff += (desired.green_bits - current.green_bits)
+                * (desired.green_bits - current.green_bits);
         }
         if desired.blue_bits != -1 {
-            color_diff += (desired.blue_bits - current.blue_bits) * (desired.blue_bits - current.blue_bits);
+            color_diff +=
+                (desired.blue_bits - current.blue_bits) * (desired.blue_bits - current.blue_bits);
         }
 
         // Calculate non-color channel size difference value
         let mut extra_diff = 0;
         if desired.alpha_bits != -1 {
-            extra_diff += (desired.alpha_bits - current.alpha_bits) * (desired.alpha_bits - current.alpha_bits);
+            extra_diff += (desired.alpha_bits - current.alpha_bits)
+                * (desired.alpha_bits - current.alpha_bits);
         }
         if desired.depth_bits != -1 {
-            extra_diff += (desired.depth_bits - current.depth_bits) * (desired.depth_bits - current.depth_bits);
+            extra_diff += (desired.depth_bits - current.depth_bits)
+                * (desired.depth_bits - current.depth_bits);
         }
         if desired.stencil_bits != -1 {
-            extra_diff += (desired.stencil_bits - current.stencil_bits) * (desired.stencil_bits - current.stencil_bits);
+            extra_diff += (desired.stencil_bits - current.stencil_bits)
+                * (desired.stencil_bits - current.stencil_bits);
         }
         if desired.samples != -1 {
             extra_diff += (desired.samples - current.samples) * (desired.samples - current.samples);
@@ -2055,13 +2019,12 @@ fn sapp_gl_choose_fbconfig<'a>(desired : &'a sapp_gl_fbconfig, alternatives : &'
         if missing < least_missing {
             ret = Some(current);
             update = true;
-        }
-        else if missing == least_missing {
-            if (color_diff < least_color_diff) ||
-               (color_diff == least_color_diff && extra_diff < least_extra_diff)
+        } else if missing == least_missing {
+            if (color_diff < least_color_diff)
+                || (color_diff == least_color_diff && extra_diff < least_extra_diff)
             {
                 ret = Some(current);
-                update = true;                
+                update = true;
             }
         }
         if update {
@@ -2103,41 +2066,41 @@ type FnWGLCreateContextT = extern "system" fn(HDC) -> HGLRC;
 type FnWGLDeleteContextT = extern "system" fn(HGLRC) -> BOOL;
 type FnWGLGetProcAddressT = extern "system" fn(PCSTR) -> FARPROC;
 type FnWGLGetCurrentDCT = extern "system" fn() -> HDC;
-type FnWGLMakeCurrentT = extern "system" fn(HDC,HGLRC) -> BOOL;
+type FnWGLMakeCurrentT = extern "system" fn(HDC, HGLRC) -> BOOL;
 
 type FnWGLSwapIntervalEXTT = extern "system" fn(u32) -> BOOL;
-type FnWGLGetPixelFormatAttribivARBT = extern "system" fn(HDC,i32,i32,u32,* const i32,* mut i32) -> BOOL;
+type FnWGLGetPixelFormatAttribivARBT =
+    extern "system" fn(HDC, i32, i32, u32, *const i32, *mut i32) -> BOOL;
 
 type FnWGLGetExtensionsStringEXTT = extern "system" fn() -> PCSTR;
 type FnWGLGetExtensionsStringARBT = extern "system" fn(HDC) -> PCSTR;
-type FnWGLCreateContextAttribsARBT = extern "system" fn(HDC,HGLRC,* const i32) -> HGLRC;
+type FnWGLCreateContextAttribsARBT = extern "system" fn(HDC, HGLRC, *const i32) -> HGLRC;
 
 struct SAppWgl {
-    gl_major_version : u32,
-    gl_minor_version : u32,
+    gl_major_version: u32,
+    gl_minor_version: u32,
 
-    opengl32 : HINSTANCE,
-    gl_ctx : HGLRC, 
-    CreateContext : Option<FnWGLCreateContextT>,
-    DeleteContext : Option<FnWGLDeleteContextT>,
-    GetProcAddress : Option<FnWGLGetProcAddressT>,
-    GetCurrentDC : Option<FnWGLGetCurrentDCT>,
-    MakeCurrent : Option<FnWGLMakeCurrentT>,
-    SwapIntervalEXT : Option<FnWGLSwapIntervalEXTT>,
-    GetPixelFormatAttribivARB : Option<FnWGLGetPixelFormatAttribivARBT>,
+    opengl32: HINSTANCE,
+    gl_ctx: HGLRC,
+    CreateContext: Option<FnWGLCreateContextT>,
+    DeleteContext: Option<FnWGLDeleteContextT>,
+    GetProcAddress: Option<FnWGLGetProcAddressT>,
+    GetCurrentDC: Option<FnWGLGetCurrentDCT>,
+    MakeCurrent: Option<FnWGLMakeCurrentT>,
+    SwapIntervalEXT: Option<FnWGLSwapIntervalEXTT>,
+    GetPixelFormatAttribivARB: Option<FnWGLGetPixelFormatAttribivARBT>,
     GetExtensionsStringEXT: Option<FnWGLGetExtensionsStringEXTT>,
-    GetExtensionsStringARB : Option<FnWGLGetExtensionsStringARBT>,
-    CreateContextAttribsARB : Option<FnWGLCreateContextAttribsARBT>,
-    ext_swap_control : bool,
-    arb_multisample : bool,
-    arb_pixel_format : bool, 
-    arb_create_context : bool,
-    arb_create_context_profile : bool,
-    msg_hwnd : HWND,
-    msg_dc : HDC,
+    GetExtensionsStringARB: Option<FnWGLGetExtensionsStringARBT>,
+    CreateContextAttribsARB: Option<FnWGLCreateContextAttribsARBT>,
+    ext_swap_control: bool,
+    arb_multisample: bool,
+    arb_pixel_format: bool,
+    arb_create_context: bool,
+    arb_create_context_profile: bool,
+    msg_hwnd: HWND,
+    msg_dc: HDC,
 }
-impl SAppWgl
-{
+impl SAppWgl {
     fn new(desc: &SAppDesc) -> SAppWgl {
         SAppWgl {
             gl_major_version: desc.gl_major_version,
@@ -2165,39 +2128,50 @@ impl SAppWgl
     }
 }
 
-unsafe fn sapp_wgl_init(sapp : &mut SAppData) {
+unsafe fn sapp_wgl_init(sapp: &mut SAppData) {
     sapp.wgl.opengl32 = LoadLibraryA(s!("opengl32.dll"));
     if sapp.wgl.opengl32 == 0 {
         panic!(); // DT_TODO:
-        //_SAPP_PANIC(WIN32_LOAD_OPENGL32_DLL_FAILED);
+                  //_SAPP_PANIC(WIN32_LOAD_OPENGL32_DLL_FAILED);
     }
     debug_assert!(sapp.wgl.opengl32 != 0);
-    sapp.wgl.CreateContext = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglCreateContext")));
+    sapp.wgl.CreateContext =
+        std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglCreateContext")));
     debug_assert!(!sapp.wgl.CreateContext.is_none());
-    sapp.wgl.DeleteContext = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglDeleteContext")));
+    sapp.wgl.DeleteContext =
+        std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglDeleteContext")));
     debug_assert!(!sapp.wgl.DeleteContext.is_none());
-    sapp.wgl.GetProcAddress = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglGetProcAddress")));
+    sapp.wgl.GetProcAddress =
+        std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglGetProcAddress")));
     debug_assert!(!sapp.wgl.GetProcAddress.is_none());
-    sapp.wgl.GetCurrentDC = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglGetCurrentDC")));
+    sapp.wgl.GetCurrentDC =
+        std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglGetCurrentDC")));
     debug_assert!(!sapp.wgl.GetCurrentDC.is_none());
-    sapp.wgl.MakeCurrent = std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglMakeCurrent")));
+    sapp.wgl.MakeCurrent =
+        std::mem::transmute(GetProcAddress(sapp.wgl.opengl32, s!("wglMakeCurrent")));
     debug_assert!(!sapp.wgl.MakeCurrent.is_none());
 
-    sapp.wgl.msg_hwnd = CreateWindowExW(WS_EX_OVERLAPPEDWINDOW,
+    sapp.wgl.msg_hwnd = CreateWindowExW(
+        WS_EX_OVERLAPPEDWINDOW,
         w!("SOKOLAPP"),
         w!("sokol-app message window"),
-        WS_CLIPSIBLINGS|WS_CLIPCHILDREN,
-        0, 0, 1, 1,
-        0, 0,
+        WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
         GetModuleHandleW(std::ptr::null()),
-        std::ptr::null());
+        std::ptr::null(),
+    );
     if sapp.wgl.msg_hwnd == 0 {
         panic!(); // DT_TODO:
-        //_SAPP_PANIC(WIN32_CREATE_HELPER_WINDOW_FAILED);
+                  //_SAPP_PANIC(WIN32_CREATE_HELPER_WINDOW_FAILED);
     }
     debug_assert!(sapp.wgl.msg_hwnd != 0);
     ShowWindow(sapp.wgl.msg_hwnd, SW_HIDE);
-    let mut msg : MSG = std::mem::zeroed();
+    let mut msg: MSG = std::mem::zeroed();
     while PeekMessageW(&mut msg, sapp.wgl.msg_hwnd, 0, 0, PM_REMOVE) == TRUE {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
@@ -2205,29 +2179,28 @@ unsafe fn sapp_wgl_init(sapp : &mut SAppData) {
     sapp.wgl.msg_dc = GetDC(sapp.wgl.msg_hwnd);
     if sapp.wgl.msg_dc == 0 {
         panic!(); // DT_TODO:
-        //_SAPP_PANIC(WIN32_HELPER_WINDOW_GETDC_FAILED);
+                  //_SAPP_PANIC(WIN32_HELPER_WINDOW_GETDC_FAILED);
     }
 }
 
-unsafe fn sapp_wgl_shutdown(sapp : &mut SAppData) {
+unsafe fn sapp_wgl_shutdown(sapp: &mut SAppData) {
     debug_assert!(sapp.wgl.opengl32 != 0 && sapp.wgl.msg_hwnd != 0);
-    DestroyWindow(sapp.wgl.msg_hwnd); sapp.wgl.msg_hwnd = 0;
-    FreeLibrary(sapp.wgl.opengl32); sapp.wgl.opengl32 = 0;
+    DestroyWindow(sapp.wgl.msg_hwnd);
+    sapp.wgl.msg_hwnd = 0;
+    FreeLibrary(sapp.wgl.opengl32);
+    sapp.wgl.opengl32 = 0;
 }
 
-
 fn sapp_wgl_has_ext(ext: &str, extensions: CStringIterator) -> bool {
-
     // Don't really need to check for zero length strings
     //if ext.len() == 0 {
     //    return true;
     //}
 
-    let ext = ext.as_bytes();        
+    let ext = ext.as_bytes();
     let mut valid = true;
     let mut iter = ext.iter();
     for c in extensions {
-
         // Reset search at spaces
         if c == ' ' as u8 {
             if valid && iter.next() == None {
@@ -2235,9 +2208,7 @@ fn sapp_wgl_has_ext(ext: &str, extensions: CStringIterator) -> bool {
             }
             valid = true;
             iter = ext.iter();
-        }
-        else if valid {
-
+        } else if valid {
             // If matching the string still
             valid = false;
             if let Some(v) = iter.next() {
@@ -2257,7 +2228,7 @@ fn sapp_wgl_has_ext(ext: &str, extensions: &str) -> bool {
     let mut start = extensions;
     loop {
         if let Some(offset) = start.find(ext) {
-            
+
             let terminator = &start[offset + ext.len()..];
 
             if (offset == 0) || start[offset - 1..offset].starts_with(' ') {
@@ -2276,15 +2247,14 @@ fn sapp_wgl_has_ext(ext: &str, extensions: &str) -> bool {
 }
 */
 
-fn sapp_wgl_ext_supported(sapp : &SAppData, ext: &str) -> bool {
-
+fn sapp_wgl_ext_supported(sapp: &SAppData, ext: &str) -> bool {
     // DT_TODO: Does it really need to call both methods?
     // DT_TODO: Can we cache the strings?
     // DT_TODO: What is the relevance of calling the GetCurrentDC?
     if let Some(GetExtensionStr) = sapp.wgl.GetExtensionsStringEXT {
         let extensions = GetExtensionStr();
         if extensions != std::ptr::null() {
-            if sapp_wgl_has_ext(ext, CStringIterator{string : extensions}) {
+            if sapp_wgl_has_ext(ext, CStringIterator { string: extensions }) {
                 return true;
             }
         }
@@ -2293,7 +2263,7 @@ fn sapp_wgl_ext_supported(sapp : &SAppData, ext: &str) -> bool {
         if let Some(GetCurrentDC) = sapp.wgl.GetCurrentDC {
             let extensions = GetExtensionStr(GetCurrentDC());
             if extensions != std::ptr::null() {
-                if sapp_wgl_has_ext(ext, CStringIterator{string : extensions}) {
+                if sapp_wgl_has_ext(ext, CStringIterator { string: extensions }) {
                     return true;
                 }
             }
@@ -2302,14 +2272,14 @@ fn sapp_wgl_ext_supported(sapp : &SAppData, ext: &str) -> bool {
     return false;
 }
 
-unsafe fn sapp_wgl_load_extensions(sapp : &mut SAppData) {
+unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
     debug_assert!(sapp.wgl.msg_dc != 0);
     let pfd = PIXELFORMATDESCRIPTOR {
-        nSize : std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u16,
-        nVersion : 1,
-        dwFlags : PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-        iPixelType : PFD_TYPE_RGBA,
-        cColorBits : 24,
+        nSize: std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u16,
+        nVersion: 1,
+        dwFlags: PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
+        iPixelType: PFD_TYPE_RGBA,
+        cColorBits: 24,
         cRedBits: 0,
         cRedShift: 0,
         cGreenBits: 0,
@@ -2333,7 +2303,12 @@ unsafe fn sapp_wgl_load_extensions(sapp : &mut SAppData) {
         dwDamageMask: 0,
     };
 
-    if SetPixelFormat(sapp.wgl.msg_dc, ChoosePixelFormat(sapp.wgl.msg_dc, &pfd), &pfd) == FALSE {
+    if SetPixelFormat(
+        sapp.wgl.msg_dc,
+        ChoosePixelFormat(sapp.wgl.msg_dc, &pfd),
+        &pfd,
+    ) == FALSE
+    {
         //_SAPP_PANIC(WIN32_DUMMY_CONTEXT_SET_PIXELFORMAT_FAILED);
         panic!();
     }
@@ -2349,34 +2324,52 @@ unsafe fn sapp_wgl_load_extensions(sapp : &mut SAppData) {
         //_SAPP_PANIC(WIN32_DUMMY_CONTEXT_MAKE_CURRENT_FAILED);
     }
 
-    sapp.wgl.GetExtensionsStringEXT = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!("wglGetExtensionsStringEXT")));
-    sapp.wgl.GetExtensionsStringARB = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!("wglGetExtensionsStringARB")));
-    sapp.wgl.CreateContextAttribsARB = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!("wglCreateContextAttribsARB")));
-    sapp.wgl.SwapIntervalEXT = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!("wglSwapIntervalEXT")));
-    sapp.wgl.GetPixelFormatAttribivARB = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!("wglGetPixelFormatAttribivARB")));
-    
+    sapp.wgl.GetExtensionsStringEXT = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!(
+        "wglGetExtensionsStringEXT"
+    )));
+    sapp.wgl.GetExtensionsStringARB = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!(
+        "wglGetExtensionsStringARB"
+    )));
+    sapp.wgl.CreateContextAttribsARB = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!(
+        "wglCreateContextAttribsARB"
+    )));
+    sapp.wgl.SwapIntervalEXT =
+        std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!("wglSwapIntervalEXT")));
+    sapp.wgl.GetPixelFormatAttribivARB = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!(
+        "wglGetPixelFormatAttribivARB"
+    )));
+
     sapp.wgl.arb_multisample = sapp_wgl_ext_supported(sapp, "WGL_ARB_multisample");
     sapp.wgl.arb_create_context = sapp_wgl_ext_supported(sapp, "WGL_ARB_create_context");
-    sapp.wgl.arb_create_context_profile = sapp_wgl_ext_supported(sapp, "WGL_ARB_create_context_profile");
+    sapp.wgl.arb_create_context_profile =
+        sapp_wgl_ext_supported(sapp, "WGL_ARB_create_context_profile");
     sapp.wgl.ext_swap_control = sapp_wgl_ext_supported(sapp, "WGL_EXT_swap_control");
     sapp.wgl.arb_pixel_format = sapp_wgl_ext_supported(sapp, "WGL_ARB_pixel_format");
-    
+
     sapp.wgl.MakeCurrent.unwrap()(sapp.wgl.msg_dc, 0);
     sapp.wgl.DeleteContext.unwrap()(rc);
 }
 
-fn sapp_wgl_attrib(sapp : &mut SAppData, pixel_format : i32, attrib : i32) -> i32 {
+fn sapp_wgl_attrib(sapp: &mut SAppData, pixel_format: i32, attrib: i32) -> i32 {
     debug_assert!(sapp.wgl.arb_pixel_format);
     let mut value = 0;
     // DT_TODO: How is this callable without unsafe?
-    if sapp.wgl.GetPixelFormatAttribivARB.unwrap()(sapp.win32.dc, pixel_format, 0, 1, &attrib, &mut value) == 0 {
+    if sapp.wgl.GetPixelFormatAttribivARB.unwrap()(
+        sapp.win32.dc,
+        pixel_format,
+        0,
+        1,
+        &attrib,
+        &mut value,
+    ) == 0
+    {
         panic!();
         //_SAPP_PANIC(WIN32_GET_PIXELFORMAT_ATTRIB_FAILED);
     }
     value
 }
 
-fn sapp_wgl_find_pixel_format(sapp : &mut SAppData) -> i32 {
+fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
     debug_assert!(sapp.win32.dc != 0);
     debug_assert!(sapp.wgl.arb_pixel_format);
 
@@ -2387,7 +2380,9 @@ fn sapp_wgl_find_pixel_format(sapp : &mut SAppData) -> i32 {
 
     for i in 0..native_count {
         let n = i + 1;
-        if sapp_wgl_attrib(sapp, n, WGL_SUPPORT_OPENGL_ARB as i32) == 0 || sapp_wgl_attrib(sapp, n, WGL_DRAW_TO_WINDOW_ARB as i32) == 0 {
+        if sapp_wgl_attrib(sapp, n, WGL_SUPPORT_OPENGL_ARB as i32) == 0
+            || sapp_wgl_attrib(sapp, n, WGL_DRAW_TO_WINDOW_ARB as i32) == 0
+        {
             continue;
         }
         if sapp_wgl_attrib(sapp, n, WGL_PIXEL_TYPE_ARB as i32) != WGL_TYPE_RGBA_ARB as i32 {
@@ -2397,12 +2392,12 @@ fn sapp_wgl_find_pixel_format(sapp : &mut SAppData) -> i32 {
             continue;
         }
 
-        let mut u = sapp_gl_fbconfig::new();
-        u.red_bits     = sapp_wgl_attrib(sapp, n, WGL_RED_BITS_ARB as i32);
-        u.green_bits   = sapp_wgl_attrib(sapp, n, WGL_GREEN_BITS_ARB as i32);
-        u.blue_bits    = sapp_wgl_attrib(sapp, n, WGL_BLUE_BITS_ARB as i32);
-        u.alpha_bits   = sapp_wgl_attrib(sapp, n, WGL_ALPHA_BITS_ARB as i32);
-        u.depth_bits   = sapp_wgl_attrib(sapp, n, WGL_DEPTH_BITS_ARB as i32);
+        let mut u = GLFBConfig::new();
+        u.red_bits = sapp_wgl_attrib(sapp, n, WGL_RED_BITS_ARB as i32);
+        u.green_bits = sapp_wgl_attrib(sapp, n, WGL_GREEN_BITS_ARB as i32);
+        u.blue_bits = sapp_wgl_attrib(sapp, n, WGL_BLUE_BITS_ARB as i32);
+        u.alpha_bits = sapp_wgl_attrib(sapp, n, WGL_ALPHA_BITS_ARB as i32);
+        u.depth_bits = sapp_wgl_attrib(sapp, n, WGL_DEPTH_BITS_ARB as i32);
         u.stencil_bits = sapp_wgl_attrib(sapp, n, WGL_STENCIL_BITS_ARB as i32);
         if sapp_wgl_attrib(sapp, n, WGL_DOUBLE_BUFFER_ARB as i32) != 0 {
             u.doublebuffer = true;
@@ -2415,7 +2410,7 @@ fn sapp_wgl_find_pixel_format(sapp : &mut SAppData) -> i32 {
         usable_configs.push(u);
     }
     debug_assert!(usable_configs.len() > 0);
-    let mut desired = sapp_gl_fbconfig::new();
+    let mut desired = GLFBConfig::new();
     desired.red_bits = 8;
     desired.green_bits = 8;
     desired.blue_bits = 8;
@@ -2423,28 +2418,36 @@ fn sapp_wgl_find_pixel_format(sapp : &mut SAppData) -> i32 {
     desired.depth_bits = 24;
     desired.stencil_bits = 8;
     desired.doublebuffer = true;
-    desired.samples = if sapp.sample_count > 1 { sapp.sample_count as i32 } else { 0 };
-    
-    let closest = sapp_gl_choose_fbconfig(&desired, usable_configs.as_slice() );
+    desired.samples = if sapp.sample_count > 1 {
+        sapp.sample_count as i32
+    } else {
+        0
+    };
+
+    let closest = sapp_gl_choose_fbconfig(&desired, usable_configs.as_slice());
     let pixel_format = if let Some(val) = closest {
         val.handle
-    }
-    else
-    {
+    } else {
         0
     };
 
     return pixel_format as i32;
 }
 
-unsafe fn sapp_wgl_create_context(sapp : &mut SAppData) {
+unsafe fn sapp_wgl_create_context(sapp: &mut SAppData) {
     let pixel_format = sapp_wgl_find_pixel_format(sapp);
     if 0 == pixel_format {
         panic!();
         //_SAPP_PANIC(WIN32_WGL_FIND_PIXELFORMAT_FAILED);
     }
-    let mut pfd: PIXELFORMATDESCRIPTOR = std::mem::zeroed(); 
-    if DescribePixelFormat(sapp.win32.dc, pixel_format, std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u32, &mut pfd) == 0 {
+    let mut pfd: PIXELFORMATDESCRIPTOR = std::mem::zeroed();
+    if DescribePixelFormat(
+        sapp.win32.dc,
+        pixel_format,
+        std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u32,
+        &mut pfd,
+    ) == 0
+    {
         panic!();
         //_SAPP_PANIC(WIN32_WGL_DESCRIBE_PIXELFORMAT_FAILED);
     }
@@ -2461,11 +2464,16 @@ unsafe fn sapp_wgl_create_context(sapp : &mut SAppData) {
         //_SAPP_PANIC(WIN32_WGL_ARB_CREATE_CONTEXT_PROFILE_REQUIRED);
     }
     let attrs = [
-        WGL_CONTEXT_MAJOR_VERSION_ARB as i32, sapp.wgl.gl_major_version as i32,
-        WGL_CONTEXT_MINOR_VERSION_ARB as i32, sapp.wgl.gl_minor_version as i32,
-        WGL_CONTEXT_FLAGS_ARB as i32, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB as i32,
-        WGL_CONTEXT_PROFILE_MASK_ARB as i32, WGL_CONTEXT_CORE_PROFILE_BIT_ARB as i32,
-        0, 0
+        WGL_CONTEXT_MAJOR_VERSION_ARB as i32,
+        sapp.wgl.gl_major_version as i32,
+        WGL_CONTEXT_MINOR_VERSION_ARB as i32,
+        sapp.wgl.gl_minor_version as i32,
+        WGL_CONTEXT_FLAGS_ARB as i32,
+        WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB as i32,
+        WGL_CONTEXT_PROFILE_MASK_ARB as i32,
+        WGL_CONTEXT_CORE_PROFILE_BIT_ARB as i32,
+        0,
+        0,
     ];
     sapp.wgl.gl_ctx = sapp.wgl.CreateContextAttribsARB.unwrap()(sapp.win32.dc, 0, attrs.as_ptr());
     if sapp.wgl.gl_ctx == 0 {
@@ -2473,16 +2481,13 @@ unsafe fn sapp_wgl_create_context(sapp : &mut SAppData) {
         if err == (0xc0070000 | ERROR_INVALID_VERSION_ARB) {
             panic!();
             //_SAPP_PANIC(WIN32_WGL_OPENGL_3_2_NOT_SUPPORTED);
-        }
-        else if err == (0xc0070000 | ERROR_INVALID_PROFILE_ARB) {
+        } else if err == (0xc0070000 | ERROR_INVALID_PROFILE_ARB) {
             panic!();
             //_SAPP_PANIC(WIN32_WGL_OPENGL_PROFILE_NOT_SUPPORTED);
-        }
-        else if err == (0xc0070000 | ERROR_INCOMPATIBLE_DEVICE_CONTEXTS_ARB) {
+        } else if err == (0xc0070000 | ERROR_INCOMPATIBLE_DEVICE_CONTEXTS_ARB) {
             panic!();
             //_SAPP_PANIC(WIN32_WGL_INCOMPATIBLE_DEVICE_CONTEXT);
-        }
-        else {
+        } else {
             panic!();
             //_SAPP_PANIC(WIN32_WGL_CREATE_CONTEXT_ATTRIBS_FAILED_OTHER);
         }
@@ -2494,18 +2499,17 @@ unsafe fn sapp_wgl_create_context(sapp : &mut SAppData) {
     }
 }
 
-fn sapp_wgl_destroy_context(sapp : &mut SAppData) {
+fn sapp_wgl_destroy_context(sapp: &mut SAppData) {
     debug_assert!(sapp.wgl.gl_ctx != 0);
     sapp.wgl.DeleteContext.unwrap()(sapp.wgl.gl_ctx);
     sapp.wgl.gl_ctx = 0;
 }
 
-unsafe fn sapp_wgl_swap_buffers(sapp : &SAppData) {
+unsafe fn sapp_wgl_swap_buffers(sapp: &SAppData) {
     debug_assert!(sapp.win32.dc != 0);
     /* FIXME: DwmIsCompositionEnabled? (see GLFW) */
     SwapBuffers(sapp.win32.dc);
 }
-
 
 #[derive(Clone, Copy)]
 pub struct SappImageDesc<'a> {
@@ -2609,7 +2613,6 @@ pub struct SAppData {
     cleanup_called: bool,
     quit_requested: bool,
     quit_ordered: bool,
-    event_consumed: bool,
 
     window_width: u32,
     window_height: u32,
@@ -2625,7 +2628,7 @@ pub struct SAppData {
     clipboard: Clipboard,
     drop: SDrop,
     win32: SAppWin32,
-    wgl : SAppWgl,
+    wgl: SAppWgl,
     keycodes: [KeyCode; SAPP_MAX_KEYCODES as usize],
 }
 
@@ -2639,7 +2642,6 @@ impl SAppData {
             cleanup_called: false,
             quit_requested: false,
             quit_ordered: false,
-            event_consumed: false,
 
             // NOTE: _sapp.desc.width/height may be 0! Platform backends need to deal with this
             window_width: desc.width,
@@ -2704,7 +2706,7 @@ impl SAppData {
 
     // NOTE that sapp_show_mouse() does not "stack" like the Win32 or macOS API functions!
     pub fn show_mouse(&mut self, show: bool) {
-        if (self.mouse.shown != show) {
+        if self.mouse.shown != show {
             sapp_win32_update_cursor(&self, self.mouse.current_cursor, show, false);
             self.mouse.shown = show;
         }
@@ -2715,7 +2717,7 @@ impl SAppData {
     }
 
     pub fn set_mouse_cursor(&mut self, cursor: MouseCursor) {
-        if (self.mouse.current_cursor != cursor) {
+        if self.mouse.current_cursor != cursor {
             sapp_win32_update_cursor(&self, cursor, self.mouse.shown, false);
             self.mouse.current_cursor = cursor;
         }
@@ -2838,4 +2840,3 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
         sapp_win32_restore_console(&mut sapp.base);
     }
 }
-
