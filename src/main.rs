@@ -1,3 +1,5 @@
+//#![windows_subsystem = "windows"]
+
 mod base_app;
 mod game_rand;
 mod model;
@@ -14,10 +16,15 @@ use sapp::*;
 use timer::*;
 use vector::*;
 
-struct App {}
+struct App {
+    timer : Timer,
+}
 
 impl AppI for App {
     fn init(&mut self, _app: &mut BaseData, sapp: &mut SAppData) {
+
+        println!("Startup time {} ms", Timer::ms(self.timer.now()));
+
         let mut icon = SappIconDesc::new();
         icon.sokol_default = true;
         sapp.set_icon(&icon);
@@ -42,6 +49,7 @@ impl AppI for App {
 
         false // DT_TODO: Use enum here
     }
+    
 }
 
 fn main() {
@@ -51,12 +59,14 @@ fn main() {
     desc.enable_clipboard = true;
     desc.clipboard_size = 1024;
     desc.max_dropped_files = 5;
-    desc.win32_console_utf8 = true;
-    desc.win32_console_create = true;
+    //desc.win32_console_utf8 = true;
+    //desc.win32_console_create = true;
     //desc.win32_console_attach = true;
     //desc.fullscreen = true;
 
-    let App = App {};
+    let App = App {
+        timer : Timer::new()
+    };
     base_app::run_app(App, &desc);
 
     let mut p = ParticleSystem::new();
