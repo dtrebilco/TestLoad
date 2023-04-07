@@ -1950,28 +1950,23 @@ struct GLFBConfig {
     depth_bits: i32,
     stencil_bits: i32,
     samples: i32,
-    handle: usize,
 }
 
 struct GLSelect {
-    first : bool,
     least_missing : i32,
     least_color_diff : i32,
     least_extra_diff : i32,
-    handle: usize,
 }
 impl GLSelect {
     fn new() -> GLSelect{
         GLSelect {
-            first: true,
-            least_missing: 0,
+            least_missing: i32::MAX,
             least_color_diff: 0,
             least_extra_diff: 0,
-            handle: 0,
         }
     }
 
-    fn process(&mut self, desired: &GLFBConfig, current: &GLFBConfig) -> bool {
+    fn process(&mut self, desired: &GLFBConfig, current: &GLFBConfig) -> (bool, bool) {
         let mut missing = 0;
         if desired.alpha_bits > 0 && current.alpha_bits == 0 {
             missing += 1;
@@ -2028,11 +2023,7 @@ impl GLSelect {
         // Least number of missing buffers is the most important heuristic,
         // then color buffer size match and lastly size match for other buffers
         let mut update = false;
-        if self.first {
-            self.first = false;
-            update = true;
-        }
-        else if missing < self.least_missing {
+        if missing < self.least_missing {
             update = true;
         } else if missing == self.least_missing {
             if (color_diff < self.least_color_diff)
@@ -2045,14 +2036,10 @@ impl GLSelect {
             self.least_missing = missing;
             self.least_color_diff = color_diff;
             self.least_extra_diff = extra_diff;
-            self.handle = current.handle;
         }
 
         // Check for perfect match
-        if (missing | color_diff | extra_diff) == 0 {
-            return true;
-        }
-        false
+        (update, (missing | color_diff | extra_diff) == 0)
 
     }
 }
@@ -2430,10 +2417,8 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
         } else {
             0
         },
-        handle: 0,
     };
 
-    // DT_TODO: Update this to not need the array - call on the filter method progressively
     let native_count = sapp_wgl_attrib(sapp, 1, WGL_NUMBER_PIXEL_FORMATS_ARB as i32);
 
     const QUERY_TAGS : [i32; 12] = [
@@ -2474,6 +2459,7 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
     };
 
     let mut processor = GLSelect::new();
+    let mut found_pixel_format = 0;
     for i in 0..native_count {
 
         let pixel_format = i + 1;   // 1 based indices    
@@ -2508,23 +2494,24 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
             stencil_bits: results[RESULT_STENCIL_BITS_INDEX],
 
             samples: results[RESULT_SAMPLES_INDEX], // Note: If arb_multisample is not supported  - just takes the default 0
-            handle: pixel_format as usize,
         };
 
+        let (update, best_match) = processor.process(&desired, &current);
+        if update {
+            found_pixel_format = pixel_format;
+        }
+
         // Stop querying if already found the best extension
-        if processor.process(&desired, &current) {
+        if best_match {
             break;
         }
     }
 
     println!("Get Pixel formats {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
-    debug_assert!(processor.first == false);
-    let pixel_format = processor.handle;
+    debug_assert!(found_pixel_format != 0);
 
-    println!("Find Pixel format {} ms", Timer::ms(timer.laptime(&mut last_time)));
-
-    return pixel_format as i32;
+    return found_pixel_format;
 }
 
 unsafe fn sapp_wgl_create_context(sapp: &mut SAppData) {
