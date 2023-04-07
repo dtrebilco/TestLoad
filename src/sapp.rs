@@ -27,6 +27,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::*;
 use crate::enum_sequential;
 use crate::static_assert;
 use crate::EnumLoadError;
+use crate::Timer;
 
 #[inline]
 pub fn LOWORD(l: u32) -> u16 {
@@ -1930,20 +1931,111 @@ struct GLFBConfig {
     doublebuffer: bool,
     handle: usize,
 }
-impl GLFBConfig {
-    fn new() -> GLFBConfig {
-        GLFBConfig {
-            // -1 means "don't care"
-            red_bits: -1,
-            green_bits: -1,
-            blue_bits: -1,
-            alpha_bits: -1,
-            depth_bits: -1,
-            stencil_bits: -1,
-            samples: -1,
-            doublebuffer: false,
+
+struct GLSelect {
+    first : bool,
+    least_missing : i32,
+    least_color_diff : i32,
+    least_extra_diff : i32,
+    handle: usize,
+}
+impl GLSelect {
+    fn new() -> GLSelect{
+        GLSelect {
+            first: true,
+            least_missing: 0,
+            least_color_diff: 0,
+            least_extra_diff: 0,
             handle: 0,
         }
+    }
+
+    fn process(&mut self, desired: &GLFBConfig, current: &GLFBConfig) -> bool {
+        if desired.doublebuffer != current.doublebuffer {
+            return false;
+        }
+        let mut missing = 0;
+        if desired.alpha_bits > 0 && current.alpha_bits == 0 {
+            missing += 1;
+        }
+        if desired.depth_bits > 0 && current.depth_bits == 0 {
+            missing += 1;
+        }
+        if desired.stencil_bits > 0 && current.stencil_bits == 0 {
+            missing += 1;
+        }
+        if desired.samples > 0 && current.samples == 0 {
+            // Technically, several multisampling buffers could be
+            // involved, but that's a lower level implementation detail and
+            // not important to us here, so we count them as one
+            missing += 1;
+        }
+
+        // These polynomials make many small channel size differences matter
+        // less than one large channel size difference
+        // Calculate color channel size difference value
+        let mut color_diff = 0;
+        if desired.red_bits != -1 {
+            color_diff +=
+                (desired.red_bits - current.red_bits) * (desired.red_bits - current.red_bits);
+        }
+        if desired.green_bits != -1 {
+            color_diff += (desired.green_bits - current.green_bits)
+                * (desired.green_bits - current.green_bits);
+        }
+        if desired.blue_bits != -1 {
+            color_diff +=
+                (desired.blue_bits - current.blue_bits) * (desired.blue_bits - current.blue_bits);
+        }
+
+        // Calculate non-color channel size difference value
+        let mut extra_diff = 0;
+        if desired.alpha_bits != -1 {
+            extra_diff += (desired.alpha_bits - current.alpha_bits)
+                * (desired.alpha_bits - current.alpha_bits);
+        }
+        if desired.depth_bits != -1 {
+            extra_diff += (desired.depth_bits - current.depth_bits)
+                * (desired.depth_bits - current.depth_bits);
+        }
+        if desired.stencil_bits != -1 {
+            extra_diff += (desired.stencil_bits - current.stencil_bits)
+                * (desired.stencil_bits - current.stencil_bits);
+        }
+        if desired.samples != -1 {
+            extra_diff += (desired.samples - current.samples) * (desired.samples - current.samples);
+        }
+
+        // Figure out if the current one is better than the best one found so far
+        // Least number of missing buffers is the most important heuristic,
+        // then color buffer size match and lastly size match for other buffers
+        let mut update = false;
+        if self.first {
+            self.first = false;
+            update = true;
+        }
+        else if missing < self.least_missing {
+            update = true;
+        } else if missing == self.least_missing {
+            if (color_diff < self.least_color_diff)
+                || (color_diff == self.least_color_diff && extra_diff < self.least_extra_diff)
+            {
+                update = true;
+            }
+        }
+        if update {
+            self.least_missing = missing;
+            self.least_color_diff = color_diff;
+            self.least_extra_diff = extra_diff;
+            self.handle = current.handle;
+        }
+
+        // Check for perfect match
+        if missing == 0 && color_diff == 0 && extra_diff == 0 {
+            return true;
+        }
+        false
+
     }
 }
 
@@ -2370,13 +2462,31 @@ fn sapp_wgl_attrib(sapp: &mut SAppData, pixel_format: i32, attrib: i32) -> i32 {
 }
 
 fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
+
+    let timer = Timer::new();
+    let mut last_time = 1;
+
     debug_assert!(sapp.win32.dc != 0);
     debug_assert!(sapp.wgl.arb_pixel_format);
 
+    let desired = GLFBConfig {
+        red_bits : 8,
+        green_bits : 8,
+        blue_bits : 8,
+        alpha_bits : 8,
+        depth_bits : 24,
+        stencil_bits : 8,
+        doublebuffer : true,
+        samples : if sapp.sample_count > 1 {
+            sapp.sample_count as i32
+        } else {
+            0
+        },
+        handle: 0,
+    };
+
     // DT_TODO: Update this to not need the array - call on the filter method progressively
     let native_count = sapp_wgl_attrib(sapp, 1, WGL_NUMBER_PIXEL_FORMATS_ARB as i32);
-
-    let mut usable_configs = Vec::with_capacity(native_count as usize);
 
     const QUERY_TAGS : [i32; 12] = [
         WGL_SUPPORT_OPENGL_ARB as i32,
@@ -2407,13 +2517,15 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
 
     let mut results:[i32; QUERY_TAGS.len()] = [0; QUERY_TAGS.len()];
 
-    // Drop the last item if multisample extension is not supported
+    // Drop the last item if multisample extension is not supported.
+    //  If in future querying with multiple extensions, will have to shuffle index values to have active extensions on the end.
     let max_index = if sapp.wgl.arb_multisample {
         QUERY_TAGS.len()
     } else {
         QUERY_TAGS.len() - 1
     };
 
+    let mut processor = GLSelect::new();
     for i in 0..native_count {
 
         let pixel_format = i + 1;   // 1 based indices    
@@ -2429,14 +2541,14 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
             panic!();
             //_SAPP_PANIC(WIN32_GET_PIXELFORMAT_ATTRIB_FAILED);
         }
-        if (results[RESULT_SUPPORT_OPENGL_INDEX] == 0 ||
-            results[RESULT_DRAW_TO_WINDOW_INDEX] == 0 ||
-            results[RESULT_PIXEL_TYPE_INDEX] != WGL_TYPE_RGBA_ARB as i32 ||
-            results[RESULT_ACCELERATION_INDEX] == WGL_NO_ACCELERATION_ARB as i32) {
+        if results[RESULT_SUPPORT_OPENGL_INDEX] == 0 ||
+           results[RESULT_DRAW_TO_WINDOW_INDEX] == 0 ||
+           results[RESULT_PIXEL_TYPE_INDEX] != WGL_TYPE_RGBA_ARB as i32 ||
+           results[RESULT_ACCELERATION_INDEX] == WGL_NO_ACCELERATION_ARB as i32 {
             continue;    
         }
 
-        let u = GLFBConfig
+        let current = GLFBConfig
         {
             red_bits: results[RESULT_RED_BITS_INDEX],
             green_bits: results[RESULT_GREEN_BITS_INDEX],
@@ -2446,68 +2558,23 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
             depth_bits: results[RESULT_DEPTH_BITS_INDEX],
             stencil_bits: results[RESULT_STENCIL_BITS_INDEX],
 
-            samples: if sapp.wgl.arb_multisample { results[RESULT_SAMPLES_INDEX] } else { 0 },
+            samples: results[RESULT_SAMPLES_INDEX], // Note: If arb_multisample is not supported  - just takes the default 0
             doublebuffer: results[RESULT_DOUBLE_BUFFER_INDEX] != 0,
             handle: pixel_format as usize,
         };
 
-        usable_configs.push(u);
+        // Stop querying if already found the best extension
+        if processor.process(&desired, &current) {
+            break;
+        }
     }
-//*/
-    //usable_configs.clear();
-/*
-    for i in 0..native_count {
-        let n = i + 1;
-        if sapp_wgl_attrib(sapp, n, WGL_SUPPORT_OPENGL_ARB as i32) == 0
-            || sapp_wgl_attrib(sapp, n, WGL_DRAW_TO_WINDOW_ARB as i32) == 0
-        {
-            continue;
-        }
-        if sapp_wgl_attrib(sapp, n, WGL_PIXEL_TYPE_ARB as i32) != WGL_TYPE_RGBA_ARB as i32 {
-            continue;
-        }
-        if sapp_wgl_attrib(sapp, n, WGL_ACCELERATION_ARB as i32) == WGL_NO_ACCELERATION_ARB as i32 {
-            continue;
-        }
 
-        let mut u = GLFBConfig::new();
-        u.red_bits = sapp_wgl_attrib(sapp, n, WGL_RED_BITS_ARB as i32);
-        u.green_bits = sapp_wgl_attrib(sapp, n, WGL_GREEN_BITS_ARB as i32);
-        u.blue_bits = sapp_wgl_attrib(sapp, n, WGL_BLUE_BITS_ARB as i32);
-        u.alpha_bits = sapp_wgl_attrib(sapp, n, WGL_ALPHA_BITS_ARB as i32);
-        u.depth_bits = sapp_wgl_attrib(sapp, n, WGL_DEPTH_BITS_ARB as i32);
-        u.stencil_bits = sapp_wgl_attrib(sapp, n, WGL_STENCIL_BITS_ARB as i32);
-        if sapp_wgl_attrib(sapp, n, WGL_DOUBLE_BUFFER_ARB as i32) != 0 {
-            u.doublebuffer = true;
-        }
-        if sapp.wgl.arb_multisample {
-            u.samples = sapp_wgl_attrib(sapp, n, WGL_SAMPLES_ARB as i32);
-        }
-        u.handle = n as usize;
+    println!("Get Pixel formats {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
-        usable_configs.push(u);
-    }
-    debug_assert!(usable_configs.len() > 0);
-    let mut desired = GLFBConfig::new();
-    desired.red_bits = 8;
-    desired.green_bits = 8;
-    desired.blue_bits = 8;
-    desired.alpha_bits = 8;
-    desired.depth_bits = 24;
-    desired.stencil_bits = 8;
-    desired.doublebuffer = true;
-    desired.samples = if sapp.sample_count > 1 {
-        sapp.sample_count as i32
-    } else {
-        0
-    };
+    debug_assert!(processor.first == false);
+    let pixel_format = processor.handle;
 
-    let closest = sapp_gl_choose_fbconfig(&desired, usable_configs.as_slice());
-    let pixel_format = if let Some(val) = closest {
-        val.handle
-    } else {
-        0
-    };
+    println!("Find Pixel format {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     return pixel_format as i32;
 }
@@ -2518,7 +2585,7 @@ unsafe fn sapp_wgl_create_context(sapp: &mut SAppData) {
         panic!();
         //_SAPP_PANIC(WIN32_WGL_FIND_PIXELFORMAT_FAILED);
     }
-    let mut pfd: PIXELFORMATDESCRIPTOR = std::mem::zeroed();
+    let mut pfd: PIXELFORMATDESCRIPTOR = std::mem::zeroed(); // DT_TODO: SetPixelFormat does not really need this pixel format to be accurate - remove this and set values from find pixel format? (timing test)
     if DescribePixelFormat(
         sapp.win32.dc,
         pixel_format,
@@ -2882,6 +2949,9 @@ impl<'a> SApp<'a> {
 }
 
 pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
+    let timer = Timer::new();
+    let mut last_time = 1;
+
     let mut sapp = SApp {
         base: SAppData::new(&desc),
         app,
@@ -2891,18 +2961,35 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
         sapp_win32_init_console(&mut sapp.base);
     }
     sapp_win32_init_keytable(&mut sapp.base.keycodes);
+
+    println!("Time0 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     unsafe {
         sapp_win32_init_dpi(&mut sapp.base);
     }
+    println!("Time1 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     sapp_win32_init_cursors(&mut sapp.base);
+
+    println!("Time2 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     unsafe {
         sapp_win32_create_window(&desc, &mut sapp.base);
     }
+    println!("Time3 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     sapp.base.set_icon(&desc.icon);
+    println!("Time4 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     unsafe {
         sapp_wgl_init(&mut sapp.base);
+        println!("Time5 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
         sapp_wgl_load_extensions(&mut sapp.base);
+        println!("Time6 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
         sapp_wgl_create_context(&mut sapp.base);
+        println!("Time7 {} ms", Timer::ms(timer.laptime(&mut last_time)));        
     }
     sapp.base.valid = true;
 
