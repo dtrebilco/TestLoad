@@ -1950,7 +1950,6 @@ struct GLFBConfig {
     depth_bits: i32,
     stencil_bits: i32,
     samples: i32,
-    doublebuffer: bool,
     handle: usize,
 }
 
@@ -1973,9 +1972,6 @@ impl GLSelect {
     }
 
     fn process(&mut self, desired: &GLFBConfig, current: &GLFBConfig) -> bool {
-        if desired.doublebuffer != current.doublebuffer {
-            return false;
-        }
         let mut missing = 0;
         if desired.alpha_bits > 0 && current.alpha_bits == 0 {
             missing += 1;
@@ -2059,95 +2055,6 @@ impl GLSelect {
         false
 
     }
-}
-
-fn sapp_gl_choose_fbconfig<'a>(
-    desired: &'a GLFBConfig,
-    alternatives: &'a [GLFBConfig],
-) -> Option<&'a GLFBConfig> {
-    let mut least_missing = 1000000;
-    let mut least_color_diff = 10000000;
-    let mut least_extra_diff = 10000000;
-    let mut ret = None;
-
-    for current in alternatives {
-        if desired.doublebuffer != current.doublebuffer {
-            continue;
-        }
-        let mut missing = 0;
-        if desired.alpha_bits > 0 && current.alpha_bits == 0 {
-            missing += 1;
-        }
-        if desired.depth_bits > 0 && current.depth_bits == 0 {
-            missing += 1;
-        }
-        if desired.stencil_bits > 0 && current.stencil_bits == 0 {
-            missing += 1;
-        }
-        if desired.samples > 0 && current.samples == 0 {
-            // Technically, several multisampling buffers could be
-            // involved, but that's a lower level implementation detail and
-            // not important to us here, so we count them as one
-            missing += 1;
-        }
-
-        // These polynomials make many small channel size differences matter
-        // less than one large channel size difference
-        // Calculate color channel size difference value
-        let mut color_diff = 0;
-        if desired.red_bits != -1 {
-            color_diff +=
-                (desired.red_bits - current.red_bits) * (desired.red_bits - current.red_bits);
-        }
-        if desired.green_bits != -1 {
-            color_diff += (desired.green_bits - current.green_bits)
-                * (desired.green_bits - current.green_bits);
-        }
-        if desired.blue_bits != -1 {
-            color_diff +=
-                (desired.blue_bits - current.blue_bits) * (desired.blue_bits - current.blue_bits);
-        }
-
-        // Calculate non-color channel size difference value
-        let mut extra_diff = 0;
-        if desired.alpha_bits != -1 {
-            extra_diff += (desired.alpha_bits - current.alpha_bits)
-                * (desired.alpha_bits - current.alpha_bits);
-        }
-        if desired.depth_bits != -1 {
-            extra_diff += (desired.depth_bits - current.depth_bits)
-                * (desired.depth_bits - current.depth_bits);
-        }
-        if desired.stencil_bits != -1 {
-            extra_diff += (desired.stencil_bits - current.stencil_bits)
-                * (desired.stencil_bits - current.stencil_bits);
-        }
-        if desired.samples != -1 {
-            extra_diff += (desired.samples - current.samples) * (desired.samples - current.samples);
-        }
-
-        // Figure out if the current one is better than the best one found so far
-        // Least number of missing buffers is the most important heuristic,
-        // then color buffer size match and lastly size match for other buffers
-        let mut update = false;
-        if missing < least_missing {
-            ret = Some(current);
-            update = true;
-        } else if missing == least_missing {
-            if (color_diff < least_color_diff)
-                || (color_diff == least_color_diff && extra_diff < least_extra_diff)
-            {
-                ret = Some(current);
-                update = true;
-            }
-        }
-        if update {
-            least_missing = missing;
-            least_color_diff = color_diff;
-            least_extra_diff = extra_diff;
-        }
-    }
-    ret
 }
 
 const WGL_NUMBER_PIXEL_FORMATS_ARB: u32 = 0x2000;
@@ -2518,7 +2425,6 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
         alpha_bits : 8,
         depth_bits : 24,
         stencil_bits : 8,
-        doublebuffer : true,
         samples : if sapp.sample_count > 1 {
             sapp.sample_count as i32
         } else {
@@ -2535,26 +2441,26 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
         WGL_DRAW_TO_WINDOW_ARB as i32,
         WGL_PIXEL_TYPE_ARB as i32,
         WGL_ACCELERATION_ARB as i32,
+        WGL_DOUBLE_BUFFER_ARB as i32,
         WGL_RED_BITS_ARB as i32,
         WGL_GREEN_BITS_ARB as i32,
         WGL_BLUE_BITS_ARB as i32,
         WGL_ALPHA_BITS_ARB as i32,
         WGL_DEPTH_BITS_ARB as i32,
         WGL_STENCIL_BITS_ARB as i32,
-        WGL_DOUBLE_BUFFER_ARB as i32,
         WGL_SAMPLES_ARB as i32,
     ];
     const RESULT_SUPPORT_OPENGL_INDEX: usize = 0;
     const RESULT_DRAW_TO_WINDOW_INDEX: usize = 1;
     const RESULT_PIXEL_TYPE_INDEX: usize = 2;
     const RESULT_ACCELERATION_INDEX: usize = 3;
-    const RESULT_RED_BITS_INDEX: usize = 4;
-    const RESULT_GREEN_BITS_INDEX: usize = 5;
-    const RESULT_BLUE_BITS_INDEX: usize = 6;
-    const RESULT_ALPHA_BITS_INDEX: usize = 7;
-    const RESULT_DEPTH_BITS_INDEX: usize = 8;
-    const RESULT_STENCIL_BITS_INDEX: usize = 9;
-    const RESULT_DOUBLE_BUFFER_INDEX: usize = 10;
+    const RESULT_DOUBLE_BUFFER_INDEX: usize = 4;
+    const RESULT_RED_BITS_INDEX: usize = 5;
+    const RESULT_GREEN_BITS_INDEX: usize = 6;
+    const RESULT_BLUE_BITS_INDEX: usize = 7;
+    const RESULT_ALPHA_BITS_INDEX: usize = 8;
+    const RESULT_DEPTH_BITS_INDEX: usize = 9;
+    const RESULT_STENCIL_BITS_INDEX: usize = 10;
     const RESULT_SAMPLES_INDEX: usize = 11;
 
     let mut results:[i32; QUERY_TAGS.len()] = [0; QUERY_TAGS.len()];
@@ -2586,7 +2492,8 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
         if results[RESULT_SUPPORT_OPENGL_INDEX] == 0 ||
            results[RESULT_DRAW_TO_WINDOW_INDEX] == 0 ||
            results[RESULT_PIXEL_TYPE_INDEX] != WGL_TYPE_RGBA_ARB as i32 ||
-           results[RESULT_ACCELERATION_INDEX] == WGL_NO_ACCELERATION_ARB as i32 {
+           results[RESULT_ACCELERATION_INDEX] == WGL_NO_ACCELERATION_ARB as i32 ||
+           results[RESULT_DOUBLE_BUFFER_INDEX] == 0 { 
             continue;    
         }
 
@@ -2601,7 +2508,6 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
             stencil_bits: results[RESULT_STENCIL_BITS_INDEX],
 
             samples: results[RESULT_SAMPLES_INDEX], // Note: If arb_multisample is not supported  - just takes the default 0
-            doublebuffer: results[RESULT_DOUBLE_BUFFER_INDEX] != 0,
             handle: pixel_format as usize,
         };
 
