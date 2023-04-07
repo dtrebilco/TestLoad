@@ -2378,6 +2378,84 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
 
     let mut usable_configs = Vec::with_capacity(native_count as usize);
 
+    const QUERY_TAGS : [i32; 12] = [
+        WGL_SUPPORT_OPENGL_ARB as i32,
+        WGL_DRAW_TO_WINDOW_ARB as i32,
+        WGL_PIXEL_TYPE_ARB as i32,
+        WGL_ACCELERATION_ARB as i32,
+        WGL_RED_BITS_ARB as i32,
+        WGL_GREEN_BITS_ARB as i32,
+        WGL_BLUE_BITS_ARB as i32,
+        WGL_ALPHA_BITS_ARB as i32,
+        WGL_DEPTH_BITS_ARB as i32,
+        WGL_STENCIL_BITS_ARB as i32,
+        WGL_DOUBLE_BUFFER_ARB as i32,
+        WGL_SAMPLES_ARB as i32,
+    ];
+    const RESULT_SUPPORT_OPENGL_INDEX: usize = 0;
+    const RESULT_DRAW_TO_WINDOW_INDEX: usize = 1;
+    const RESULT_PIXEL_TYPE_INDEX: usize = 2;
+    const RESULT_ACCELERATION_INDEX: usize = 3;
+    const RESULT_RED_BITS_INDEX: usize = 4;
+    const RESULT_GREEN_BITS_INDEX: usize = 5;
+    const RESULT_BLUE_BITS_INDEX: usize = 6;
+    const RESULT_ALPHA_BITS_INDEX: usize = 7;
+    const RESULT_DEPTH_BITS_INDEX: usize = 8;
+    const RESULT_STENCIL_BITS_INDEX: usize = 9;
+    const RESULT_DOUBLE_BUFFER_INDEX: usize = 10;
+    const RESULT_SAMPLES_INDEX: usize = 11;
+
+    let mut results:[i32; QUERY_TAGS.len()] = [0; QUERY_TAGS.len()];
+
+    // Drop the last item if multisample extension is not supported
+    let max_index = if sapp.wgl.arb_multisample {
+        QUERY_TAGS.len()
+    } else {
+        QUERY_TAGS.len() - 1
+    };
+
+    for i in 0..native_count {
+
+        let pixel_format = i + 1;   // 1 based indices    
+        if sapp.wgl.GetPixelFormatAttribivARB.unwrap()(
+            sapp.win32.dc,
+            pixel_format,
+            0,
+            max_index as u32,
+            QUERY_TAGS.as_ptr(),
+            results.as_mut_ptr(),
+        ) == 0
+        {
+            panic!();
+            //_SAPP_PANIC(WIN32_GET_PIXELFORMAT_ATTRIB_FAILED);
+        }
+        if (results[RESULT_SUPPORT_OPENGL_INDEX] == 0 ||
+            results[RESULT_DRAW_TO_WINDOW_INDEX] == 0 ||
+            results[RESULT_PIXEL_TYPE_INDEX] != WGL_TYPE_RGBA_ARB as i32 ||
+            results[RESULT_ACCELERATION_INDEX] == WGL_NO_ACCELERATION_ARB as i32) {
+            continue;    
+        }
+
+        let u = GLFBConfig
+        {
+            red_bits: results[RESULT_RED_BITS_INDEX],
+            green_bits: results[RESULT_GREEN_BITS_INDEX],
+            blue_bits: results[RESULT_BLUE_BITS_INDEX],
+            alpha_bits: results[RESULT_ALPHA_BITS_INDEX],
+
+            depth_bits: results[RESULT_DEPTH_BITS_INDEX],
+            stencil_bits: results[RESULT_STENCIL_BITS_INDEX],
+
+            samples: if sapp.wgl.arb_multisample { results[RESULT_SAMPLES_INDEX] } else { 0 },
+            doublebuffer: results[RESULT_DOUBLE_BUFFER_INDEX] != 0,
+            handle: pixel_format as usize,
+        };
+
+        usable_configs.push(u);
+    }
+//*/
+    //usable_configs.clear();
+/*
     for i in 0..native_count {
         let n = i + 1;
         if sapp_wgl_attrib(sapp, n, WGL_SUPPORT_OPENGL_ARB as i32) == 0
