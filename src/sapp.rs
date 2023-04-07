@@ -1432,6 +1432,10 @@ unsafe fn sapp_win32_update_dimensions(sapp: &mut SAppData) -> bool {
 }
 
 unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
+
+    let timer = Timer::new();
+    let mut last_time = 1;
+
     let instance = GetModuleHandleW(std::ptr::null());
     let wndclassw = WNDCLASSW {
         hCursor: LoadCursorW(0, IDC_ARROW),
@@ -1446,6 +1450,8 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
         lpszMenuName: std::ptr::null(),
     };
     RegisterClassW(&wndclassw);
+
+    println!("Register class {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     /* NOTE: regardless whether fullscreen is requested or not, a regular
        windowed-mode window will always be created first (however in hidden
@@ -1471,6 +1477,9 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
     let use_default_width = 0 == sapp.window_width;
     let use_default_height = 0 == sapp.window_height;
     AdjustWindowRectEx(&mut rect, win_style, FALSE, win_ex_style);
+
+    println!("Adjust window Rect {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     let win_width = rect.right - rect.left;
     let win_height = rect.bottom - rect.top;
     sapp.win32.in_create_window = true;
@@ -1480,6 +1489,8 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
     let mut title = Vec::with_capacity(desc.window_title.encode_utf16().count() + 1);
     title.extend(desc.window_title.encode_utf16());
     title.push(0);
+
+    println!("UTF title {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     sapp.win32.hwnd = CreateWindowExW(
         win_ex_style,   // dwExStyle
@@ -1503,10 +1514,15 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
         instance,       // hInstance
         std::ptr::null(),
     ); // lParam
+
+    println!("Create window {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     sapp.win32.in_create_window = false;
     sapp.win32.dc = GetDC(sapp.win32.hwnd);
     sapp.win32.hmonitor = MonitorFromWindow(sapp.win32.hwnd, MONITOR_DEFAULTTONULL);
     debug_assert!(sapp.win32.dc != 0);
+
+    println!("MonitorFromWindow {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     /* this will get the actual windowed-mode window size, if fullscreen
        is requested, the set_fullscreen function will then capture the
@@ -1514,11 +1530,17 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
        restore the window position when switching back to windowed
     */
     sapp_win32_update_dimensions(sapp);
+
+    println!("sapp_win32_update_dimensions {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     if sapp.fullscreen {
         sapp_win32_set_fullscreen(sapp, sapp.fullscreen, SWP_HIDEWINDOW);
         sapp_win32_update_dimensions(sapp);
     }
     ShowWindow(sapp.win32.hwnd, SW_SHOW);
+
+    println!("ShowWindow {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     if sapp.drop.max_files > 0 {
         DragAcceptFiles(sapp.win32.hwnd, 1);
     }
@@ -2365,6 +2387,10 @@ fn sapp_wgl_ext_supported(sapp: &SAppData, ext: &str) -> bool {
 }
 
 unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
+
+    let timer = Timer::new();
+    let mut last_time = 1;
+
     debug_assert!(sapp.wgl.msg_dc != 0);
     let pfd = PIXELFORMATDESCRIPTOR {
         nSize: std::mem::size_of::<PIXELFORMATDESCRIPTOR>() as u16,
@@ -2395,9 +2421,13 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
         dwDamageMask: 0,
     };
 
+    let pf = ChoosePixelFormat(sapp.wgl.msg_dc, &pfd);
+
+    println!("Choose Pixel format {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     if SetPixelFormat(
         sapp.wgl.msg_dc,
-        ChoosePixelFormat(sapp.wgl.msg_dc, &pfd),
+        pf,
         &pfd,
     ) == FALSE
     {
@@ -2405,16 +2435,22 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
         panic!();
     }
 
+    println!("SetPixel formats {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     // DT_TODO: Remove all these unwraps
     let rc = sapp.wgl.CreateContext.unwrap()(sapp.wgl.msg_dc);
     if rc == 0 {
         //_SAPP_PANIC(WIN32_CREATE_DUMMY_CONTEXT_FAILED);
         panic!();
     }
+    println!("Context create and set {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     if sapp.wgl.MakeCurrent.unwrap()(sapp.wgl.msg_dc, rc) == 0 {
         panic!();
         //_SAPP_PANIC(WIN32_DUMMY_CONTEXT_MAKE_CURRENT_FAILED);
     }
+
+    println!("Make current {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     sapp.wgl.GetExtensionsStringEXT = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!(
         "wglGetExtensionsStringEXT"
@@ -2431,6 +2467,8 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
         "wglGetPixelFormatAttribivARB"
     )));
 
+    println!("Get exts functions {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     sapp.wgl.arb_multisample = sapp_wgl_ext_supported(sapp, "WGL_ARB_multisample");
     sapp.wgl.arb_create_context = sapp_wgl_ext_supported(sapp, "WGL_ARB_create_context");
     sapp.wgl.arb_create_context_profile =
@@ -2438,8 +2476,12 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
     sapp.wgl.ext_swap_control = sapp_wgl_ext_supported(sapp, "WGL_EXT_swap_control");
     sapp.wgl.arb_pixel_format = sapp_wgl_ext_supported(sapp, "WGL_ARB_pixel_format");
 
+    println!("Test for ext {} ms", Timer::ms(timer.laptime(&mut last_time)));
+
     sapp.wgl.MakeCurrent.unwrap()(sapp.wgl.msg_dc, 0);
     sapp.wgl.DeleteContext.unwrap()(rc);
+
+    println!("Context del {} ms", Timer::ms(timer.laptime(&mut last_time)));    
 }
 
 fn sapp_wgl_attrib(sapp: &mut SAppData, pixel_format: i32, attrib: i32) -> i32 {
@@ -2962,34 +3004,34 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
     }
     sapp_win32_init_keytable(&mut sapp.base.keycodes);
 
-    println!("Time0 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!("* Init console keytable {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     unsafe {
         sapp_win32_init_dpi(&mut sapp.base);
     }
-    println!("Time1 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!("* Init DPI {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     sapp_win32_init_cursors(&mut sapp.base);
 
-    println!("Time2 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!("* Init Cursor {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     unsafe {
         sapp_win32_create_window(&desc, &mut sapp.base);
     }
-    println!("Time3 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!("* Create Window {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     sapp.base.set_icon(&desc.icon);
-    println!("Time4 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!("* Set Icon {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
     unsafe {
         sapp_wgl_init(&mut sapp.base);
-        println!("Time5 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+        println!("* WGL Init {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
         sapp_wgl_load_extensions(&mut sapp.base);
-        println!("Time6 {} ms", Timer::ms(timer.laptime(&mut last_time)));
+        println!("* WGL Load Ext {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
         sapp_wgl_create_context(&mut sapp.base);
-        println!("Time7 {} ms", Timer::ms(timer.laptime(&mut last_time)));        
+        println!("* WGL Create context {} ms", Timer::ms(timer.laptime(&mut last_time)));        
     }
     sapp.base.valid = true;
 
