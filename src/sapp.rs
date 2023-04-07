@@ -1432,7 +1432,6 @@ unsafe fn sapp_win32_update_dimensions(sapp: &mut SAppData) -> bool {
 }
 
 unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
-
     let timer = Timer::new();
     let mut last_time = 1;
 
@@ -1451,7 +1450,10 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
     };
     RegisterClassW(&wndclassw);
 
-    println!("Register class {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Register class {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     /* NOTE: regardless whether fullscreen is requested or not, a regular
        windowed-mode window will always be created first (however in hidden
@@ -1478,7 +1480,10 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
     let use_default_height = 0 == sapp.window_height;
     AdjustWindowRectEx(&mut rect, win_style, FALSE, win_ex_style);
 
-    println!("Adjust window Rect {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Adjust window Rect {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     let win_width = rect.right - rect.left;
     let win_height = rect.bottom - rect.top;
@@ -1515,14 +1520,20 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
         std::ptr::null(),
     ); // lParam
 
-    println!("Create window {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Create window {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     sapp.win32.in_create_window = false;
     sapp.win32.dc = GetDC(sapp.win32.hwnd);
     sapp.win32.hmonitor = MonitorFromWindow(sapp.win32.hwnd, MONITOR_DEFAULTTONULL);
     debug_assert!(sapp.win32.dc != 0);
 
-    println!("MonitorFromWindow {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "MonitorFromWindow {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     /* this will get the actual windowed-mode window size, if fullscreen
        is requested, the set_fullscreen function will then capture the
@@ -1531,7 +1542,10 @@ unsafe fn sapp_win32_create_window(desc: &SAppDesc, sapp: &mut SAppData) {
     */
     sapp_win32_update_dimensions(sapp);
 
-    println!("sapp_win32_update_dimensions {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "sapp_win32_update_dimensions {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     if sapp.fullscreen {
         sapp_win32_set_fullscreen(sapp, sapp.fullscreen, SWP_HIDEWINDOW);
@@ -1953,12 +1967,12 @@ struct GLFBConfig {
 }
 
 struct GLSelect {
-    least_missing : i32,
-    least_color_diff : i32,
-    least_extra_diff : i32,
+    least_missing: i32,
+    least_color_diff: i32,
+    least_extra_diff: i32,
 }
 impl GLSelect {
-    fn new() -> GLSelect{
+    fn new() -> GLSelect {
         GLSelect {
             least_missing: i32::MAX,
             least_color_diff: 0,
@@ -2022,16 +2036,13 @@ impl GLSelect {
         // Figure out if the current one is better than the best one found so far
         // Least number of missing buffers is the most important heuristic,
         // then color buffer size match and lastly size match for other buffers
-        let mut update = false;
-        if missing < self.least_missing {
-            update = true;
-        } else if missing == self.least_missing {
-            if (color_diff < self.least_color_diff)
-                || (color_diff == self.least_color_diff && extra_diff < self.least_extra_diff)
-            {
-                update = true;
-            }
-        }
+        let same_missing = missing == self.least_missing;
+        let same_color = color_diff == self.least_color_diff;
+
+        let update = (missing < self.least_missing)
+            | (same_missing & (color_diff < self.least_color_diff))
+            | (same_missing & same_color & (extra_diff < self.least_extra_diff));
+
         if update {
             self.least_missing = missing;
             self.least_color_diff = color_diff;
@@ -2040,7 +2051,6 @@ impl GLSelect {
 
         // Check for perfect match
         (update, (missing | color_diff | extra_diff) == 0)
-
     }
 }
 
@@ -2281,7 +2291,6 @@ fn sapp_wgl_ext_supported(sapp: &SAppData, ext: &str) -> bool {
 }
 
 unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
-
     let timer = Timer::new();
     let mut last_time = 1;
 
@@ -2317,19 +2326,20 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
 
     let pf = ChoosePixelFormat(sapp.wgl.msg_dc, &pfd);
 
-    println!("Choose Pixel format {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Choose Pixel format {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
-    if SetPixelFormat(
-        sapp.wgl.msg_dc,
-        pf,
-        &pfd,
-    ) == FALSE
-    {
+    if SetPixelFormat(sapp.wgl.msg_dc, pf, &pfd) == FALSE {
         //_SAPP_PANIC(WIN32_DUMMY_CONTEXT_SET_PIXELFORMAT_FAILED);
         panic!();
     }
 
-    println!("SetPixel formats {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "SetPixel formats {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     // DT_TODO: Remove all these unwraps
     let rc = sapp.wgl.CreateContext.unwrap()(sapp.wgl.msg_dc);
@@ -2337,14 +2347,20 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
         //_SAPP_PANIC(WIN32_CREATE_DUMMY_CONTEXT_FAILED);
         panic!();
     }
-    println!("Context create and set {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Context create and set {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     if sapp.wgl.MakeCurrent.unwrap()(sapp.wgl.msg_dc, rc) == 0 {
         panic!();
         //_SAPP_PANIC(WIN32_DUMMY_CONTEXT_MAKE_CURRENT_FAILED);
     }
 
-    println!("Make current {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Make current {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     sapp.wgl.GetExtensionsStringEXT = std::mem::transmute(sapp.wgl.GetProcAddress.unwrap()(s!(
         "wglGetExtensionsStringEXT"
@@ -2361,7 +2377,10 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
         "wglGetPixelFormatAttribivARB"
     )));
 
-    println!("Get exts functions {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Get exts functions {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     sapp.wgl.arb_multisample = sapp_wgl_ext_supported(sapp, "WGL_ARB_multisample");
     sapp.wgl.arb_create_context = sapp_wgl_ext_supported(sapp, "WGL_ARB_create_context");
@@ -2370,12 +2389,18 @@ unsafe fn sapp_wgl_load_extensions(sapp: &mut SAppData) {
     sapp.wgl.ext_swap_control = sapp_wgl_ext_supported(sapp, "WGL_EXT_swap_control");
     sapp.wgl.arb_pixel_format = sapp_wgl_ext_supported(sapp, "WGL_ARB_pixel_format");
 
-    println!("Test for ext {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Test for ext {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     sapp.wgl.MakeCurrent.unwrap()(sapp.wgl.msg_dc, 0);
     sapp.wgl.DeleteContext.unwrap()(rc);
 
-    println!("Context del {} ms", Timer::ms(timer.laptime(&mut last_time)));    
+    println!(
+        "Context del {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 }
 
 fn sapp_wgl_attrib(sapp: &mut SAppData, pixel_format: i32, attrib: i32) -> i32 {
@@ -2398,7 +2423,6 @@ fn sapp_wgl_attrib(sapp: &mut SAppData, pixel_format: i32, attrib: i32) -> i32 {
 }
 
 fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
-
     let timer = Timer::new();
     let mut last_time = 1;
 
@@ -2406,13 +2430,13 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
     debug_assert!(sapp.wgl.arb_pixel_format);
 
     let desired = GLFBConfig {
-        red_bits : 8,
-        green_bits : 8,
-        blue_bits : 8,
-        alpha_bits : 8,
-        depth_bits : 24,
-        stencil_bits : 8,
-        samples : if sapp.sample_count > 1 {
+        red_bits: 8,
+        green_bits: 8,
+        blue_bits: 8,
+        alpha_bits: 8,
+        depth_bits: 24,
+        stencil_bits: 8,
+        samples: if sapp.sample_count > 1 {
             sapp.sample_count as i32
         } else {
             0
@@ -2421,7 +2445,7 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
 
     let native_count = sapp_wgl_attrib(sapp, 1, WGL_NUMBER_PIXEL_FORMATS_ARB as i32);
 
-    const QUERY_TAGS : [i32; 12] = [
+    const QUERY_TAGS: [i32; 12] = [
         WGL_SUPPORT_OPENGL_ARB as i32,
         WGL_DRAW_TO_WINDOW_ARB as i32,
         WGL_PIXEL_TYPE_ARB as i32,
@@ -2448,7 +2472,7 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
     const RESULT_STENCIL_BITS_INDEX: usize = 10;
     const RESULT_SAMPLES_INDEX: usize = 11;
 
-    let mut results:[i32; QUERY_TAGS.len()] = [0; QUERY_TAGS.len()];
+    let mut results: [i32; QUERY_TAGS.len()] = [0; QUERY_TAGS.len()];
 
     // Drop the last item if multisample extension is not supported.
     //  If in future querying with multiple extensions, will have to shuffle index values to have active extensions on the end.
@@ -2461,8 +2485,7 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
     let mut processor = GLSelect::new();
     let mut found_pixel_format = 0;
     for i in 0..native_count {
-
-        let pixel_format = i + 1;   // 1 based indices    
+        let pixel_format = i + 1; // 1 based indices
         if sapp.wgl.GetPixelFormatAttribivARB.unwrap()(
             sapp.win32.dc,
             pixel_format,
@@ -2475,16 +2498,16 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
             panic!();
             //_SAPP_PANIC(WIN32_GET_PIXELFORMAT_ATTRIB_FAILED);
         }
-        if results[RESULT_SUPPORT_OPENGL_INDEX] == 0 ||
-           results[RESULT_DRAW_TO_WINDOW_INDEX] == 0 ||
-           results[RESULT_PIXEL_TYPE_INDEX] != WGL_TYPE_RGBA_ARB as i32 ||
-           results[RESULT_ACCELERATION_INDEX] == WGL_NO_ACCELERATION_ARB as i32 ||
-           results[RESULT_DOUBLE_BUFFER_INDEX] == 0 { 
-            continue;    
+        if results[RESULT_SUPPORT_OPENGL_INDEX] == 0
+            || results[RESULT_DRAW_TO_WINDOW_INDEX] == 0
+            || results[RESULT_PIXEL_TYPE_INDEX] != WGL_TYPE_RGBA_ARB as i32
+            || results[RESULT_ACCELERATION_INDEX] == WGL_NO_ACCELERATION_ARB as i32
+            || results[RESULT_DOUBLE_BUFFER_INDEX] == 0
+        {
+            continue;
         }
 
-        let current = GLFBConfig
-        {
+        let current = GLFBConfig {
             red_bits: results[RESULT_RED_BITS_INDEX],
             green_bits: results[RESULT_GREEN_BITS_INDEX],
             blue_bits: results[RESULT_BLUE_BITS_INDEX],
@@ -2507,7 +2530,10 @@ fn sapp_wgl_find_pixel_format(sapp: &mut SAppData) -> i32 {
         }
     }
 
-    println!("Get Pixel formats {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "Get Pixel formats {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     debug_assert!(found_pixel_format != 0);
 
@@ -2897,7 +2923,10 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
     }
     sapp_win32_init_keytable(&mut sapp.base.keycodes);
 
-    println!("* Init console keytable {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "* Init console keytable {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     unsafe {
         sapp_win32_init_dpi(&mut sapp.base);
@@ -2906,12 +2935,18 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
 
     sapp_win32_init_cursors(&mut sapp.base);
 
-    println!("* Init Cursor {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "* Init Cursor {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     unsafe {
         sapp_win32_create_window(&desc, &mut sapp.base);
     }
-    println!("* Create Window {} ms", Timer::ms(timer.laptime(&mut last_time)));
+    println!(
+        "* Create Window {} ms",
+        Timer::ms(timer.laptime(&mut last_time))
+    );
 
     sapp.base.set_icon(&desc.icon);
     println!("* Set Icon {} ms", Timer::ms(timer.laptime(&mut last_time)));
@@ -2921,10 +2956,16 @@ pub fn run_app(app: &mut dyn SAppI, desc: &SAppDesc) {
         println!("* WGL Init {} ms", Timer::ms(timer.laptime(&mut last_time)));
 
         sapp_wgl_load_extensions(&mut sapp.base);
-        println!("* WGL Load Ext {} ms", Timer::ms(timer.laptime(&mut last_time)));
+        println!(
+            "* WGL Load Ext {} ms",
+            Timer::ms(timer.laptime(&mut last_time))
+        );
 
         sapp_wgl_create_context(&mut sapp.base);
-        println!("* WGL Create context {} ms", Timer::ms(timer.laptime(&mut last_time)));        
+        println!(
+            "* WGL Create context {} ms",
+            Timer::ms(timer.laptime(&mut last_time))
+        );
     }
     sapp.base.valid = true;
 
