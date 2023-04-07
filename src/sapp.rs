@@ -2049,7 +2049,7 @@ impl GLSelect {
         }
 
         // Check for perfect match
-        if missing == 0 && color_diff == 0 && extra_diff == 0 {
+        if (missing | color_diff | extra_diff) == 0 {
             return true;
         }
         false
