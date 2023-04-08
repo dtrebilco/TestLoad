@@ -1,4 +1,5 @@
 use crate::sapp::*;
+use crate::sgfx::*;
 use crate::timer::Timer;
 use crate::vector::*;
 
@@ -131,6 +132,7 @@ where
         self.app.init(&mut self.base, data);
 
         self.base.start_ticks = self.base.timer.now(); // DT_TODO: Move this to start and report startup time?
+        sg_setup();
 
         //DT_TODO: Load UI assets
         self.app.load(&mut self.base, data);
@@ -195,10 +197,12 @@ where
         self.base.controls();
         self.app.draw_frame(&mut self.base, data);
 
-        //sg_commit();
+        sg_commit();
     }
 
-    fn shutdown(&mut self, data: &mut SAppData) {}
+    fn shutdown(&mut self, data: &mut SAppData) {
+        sg_shutdown();
+    }
 }
 
 /*
