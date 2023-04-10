@@ -25,6 +25,18 @@ const SG_MAX_VERTEX_ATTRIBUTES : u32 = 16;      /* NOTE: actual max vertex attrs
 const SG_MAX_MIPMAPS : u32 = 16;
 const SG_MAX_TEXTUREARRAY_LAYERS : u32 = 128;
 
+enum sg_backend {
+    GLCORE33,
+    GLES2,
+    GLES3,
+    D3D11,
+    METAL_IOS,
+    METAL_MACOS,
+    METAL_SIMULATOR,
+    WGPU,
+    DUMMY,
+}
+
 struct sg_pool_t{
     size : i32,
     queue_top : i32,
@@ -124,7 +136,16 @@ enum_sequential! {
         RGB9E5,
     }
 }
-const _SG_PIXELFORMAT_NUM: u32 = sg_pixel_format::len() as u32;
+const SG_PIXELFORMAT_NUM: u32 = sg_pixel_format::len() as u32;
+
+struct sg_pixelformat_info {
+    sample : bool,        // pixel format can be sampled in shaders
+    filter : bool,        // pixel format can be sampled with filtering
+    render : bool,        // pixel format can be used as render target
+    blend : bool,         // alpha-blending is supported
+    msaa : bool,          // pixel format can be used as MSAA render target
+    depth : bool,         // pixel format is a depth format
+}
 
 enum_sequential! {
     pub enum sg_compare_func {
@@ -268,6 +289,27 @@ struct sg_color_state {
     blend : sg_blend_state, 
 }
 
+struct sg_gl_attr_t {
+    vb_index : i8,        /* -1 if attr is not enabled */
+    divisor : i8,         /* -1 if not initialized */
+    stride : u8,
+    size : u8,
+    normalized : u8,
+    offset : i32,
+    //type_arr : GLenum,
+}
+
+struct sg_gl_cache_attr_t{
+    gl_attr : sg_gl_attr_t,
+    gl_vbuf : u32,
+}
+
+struct sg_gl_texture_bind_slot{
+    //target : GLenum,
+    texture : u32
+}
+
+
 const SG_GL_IMAGE_CACHE_SIZE : u32 = SG_MAX_SHADERSTAGE_IMAGES * SG_NUM_SHADER_STAGES;
 struct sg_gl_state_cache_t{
     depth : sg_depth_state,
@@ -312,6 +354,59 @@ struct sg_gl_backend_t {
     opengl32_dll : HINSTANCE,
 }
 
+struct sg_features {
+    instancing : bool,                    // hardware instancing supported
+    origin_top_left : bool,               // framebuffer and texture origin is in top left corner
+    multiple_render_targets : bool,       // offscreen render passes can have multiple render targets attached
+    msaa_render_targets : bool,           // offscreen render passes support MSAA antialiasing
+    imagetype_3d : bool,                  // creation of SG_IMAGETYPE_3D images is supported
+    imagetype_array : bool,               // creation of SG_IMAGETYPE_ARRAY images is supported
+    image_clamp_to_border : bool,         // border color and clamp-to-border UV-wrap mode is supported
+    mrt_independent_blend_state : bool,   // multiple-render-target rendering can use per-render-target blend state
+    mrt_independent_write_mask : bool,    // multiple-render-target rendering can use per-render-target color write masks
+}
+
+struct sg_limits {
+    max_image_size_2d : i32,          // max width/height of SG_IMAGETYPE_2D images
+    max_image_size_cube : i32,        // max width/height of SG_IMAGETYPE_CUBE images
+    max_image_size_3d : i32,          // max width/height/depth of SG_IMAGETYPE_3D images
+    max_image_size_array : i32,       // max width/height of SG_IMAGETYPE_ARRAY images
+    max_image_array_layers : i32,     // max number of layers in SG_IMAGETYPE_ARRAY images
+    max_vertex_attrs : i32,           // <= SG_MAX_VERTEX_ATTRIBUTES or less (on some GLES2 impls)
+    gl_max_vertex_uniform_vectors : i32,  // <= GL_MAX_VERTEX_UNIFORM_VECTORS (only on GL backends)
+    gl_max_combined_texture_image_units : i32, // <= GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS (only on GL backends)
+}
+
+struct sg_gl_context_desc {
+    force_gles2 : bool
+}
+
+struct sg_context_desc {
+    color_format : sg_pixel_format,
+    depth_format : sg_pixel_format,
+    sample_count : i32,
+    gl : sg_gl_context_desc,
+    //sg_metal_context_desc metal;
+    //sg_d3d11_context_desc d3d11;
+    //sg_wgpu_context_desc wgpu;
+}
+
+struct sg_desc {
+    buffer_pool_size : i32,
+    image_pool_size : i32,
+    shader_pool_size : i32,
+    pipeline_pool_size : i32,
+    pass_pool_size : i32,
+    context_pool_size : i32,
+    uniform_buffer_size : i32,
+    staging_buffer_size : i32,
+    sampler_cache_size : i32,
+    max_commit_listeners : i32,
+    disable_validation : bool,    // disable validation layer even in debug mode, useful for tests
+    //sg_allocator allocator;
+    //sg_logger logger; // optional log function override
+    context : sg_context_desc,
+}
 
 struct sg_state_t{
     valid : bool,
@@ -328,9 +423,9 @@ struct sg_state_t{
     backend : sg_backend,
     features : sg_features,
     limits : sg_limits,
-    formats : [sg_pixelformat_info; SG_PIXELFORMAT_NUM],
+    formats : [sg_pixelformat_info; SG_PIXELFORMAT_NUM as usize],
     gl : sg_gl_backend_t,
-    commit_listeners : sg_commit_listeners_t,
+    //commit_listeners : sg_commit_listeners_t,
 }
 
 
