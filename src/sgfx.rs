@@ -1,3 +1,337 @@
+use windows_sys::Win32::Foundation::HINSTANCE;
+
+use crate::enum_sequential;
+use crate::EnumLoadError;
+
+struct sg_buffer   { id: u32 }
+struct sg_image    { id: u32 }
+struct sg_shader   { id: u32 }
+struct sg_pipeline { id: u32 }
+struct sg_pass     { id: u32 }
+struct sg_context  { id: u32 }
+
+struct sg_color { r : f32, g : f32, b : f32, a : f32 }
+
+const SG_INVALID_SLOT_INDEX : u32 = 0;
+const SG_INVALID_ID : u32 = 0;
+const SG_NUM_SHADER_STAGES : u32 = 2;
+const SG_NUM_INFLIGHT_FRAMES : u32 = 2;
+const SG_MAX_COLOR_ATTACHMENTS : u32 = 4;
+const SG_MAX_SHADERSTAGE_BUFFERS : u32 = 8;
+const SG_MAX_SHADERSTAGE_IMAGES : u32 = 12;
+const SG_MAX_SHADERSTAGE_UBS : u32 = 4;
+const SG_MAX_UB_MEMBERS : u32 = 16;
+const SG_MAX_VERTEX_ATTRIBUTES : u32 = 16;      /* NOTE: actual max vertex attrs can be less on GLES2, see sg_limits! */
+const SG_MAX_MIPMAPS : u32 = 16;
+const SG_MAX_TEXTUREARRAY_LAYERS : u32 = 128;
+
+struct sg_pool_t{
+    size : i32,
+    queue_top : i32,
+    //uint32_t* gen_ctrs;
+    //int* free_queue;
+}
+
+struct sg_pools_t {
+    buffer_pool : sg_pool_t,
+    image_pool : sg_pool_t,
+    shader_pool : sg_pool_t,
+    pipeline_pool : sg_pool_t,
+    pass_pool : sg_pool_t,
+    context_pool : sg_pool_t,
+
+    //_sg_buffer_t* buffers;
+    //_sg_image_t* images;
+    //_sg_shader_t* shaders;
+    //_sg_pipeline_t* pipelines;
+    //_sg_pass_t* passes;
+    //_sg_context_t* contexts;
+}
+
+enum_sequential! {
+    enum sg_pixel_format {
+        DEFAULT,    /* value 0 reserved for default-init */
+        NONE,
+
+        R8,
+        R8SN,
+        R8UI,
+        R8SI,
+
+        R16,
+        R16SN,
+        R16UI,
+        R16SI,
+        R16F,
+        RG8,
+        RG8SN,
+        RG8UI,
+        RG8SI,
+
+        R32UI,
+        R32SI,
+        R32F,
+        RG16,
+        RG16SN,
+        RG16UI,
+        RG16SI,
+        RG16F,
+        RGBA8,
+        SRGB8A8,
+        RGBA8SN,
+        RGBA8UI,
+        RGBA8SI,
+        BGRA8,
+        RGB10A2,
+        RG11B10F,
+
+        RG32UI,
+        RG32SI,
+        RG32F,
+        RGBA16,
+        RGBA16SN,
+        RGBA16UI,
+        RGBA16SI,
+        RGBA16F,
+
+        RGBA32UI,
+        RGBA32SI,
+        RGBA32F,
+
+        DEPTH,
+        DEPTH_STENCIL,
+
+        BC1_RGBA,
+        BC2_RGBA,
+        BC3_RGBA,
+        BC4_R,
+        BC4_RSN,
+        BC5_RG,
+        BC5_RGSN,
+        BC6H_RGBF,
+        BC6H_RGBUF,
+        BC7_RGBA,
+        PVRTC_RGB_2BPP,
+        PVRTC_RGB_4BPP,
+        PVRTC_RGBA_2BPP,
+        PVRTC_RGBA_4BPP,
+        ETC2_RGB8,
+        ETC2_RGB8A1,
+        ETC2_RGBA8,
+        ETC2_RG11,
+        ETC2_RG11SN,
+
+        RGB9E5,
+    }
+}
+const _SG_PIXELFORMAT_NUM: u32 = sg_pixel_format::len() as u32;
+
+enum_sequential! {
+    pub enum sg_compare_func {
+        DEFAULT,    /* value 0 reserved for default-init */
+        NEVER,
+        LESS,
+        EQUAL,
+        LESS_EQUAL,
+        GREATER,
+        NOT_EQUAL,
+        GREATER_EQUAL,
+        ALWAYS,
+    }
+}
+const SG_COMPAREFUNC_NUM: u32 = sg_compare_func::len() as u32;
+
+enum_sequential! {
+    enum sg_stencil_op {
+        DEFAULT,      /* value 0 reserved for default-init */
+        KEEP,
+        ZERO,
+        REPLACE,
+        INCR_CLAMP,
+        DECR_CLAMP,
+        INVERT,
+        INCR_WRAP,
+        DECR_WRAP,
+    }
+}
+const SG_STENCILOP_NUM: u32 = sg_stencil_op::len() as u32;
+
+enum_sequential! {
+    enum sg_blend_factor {
+        DEFAULT,    /* value 0 reserved for default-init */
+        ZERO,
+        ONE,
+        SRC_COLOR,
+        ONE_MINUS_SRC_COLOR,
+        SRC_ALPHA,
+        ONE_MINUS_SRC_ALPHA,
+        DST_COLOR,
+        ONE_MINUS_DST_COLOR,
+        DST_ALPHA,
+        ONE_MINUS_DST_ALPHA,
+        SRC_ALPHA_SATURATED,
+        BLEND_COLOR,
+        ONE_MINUS_BLEND_COLOR,
+        BLEND_ALPHA,
+        ONE_MINUS_BLEND_ALPHA,
+    }
+}
+const SG_BLENDFACTOR_NUM: u32 = sg_blend_factor::len() as u32;
+
+enum_sequential! {
+    enum sg_blend_op {
+        SG_BLENDOP_DEFAULT,    /* value 0 reserved for default-init */
+        SG_BLENDOP_ADD,
+        SG_BLENDOP_SUBTRACT,
+        SG_BLENDOP_REVERSE_SUBTRACT,
+    }
+}
+const SG_BLENDOP_NUM: u32 = sg_blend_op::len() as u32;
+
+enum sg_color_mask {
+    DEFAULT = 0,    /* value 0 reserved for default-init */
+    NONE   = 0x10,   /* special value for 'all channels disabled */
+    R      = 0x1,
+    G      = 0x2,
+    RG     = 0x3,
+    B      = 0x4,
+    RB     = 0x5,
+    GB     = 0x6,
+    RGB    = 0x7,
+    A      = 0x8,
+    RA     = 0x9,
+    GA     = 0xA,
+    RGA    = 0xB,
+    BA     = 0xC,
+    RBA    = 0xD,
+    GBA    = 0xE,
+    RGBA   = 0xF,
+}
+
+enum_sequential! {
+    enum sg_cull_mode {
+        DEFAULT,   /* value 0 reserved for default-init */
+        NONE,
+        FRONT,
+        BACK,
+    }
+}
+const SG_CULLMODE_NUM: u32 = sg_cull_mode::len() as u32;
+
+enum_sequential! {
+    enum sg_face_winding {
+        DEFAULT,    /* value 0 reserved for default-init */
+        CCW,
+        CW,
+    }
+}
+const SG_FACEWINDING_NUM: u32 = sg_face_winding::len() as u32;
+
+struct sg_stencil_face_state {
+    compare : sg_compare_func,
+    fail_op : sg_stencil_op,
+    depth_fail_op : sg_stencil_op,
+    pass_op : sg_stencil_op,
+}
+
+struct sg_stencil_state {
+    enabled : bool, 
+    front : sg_stencil_face_state,
+    back : sg_stencil_face_state,
+    read_mask : u8,
+    write_mask : u8,
+    ref_val : u8,
+}
+
+struct sg_depth_state {
+    pixel_format : sg_pixel_format,
+    compare : sg_compare_func,
+    write_enabled : bool,
+    bias : f32,
+    bias_slope_scale : f32,
+    bias_clamp : f32,
+}
+
+struct sg_blend_state {
+    enabled : bool,
+    src_factor_rgb : sg_blend_factor,
+    dst_factor_rgb : sg_blend_factor,
+    op_rgb : sg_blend_op,
+    src_factor_alpha : sg_blend_factor, 
+    dst_factor_alpha : sg_blend_factor,
+    op_alpha : sg_blend_op,
+}
+
+struct sg_color_state {
+    pixel_format : sg_pixel_format,
+    write_mask : sg_color_mask,
+    blend : sg_blend_state, 
+}
+
+const SG_GL_IMAGE_CACHE_SIZE : u32 = SG_MAX_SHADERSTAGE_IMAGES * SG_NUM_SHADER_STAGES;
+struct sg_gl_state_cache_t{
+    depth : sg_depth_state,
+    stencil : sg_stencil_state,
+    blend : sg_blend_state,
+    color_write_mask : [sg_color_mask; SG_MAX_COLOR_ATTACHMENTS as usize],
+    cull_mode : sg_cull_mode,
+    face_winding : sg_face_winding,
+    polygon_offset_enabled : bool,
+    sample_count : i32,
+    blend_color : sg_color,
+    alpha_to_coverage_enabled : bool,
+    attrs : [sg_gl_cache_attr_t; SG_MAX_VERTEX_ATTRIBUTES as usize],
+    vertex_buffer : u32,
+    index_buffer : u32,
+    stored_vertex_buffer : u32,
+    stored_index_buffer : u32,
+    prog : u32,
+    textures : [sg_gl_texture_bind_slot; SG_GL_IMAGE_CACHE_SIZE as usize],
+    stored_texture : sg_gl_texture_bind_slot,
+    cur_ib_offset : i32,
+    //GLenum cur_primitive_type;
+    //GLenum cur_index_type;
+    //GLenum cur_active_texture;
+    //_sg_pipeline_t* cur_pipeline;
+    cur_pipeline_id : sg_pipeline,
+}
+
+struct sg_gl_backend_t {
+    valid : bool,
+    gles2 : bool, 
+    in_pass : bool,
+    cur_pass_width : i32,
+    cur_pass_height : i32,
+    //_sg_context_t* cur_context;
+    //_sg_pass_t* cur_pass;
+    cur_pass_id : sg_pass,
+    cache : sg_gl_state_cache_t,
+    ext_anisotropic : bool,
+    max_anisotropy : i32,
+
+    opengl32_dll : HINSTANCE,
+}
+
+
+struct sg_state_t{
+    valid : bool,
+    desc: sg_desc,       // original desc with default values patched in
+    frame_index : u32,
+    active_context : sg_context,
+    cur_pass : sg_pass,
+    cur_pipeline : sg_pipeline,
+    pass_valid: bool,
+    bindings_valid : bool, 
+    next_draw_valid : bool,
+    //sg_log_item validate_error;
+    pools : sg_pools_t,
+    backend : sg_backend,
+    features : sg_features,
+    limits : sg_limits,
+    formats : [sg_pixelformat_info; SG_PIXELFORMAT_NUM],
+    gl : sg_gl_backend_t,
+    commit_listeners : sg_commit_listeners_t,
+}
 
 
 pub fn sg_setup(/*const sg_desc* desc*/) {
