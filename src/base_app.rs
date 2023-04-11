@@ -4,6 +4,8 @@ use crate::timer::Timer;
 use crate::vector::*;
 
 pub struct BaseData {
+    pub sg : sg_state_t,
+
     pub app_time: f32,
     pub frame_time: f32,
 
@@ -43,6 +45,8 @@ pub trait AppI {
 impl BaseData {
     fn new() -> BaseData {
         BaseData {
+            sg : sg_state_t::default(),
+
             app_time: 0.0,
             frame_time: 0.33,
 
@@ -132,9 +136,13 @@ where
         self.app.init(&mut self.base, data);
 
         self.base.start_ticks = self.base.timer.now(); // DT_TODO: Move this to start and report startup time?
-        let desc = sg_desc::new();
-        let mut sg = sg_state_t::new();
-        sg_setup(&mut sg, &desc);
+        let desc = sg_desc {
+            //color_format = (sg_pixel_format) data.color_format();
+            //depth_format = (sg_pixel_format) data.depth_format();
+            //sample_count = data.sample_count(),
+            ..sg_desc::default()
+        };
+        sg_setup(&mut self.base.sg, &desc);
 
         //DT_TODO: Load UI assets
         self.app.load(&mut self.base, data);

@@ -1,27 +1,44 @@
+// DT_TODO: Temp
+#![allow(non_camel_case_types)] 
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 use windows_sys::Win32::Foundation::HINSTANCE;
 
 use crate::enum_sequential;
 use crate::EnumLoadError;
 
+#[derive(Default)]
 struct sg_buffer {
     id: u32,
 }
+
+#[derive(Default)]
 struct sg_image {
     id: u32,
 }
+
+#[derive(Default)]
 struct sg_shader {
     id: u32,
 }
+
+#[derive(Default)]
 struct sg_pipeline {
     id: u32,
 }
+
+#[derive(Default)]
 struct sg_pass {
     id: u32,
 }
+
+#[derive(Default)]
 struct sg_context {
     id: u32,
 }
 
+#[derive(Default)]
 struct sg_color {
     r: f32,
     g: f32,
@@ -42,7 +59,24 @@ const SG_MAX_VERTEX_ATTRIBUTES: u32 = 16; /* NOTE: actual max vertex attrs can b
 const SG_MAX_MIPMAPS: u32 = 16;
 const SG_MAX_TEXTUREARRAY_LAYERS: u32 = 128;
 
+const SG_STRING_SIZE: u32 = 16;
+const SG_SLOT_SHIFT: u32 = 16;
+const SG_SLOT_MASK: u32 = (1 << SG_SLOT_SHIFT) - 1;
+const SG_MAX_POOL_SIZE: u32 = 1 << SG_SLOT_SHIFT;
+const SG_DEFAULT_BUFFER_POOL_SIZE: u32 = 128;
+const SG_DEFAULT_IMAGE_POOL_SIZE: u32 = 128;
+const SG_DEFAULT_SHADER_POOL_SIZE: u32 = 32;
+const SG_DEFAULT_PIPELINE_POOL_SIZE: u32 = 64;
+const SG_DEFAULT_PASS_POOL_SIZE: u32 = 16;
+const SG_DEFAULT_CONTEXT_POOL_SIZE: u32 = 16;
+const SG_DEFAULT_SAMPLER_CACHE_CAPACITY: u32 = 64;
+const SG_DEFAULT_UB_SIZE: u32 = 4 * 1024 * 1024;
+const SG_DEFAULT_STAGING_SIZE: u32 = 8 * 1024 * 1024;
+const SG_DEFAULT_MAX_COMMIT_LISTENERS: u32 = 1024;
+
+#[derive(Default)]
 enum sg_backend {
+    #[default]
     GLCORE33,
     GLES2,
     GLES3,
@@ -54,13 +88,32 @@ enum sg_backend {
     DUMMY,
 }
 
-struct sg_pool_t {
-    size: i32,
-    queue_top: i32,
-    //uint32_t* gen_ctrs;
-    //int* free_queue;
+#[derive(Default, Clone, Copy)]
+enum sg_resource_state {
+    #[default]
+    INITIAL,
+    ALLOC,
+    VALID,
+    FAILED,
+    INVALID,
 }
 
+#[derive(Default, Clone, Copy)]
+struct sg_slot_t {
+    id : u32,
+    ctx_id : u32,
+    state : sg_resource_state, 
+}
+
+#[derive(Default)]
+struct sg_pool_t {
+    size: u32,
+    queue_top: u32,
+    gen_ctrs : Vec<u32>,
+    free_queue : Vec<u32>,
+}
+
+#[derive(Default)]
 struct sg_pools_t {
     buffer_pool: sg_pool_t,
     image_pool: sg_pool_t,
@@ -68,16 +121,19 @@ struct sg_pools_t {
     pipeline_pool: sg_pool_t,
     pass_pool: sg_pool_t,
     context_pool: sg_pool_t,
-    //_sg_buffer_t* buffers;
-    //_sg_image_t* images;
-    //_sg_shader_t* shaders;
-    //_sg_pipeline_t* pipelines;
-    //_sg_pass_t* passes;
-    //_sg_context_t* contexts;
+
+    buffers : Vec<sg_buffer_t>,
+    images : Vec<sg_image_t>,
+    shaders : Vec<sg_shader_t>,
+    pipelines : Vec<sg_pipeline_t>,
+    passes : Vec<sg_pass_t>,
+    contexts : Vec<sg_context_t>,
 }
 
 enum_sequential! {
-    enum sg_pixel_format {
+    #[derive(Default, Clone, Copy)]    
+    pub enum sg_pixel_format {
+        #[default]
         DEFAULT,    /* value 0 reserved for default-init */
         NONE,
 
@@ -154,6 +210,7 @@ enum_sequential! {
 }
 const SG_PIXELFORMAT_NUM: u32 = sg_pixel_format::len() as u32;
 
+#[derive(Default, Clone, Copy)]
 struct sg_pixelformat_info {
     sample: bool, // pixel format can be sampled in shaders
     filter: bool, // pixel format can be sampled with filtering
@@ -164,7 +221,10 @@ struct sg_pixelformat_info {
 }
 
 enum_sequential! {
+
+    #[derive(Default, Clone, Copy)]
     pub enum sg_compare_func {
+        #[default]        
         DEFAULT,    /* value 0 reserved for default-init */
         NEVER,
         LESS,
@@ -179,7 +239,9 @@ enum_sequential! {
 const SG_COMPAREFUNC_NUM: u32 = sg_compare_func::len() as u32;
 
 enum_sequential! {
+    #[derive(Default)]    
     enum sg_stencil_op {
+        #[default]
         DEFAULT,      /* value 0 reserved for default-init */
         KEEP,
         ZERO,
@@ -194,7 +256,9 @@ enum_sequential! {
 const SG_STENCILOP_NUM: u32 = sg_stencil_op::len() as u32;
 
 enum_sequential! {
+    #[derive(Default)]
     enum sg_blend_factor {
+        #[default]
         DEFAULT,    /* value 0 reserved for default-init */
         ZERO,
         ONE,
@@ -216,7 +280,9 @@ enum_sequential! {
 const SG_BLENDFACTOR_NUM: u32 = sg_blend_factor::len() as u32;
 
 enum_sequential! {
+    #[derive(Default)]
     enum sg_blend_op {
+        #[default]
         SG_BLENDOP_DEFAULT,    /* value 0 reserved for default-init */
         SG_BLENDOP_ADD,
         SG_BLENDOP_SUBTRACT,
@@ -225,7 +291,20 @@ enum_sequential! {
 }
 const SG_BLENDOP_NUM: u32 = sg_blend_op::len() as u32;
 
+enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
+    enum sg_buffer_type {
+        #[default]
+        DEFAULT,         /* value 0 reserved for default-init */
+        VERTEXBUFFER,
+        INDEXBUFFER,
+    }
+}
+const SG_BUFFERTYPE_NUM: u32 = sg_buffer_type::len() as u32;
+
+#[derive(Default, Clone, Copy)]
 enum sg_color_mask {
+    #[default]
     DEFAULT = 0, /* value 0 reserved for default-init */
     NONE = 0x10, /* special value for 'all channels disabled */
     R = 0x1,
@@ -246,7 +325,9 @@ enum sg_color_mask {
 }
 
 enum_sequential! {
+    #[derive(Default)]    
     enum sg_cull_mode {
+        #[default]
         DEFAULT,   /* value 0 reserved for default-init */
         NONE,
         FRONT,
@@ -256,7 +337,9 @@ enum_sequential! {
 const SG_CULLMODE_NUM: u32 = sg_cull_mode::len() as u32;
 
 enum_sequential! {
+    #[derive(Default)]    
     enum sg_face_winding {
+        #[default]
         DEFAULT,    /* value 0 reserved for default-init */
         CCW,
         CW,
@@ -264,6 +347,150 @@ enum_sequential! {
 }
 const SG_FACEWINDING_NUM: u32 = sg_face_winding::len() as u32;
 
+enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
+    enum sg_usage {
+        #[default]
+        DEFAULT,      /* value 0 reserved for default-init */
+        IMMUTABLE,
+        DYNAMIC,
+        STREAM,
+    }
+}
+const SG_USAGE_NUM: u32 = sg_usage::len() as u32;
+
+enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
+    enum sg_image_type {
+        #[default]
+        IMAGE_DEFAULT,  /* value 0 reserved for default-init */
+        IMAGE_2D,
+        IMAGE_CUBE,
+        IMAGE_3D,
+        IMAGE_ARRAY,
+    }
+}
+const SG_IMAGETYPE_NUM: u32 = sg_image_type::len() as u32;
+
+enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
+    enum sg_filter {
+        #[default]
+        DEFAULT, /* value 0 reserved for default-init */
+        NEAREST,
+        LINEAR,
+        NEAREST_MIPMAP_NEAREST,
+        NEAREST_MIPMAP_LINEAR,
+        LINEAR_MIPMAP_NEAREST,
+        LINEAR_MIPMAP_LINEAR,
+    }
+}
+const SG_FILTER_NUM: u32 = sg_filter::len() as u32;
+
+enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
+    enum sg_wrap {
+        #[default]
+        DEFAULT,   /* value 0 reserved for default-init */
+        REPEAT,
+        CLAMP_TO_EDGE,
+        CLAMP_TO_BORDER,
+        MIRRORED_REPEAT,
+    }
+}
+const SG_WRAP_NUM: u32 = sg_wrap::len() as u32;
+
+enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
+    enum sg_border_color {
+        #[default]
+        DEFAULT,    /* value 0 reserved for default-init */
+        TRANSPARENT_BLACK,
+        OPAQUE_BLACK,
+        OPAQUE_WHITE,
+    }
+}
+const SG_BORDERCOLOR_NUM: u32 = sg_border_color::len() as u32;
+
+enum_sequential! {
+    enum sg_uniform_type {
+        INVALID,
+        FLOAT,
+        FLOAT2,
+        FLOAT3,
+        FLOAT4,
+        INT,
+        INT2,
+        INT3,
+        INT4,
+        MAT4,
+    }
+}
+const SG_UNIFORMTYPE_NUM: u32 = sg_uniform_type::len() as u32;
+
+enum_sequential! {
+    enum sg_vertex_step {
+        DEFAULT,     /* value 0 reserved for default-init */
+        PER_VERTEX,
+        PER_INSTANCE,
+    }
+}
+const SG_VERTEXSTEP_NUM: u32 = sg_vertex_step::len() as u32;
+
+enum sg_sampler_type {
+    DEFAULT,  /* value 0 reserved for default-init */
+    FLOAT,
+    SINT,
+    UINT,
+}
+
+enum_sequential! {
+    enum sg_primitive_type {
+        DEFAULT,  /* value 0 reserved for default-init */
+        POINTS,
+        LINES,
+        LINE_STRIP,
+        TRIANGLES,
+        TRIANGLE_STRIP,
+    }
+}
+const SG_PRIMITIVETYPE_NUM: u32 = sg_primitive_type::len() as u32;
+
+enum_sequential! {
+    enum sg_vertex_format {
+        INVALID,
+        FLOAT,
+        FLOAT2,
+        FLOAT3,
+        FLOAT4,
+        BYTE4,
+        BYTE4N,
+        UBYTE4,
+        UBYTE4N,
+        SHORT2,
+        SHORT2N,
+        USHORT2N,
+        SHORT4,
+        SHORT4N,
+        USHORT4N,
+        UINT10_N2,
+        HALF2,
+        HALF4,
+    }
+}
+const SG_VERTEXFORMAT_NUM: u32 = sg_vertex_format::len() as u32;
+
+enum_sequential! {
+    enum sg_index_type {
+        DEFAULT,   /* value 0 reserved for default-init */
+        NONE,
+        UINT16,
+        UINT32,
+    }
+}
+const SG_INDEXTYPE_NUM: u32 = sg_index_type::len() as u32;
+
+#[derive(Default)]
 struct sg_stencil_face_state {
     compare: sg_compare_func,
     fail_op: sg_stencil_op,
@@ -271,6 +498,7 @@ struct sg_stencil_face_state {
     pass_op: sg_stencil_op,
 }
 
+#[derive(Default)]
 struct sg_stencil_state {
     enabled: bool,
     front: sg_stencil_face_state,
@@ -280,6 +508,7 @@ struct sg_stencil_state {
     ref_val: u8,
 }
 
+#[derive(Default)]
 struct sg_depth_state {
     pixel_format: sg_pixel_format,
     compare: sg_compare_func,
@@ -289,6 +518,7 @@ struct sg_depth_state {
     bias_clamp: f32,
 }
 
+#[derive(Default)]
 struct sg_blend_state {
     enabled: bool,
     src_factor_rgb: sg_blend_factor,
@@ -305,6 +535,9 @@ struct sg_color_state {
     blend: sg_blend_state,
 }
 
+type GLenum = u32;
+
+#[derive(Default)]
 struct sg_gl_attr_t {
     vb_index: i8, /* -1 if attr is not enabled */
     divisor: i8,  /* -1 if not initialized */
@@ -312,20 +545,252 @@ struct sg_gl_attr_t {
     size: u8,
     normalized: u8,
     offset: i32,
-    //type_arr : GLenum,
+    type_arr : GLenum,
 }
 
+#[derive(Default)]
 struct sg_gl_cache_attr_t {
     gl_attr: sg_gl_attr_t,
     gl_vbuf: u32,
 }
 
+#[derive(Default)]
 struct sg_gl_texture_bind_slot {
-    //target : GLenum,
+    target : GLenum,
     texture: u32,
 }
 
+struct sg_pass_attachment_common_t {
+    image_id : sg_image, 
+    mip_level : i32,
+    slice : i32,
+}
+
+#[derive(Default, Clone, Copy)]
+struct sg_buffer_common_t {
+    size : i32,
+    append_pos : i32,
+    append_overflow : bool,
+    update_frame_index : u32,
+    append_frame_index : u32,
+    num_slots : i32,
+    active_slot : i32,
+    type_val : sg_buffer_type,
+    usage : sg_usage, 
+}
+
+#[derive(Default, Clone, Copy)]
+struct sg_image_common_t {
+    upd_frame_index : u32,
+    num_slots : i32,
+    active_slot : i32,
+    type_val : sg_image_type,
+    render_target : bool,
+    width : i32,
+    height : i32,
+    num_slices : i32,
+    num_mipmaps : i32,
+    usage : sg_usage,
+    pixel_format : sg_pixel_format,
+    sample_count : i32,
+    min_filter : sg_filter,
+    mag_filter : sg_filter,
+    wrap_u : sg_wrap, 
+    wrap_v : sg_wrap,
+    wrap_w : sg_wrap,
+    border_color : sg_border_color,
+    max_anisotropy : u32,
+    min_lod : f32,
+    max_lod : f32,
+}
+
+#[derive(Default, Clone, Copy)]
+struct GLBuffer_Data{
+    buf : [u32; SG_NUM_INFLIGHT_FRAMES as usize],
+    ext_buffers : bool,   /* if true, external buffers were injected with sg_buffer_desc.gl_buffers */
+}
+
+#[derive(Default, Clone, Copy)]
+struct sg_gl_buffer_t {
+    slot : sg_slot_t,
+    cmn : sg_buffer_common_t,
+    gl : GLBuffer_Data,
+}
+
+type sg_buffer_t = sg_gl_buffer_t;
+
+#[derive(Default, Clone, Copy)]
+struct GLImage_Data{
+    target : GLenum,
+    depth_render_buffer : u32,
+    msaa_render_buffer : u32,
+    tex : [u32; SG_NUM_INFLIGHT_FRAMES as usize],
+    ext_textures : bool,  /* if true, external textures were injected with sg_image_desc.gl_textures */
+}
+
+#[derive(Default, Clone, Copy)]
+struct sg_gl_image_t {
+    slot : sg_slot_t,
+    cmn : sg_image_common_t,
+    gl : GLImage_Data,
+}
+type sg_image_t = sg_gl_image_t;
+
+struct sg_gl_uniform_t {
+    gl_loc : i32,
+    type_val : sg_uniform_type,
+    count : u16,
+    offset : u16,
+}
+
+struct sg_gl_uniform_block_t {
+    num_uniforms : i32,
+    uniforms : [sg_gl_uniform_t; SG_MAX_UB_MEMBERS as usize],
+}
+
+struct sg_gl_shader_image_t {
+    gl_tex_slot : i32,
+}
+
+struct sg_str_t {
+    buf : [u8; SG_STRING_SIZE as usize],
+}
+
+struct sg_gl_shader_attr_t {
+    name : sg_str_t,
+}
+
+struct sg_shader_uniform_block_t {
+    size : usize, 
+}
+
+struct sg_shader_image_t {
+    image_type : sg_image_type, 
+    sampler_type : sg_sampler_type,
+}
+
+struct sg_shader_stage_t{
+    num_uniform_blocks : i32,
+    num_images : i32,
+    uniform_blocks : [sg_shader_uniform_block_t; SG_MAX_SHADERSTAGE_UBS as usize],
+    images : [sg_shader_image_t; SG_MAX_SHADERSTAGE_IMAGES as usize],
+}
+
+struct sg_buffer_layout_desc {
+    stride : i32,
+    step_func : sg_vertex_step,
+    step_rate : i32,
+}
+
+struct sg_vertex_attr_desc {
+    buffer_index : i32,
+    offset : i32,
+    format : sg_vertex_format,
+}
+
+struct sg_layout_desc {
+    buffers : [sg_buffer_layout_desc; SG_MAX_SHADERSTAGE_BUFFERS as usize],
+    attrs : [sg_vertex_attr_desc; SG_MAX_VERTEX_ATTRIBUTES as usize],
+}
+
+struct sg_pipeline_common_t {
+    vertex_layout_valid : [bool; SG_MAX_SHADERSTAGE_BUFFERS as usize],
+    use_instanced_draw : bool,
+    shader_id : sg_shader,
+    layout : sg_layout_desc,
+    depth : sg_depth_state,
+    stencil : sg_stencil_state,
+    color_count : i32,
+    colors : [sg_color_state; SG_MAX_COLOR_ATTACHMENTS as usize],
+    primitive_type : sg_primitive_type, 
+    index_type : sg_index_type,
+    cull_mode : sg_cull_mode,
+    face_winding : sg_face_winding,
+    sample_count : i32,
+    blend_color : sg_color,
+    alpha_to_coverage_enabled : bool, 
+}
+
+struct sg_shader_common_t {
+    stage : [sg_shader_stage_t; SG_NUM_SHADER_STAGES as usize],
+}
+
+struct sg_gl_shader_stage_t {
+    uniform_blocks : [sg_gl_uniform_block_t; SG_MAX_SHADERSTAGE_UBS as usize],
+    images : [sg_gl_shader_image_t; SG_MAX_SHADERSTAGE_IMAGES as usize],
+} 
+
+struct GLShader_Data{
+    prog : u32,
+    attrs : [sg_gl_shader_attr_t; SG_MAX_VERTEX_ATTRIBUTES as usize],
+    stage : [sg_gl_shader_stage_t; SG_NUM_SHADER_STAGES as usize],
+}
+
+struct sg_gl_shader_t{
+    slot : sg_slot_t,
+    cmn : sg_shader_common_t, 
+    gl : GLShader_Data,
+}
+type sg_shader_t = sg_gl_shader_t;
+
+struct GLPipeline_Data{
+    attrs : [sg_gl_attr_t; SG_MAX_VERTEX_ATTRIBUTES as usize],
+    depth : sg_depth_state, 
+    stencil : sg_stencil_state,
+    primitive_type : sg_primitive_type,
+    blend : sg_blend_state, 
+    color_write_mask : [sg_color_mask; SG_MAX_COLOR_ATTACHMENTS as usize],
+    cull_mode : sg_cull_mode, 
+    face_winding : sg_face_winding, 
+    sample_count : i32,
+    alpha_to_coverage_enabled : bool,
+}
+
+struct sg_gl_pipeline_t {
+    slot : sg_slot_t,
+    cmn : sg_pipeline_common_t, 
+    //_sg_shader_t* shader;
+    gl : GLPipeline_Data,
+}
+type sg_pipeline_t = sg_gl_pipeline_t;
+
+struct sg_gl_attachment_t {
+    //_sg_image_t* image;
+    gl_msaa_resolve_buffer : u32,
+}
+
+struct sg_pass_common_t {
+    num_color_atts : i32,
+    color_atts : [sg_pass_attachment_common_t; SG_MAX_COLOR_ATTACHMENTS as usize],
+    ds_att : sg_pass_attachment_common_t, 
+} 
+
+struct GLPass_Data {
+    fb : u32,
+    color_atts : [sg_gl_attachment_t; SG_MAX_COLOR_ATTACHMENTS as usize],
+    ds_att : sg_gl_attachment_t,
+}
+
+struct sg_gl_pass_t {
+    slot : sg_slot_t, 
+    cmn : sg_pass_common_t,
+    gl : GLPass_Data,
+}
+type sg_pass_t = sg_gl_pass_t;
+type sg_pass_attachment_t = sg_pass_attachment_common_t;
+
+struct sg_gl_context_t {
+    slot : sg_slot_t, 
+    //#if !defined(SOKOL_GLES2)
+    //GLuint vao;
+    //#endif
+    default_framebuffer : u32,
+}
+type sg_context_t = sg_gl_context_t;
+
 const SG_GL_IMAGE_CACHE_SIZE: u32 = SG_MAX_SHADERSTAGE_IMAGES * SG_NUM_SHADER_STAGES;
+
+#[derive(Default)]
 struct sg_gl_state_cache_t {
     depth: sg_depth_state,
     stencil: sg_stencil_state,
@@ -346,13 +811,14 @@ struct sg_gl_state_cache_t {
     textures: [sg_gl_texture_bind_slot; SG_GL_IMAGE_CACHE_SIZE as usize],
     stored_texture: sg_gl_texture_bind_slot,
     cur_ib_offset: i32,
-    //GLenum cur_primitive_type;
-    //GLenum cur_index_type;
-    //GLenum cur_active_texture;
+    cur_primitive_type : GLenum,
+    cur_index_type : GLenum,
+    cur_active_texture : GLenum,
     //_sg_pipeline_t* cur_pipeline;
     cur_pipeline_id: sg_pipeline,
 }
 
+#[derive(Default)]
 struct sg_gl_backend_t {
     valid: bool,
     gles2: bool,
@@ -369,6 +835,7 @@ struct sg_gl_backend_t {
     opengl32_dll: HINSTANCE,
 }
 
+#[derive(Default)]
 struct sg_features {
     instancing: bool,                  // hardware instancing supported
     origin_top_left: bool,             // framebuffer and texture origin is in top left corner
@@ -381,6 +848,8 @@ struct sg_features {
     mrt_independent_write_mask: bool, // multiple-render-target rendering can use per-render-target color write masks
 }
 
+
+#[derive(Default)]
 struct sg_limits {
     max_image_size_2d: i32,      // max width/height of SG_IMAGETYPE_2D images
     max_image_size_cube: i32,    // max width/height of SG_IMAGETYPE_CUBE images
@@ -392,38 +861,65 @@ struct sg_limits {
     gl_max_combined_texture_image_units: i32, // <= GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS (only on GL backends)
 }
 
-struct sg_gl_context_desc {
-    force_gles2: bool,
+#[derive(Clone, Copy)]
+pub struct sg_gl_context_desc {
+    pub force_gles2: bool,
 }
 
-struct sg_context_desc {
-    color_format: sg_pixel_format,
-    depth_format: sg_pixel_format,
-    sample_count: i32,
-    gl: sg_gl_context_desc,
+#[derive(Clone, Copy)]
+pub struct sg_context_desc {
+    pub color_format: sg_pixel_format,
+    pub depth_format: sg_pixel_format,
+    pub sample_count: i32,
+    pub gl: sg_gl_context_desc,
     //sg_metal_context_desc metal;
     //sg_d3d11_context_desc d3d11;
     //sg_wgpu_context_desc wgpu;
 }
 
-struct sg_desc {
-    buffer_pool_size: i32,
-    image_pool_size: i32,
-    shader_pool_size: i32,
-    pipeline_pool_size: i32,
-    pass_pool_size: i32,
-    context_pool_size: i32,
-    uniform_buffer_size: i32,
-    staging_buffer_size: i32,
-    sampler_cache_size: i32,
-    max_commit_listeners: i32,
-    disable_validation: bool, // disable validation layer even in debug mode, useful for tests
+#[derive(Clone, Copy)]
+pub struct sg_desc {
+    pub buffer_pool_size: u32,
+    pub image_pool_size: u32,
+    pub shader_pool_size: u32,
+    pub pipeline_pool_size: u32,
+    pub pass_pool_size: u32,
+    pub context_pool_size: u32,
+    pub uniform_buffer_size: u32,
+    pub staging_buffer_size: u32,
+    pub sampler_cache_size: u32,
+    pub max_commit_listeners: u32,
+    pub disable_validation: bool, // disable validation layer even in debug mode, useful for tests
     //sg_allocator allocator;
     //sg_logger logger; // optional log function override
-    context: sg_context_desc,
+    pub context: sg_context_desc,
 }
 
-struct sg_state_t {
+impl Default for sg_desc  {
+    fn default() -> Self {
+        sg_desc {
+            buffer_pool_size: SG_DEFAULT_BUFFER_POOL_SIZE,
+            image_pool_size: SG_DEFAULT_IMAGE_POOL_SIZE,
+            shader_pool_size: SG_DEFAULT_SHADER_POOL_SIZE,
+            pipeline_pool_size: SG_DEFAULT_PIPELINE_POOL_SIZE,
+            pass_pool_size: SG_DEFAULT_PASS_POOL_SIZE,
+            context_pool_size: SG_DEFAULT_CONTEXT_POOL_SIZE,
+            uniform_buffer_size: SG_DEFAULT_UB_SIZE,
+            staging_buffer_size: SG_DEFAULT_STAGING_SIZE,
+            sampler_cache_size: SG_DEFAULT_SAMPLER_CACHE_CAPACITY,
+            max_commit_listeners: SG_DEFAULT_MAX_COMMIT_LISTENERS,
+            disable_validation: false,
+            context: sg_context_desc {
+                color_format: sg_pixel_format::RGBA8, // DT_TODO: See sg_desc_defaults - different targets have different defaults
+                depth_format: sg_pixel_format::DEPTH_STENCIL,
+                sample_count: 1,
+                gl: sg_gl_context_desc { force_gles2: false },
+            },
+        }
+    }
+}
+
+pub struct sg_state_t {
     valid: bool,
     desc: sg_desc, // original desc with default values patched in
     frame_index: u32,
@@ -442,21 +938,88 @@ struct sg_state_t {
     gl: sg_gl_backend_t,
     //commit_listeners : sg_commit_listeners_t,
 }
+impl Default for sg_state_t {
+    fn default() -> Self {
+        sg_state_t {
+            valid: false,
+            desc: sg_desc::default(),
+            frame_index: 0,
+            active_context: sg_context::default(),
+            cur_pass: sg_pass::default(),
+            cur_pipeline: sg_pipeline::default(),
+            pass_valid: false,
+            bindings_valid: false,
+            next_draw_valid: false,
+            pools: sg_pools_t::default(),
+            backend: sg_backend::default(),
+            features: sg_features::default(),
+            limits: sg_limits::default(),
+            formats: [sg_pixelformat_info::default(); SG_PIXELFORMAT_NUM as usize],
+            gl: sg_gl_backend_t::default(),
+        }
+    }
+}
 
-pub fn sg_setup(/*const sg_desc* desc*/) {
-    /*
-        SOKOL_ASSERT(desc);
-        SOKOL_ASSERT((desc->_start_canary == 0) && (desc->_end_canary == 0));
-        SOKOL_ASSERT((desc->allocator.alloc && desc->allocator.free) || (!desc->allocator.alloc && !desc->allocator.free));
-        _SG_CLEAR_ARC_STRUCT(_sg_state_t, _sg);
-        _sg.desc = _sg_desc_defaults(desc);
-        _sg_setup_pools(&_sg.pools, &_sg.desc);
-        _sg_setup_commit_listeners(&_sg.desc);
-        _sg.frame_index = 1;
-        _sg_setup_backend(&_sg.desc);
-        _sg.valid = true;
-        sg_setup_context();
-    */
+
+ fn sg_init_pool( pool: &mut sg_pool_t, num : u32) {
+    debug_assert!(num >= 1);
+    // slot 0 is reserved for the 'invalid id', so bump the pool size by 1
+    pool.size = num + 1;
+    pool.queue_top = 0;
+    // generation counters indexable by pool slot index, slot 0 is reserved
+    pool.gen_ctrs.resize(pool.size as usize, 0);
+
+    // it's not a bug to only reserve 'num' here
+    pool.free_queue.resize(num as usize, 0);
+
+    // DT_TODO: Test this
+    // never allocate the zero-th pool item since the invalid id is 0
+    for i in (1..pool.size).rev() {
+        pool.free_queue[pool.queue_top as usize] = i;
+        pool.queue_top += 1;
+    }
+}
+
+fn sg_setup_pools(p : &mut sg_pools_t, desc : &sg_desc) {
+
+    // note: the pools here will have an additional item, since slot 0 is reserved
+    debug_assert!((desc.buffer_pool_size > 0) && (desc.buffer_pool_size < SG_MAX_POOL_SIZE));
+    sg_init_pool(&mut p.buffer_pool, desc.buffer_pool_size);
+    p.buffers.resize(p.buffer_pool.size as usize, sg_buffer_t::default());
+
+    debug_assert!((desc.image_pool_size > 0) && (desc.image_pool_size < SG_MAX_POOL_SIZE));
+    sg_init_pool(&mut p.image_pool, desc.image_pool_size);
+    p.images.resize(p.image_pool.size as usize, sg_image_t::default());
+
+    debug_assert!((desc.shader_pool_size > 0) && (desc.shader_pool_size < SG_MAX_POOL_SIZE));
+    sg_init_pool(&mut p.shader_pool, desc.shader_pool_size);
+    //size_t shader_pool_byte_size = sizeof(_sg_shader_t) * (size_t)p->shader_pool.size;
+    //p->shaders = (_sg_shader_t*) _sg_malloc_clear(shader_pool_byte_size);
+
+    debug_assert!((desc.pipeline_pool_size > 0) && (desc.pipeline_pool_size < SG_MAX_POOL_SIZE));
+    sg_init_pool(&mut p.pipeline_pool, desc.pipeline_pool_size);
+    //size_t pipeline_pool_byte_size = sizeof(_sg_pipeline_t) * (size_t)p->pipeline_pool.size;
+    //p->pipelines = (_sg_pipeline_t*) _sg_malloc_clear(pipeline_pool_byte_size);
+
+    debug_assert!((desc.pass_pool_size > 0) && (desc.pass_pool_size < SG_MAX_POOL_SIZE));
+    sg_init_pool(&mut p.pass_pool, desc.pass_pool_size);
+    //size_t pass_pool_byte_size = sizeof(_sg_pass_t) * (size_t)p->pass_pool.size;
+    //p->passes = (_sg_pass_t*) _sg_malloc_clear(pass_pool_byte_size);
+
+    debug_assert!((desc.context_pool_size > 0) && (desc.context_pool_size < SG_MAX_POOL_SIZE));
+    sg_init_pool(&mut p.context_pool, desc.context_pool_size);
+    //size_t context_pool_byte_size = sizeof(_sg_context_t) * (size_t)p->context_pool.size;
+    //p->contexts = (_sg_context_t*) _sg_malloc_clear(context_pool_byte_size);
+}
+
+pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
+    sg.desc = *desc;
+    sg_setup_pools(&mut sg.pools, &sg.desc);
+    //_sg_setup_commit_listeners(&_sg.desc);
+    sg.frame_index = 1;
+    //_sg_setup_backend(&_sg.desc);
+    sg.valid = true;
+    //sg_setup_context();
 }
 
 pub fn sg_shutdown() {}
