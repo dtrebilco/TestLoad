@@ -132,7 +132,9 @@ where
         self.app.init(&mut self.base, data);
 
         self.base.start_ticks = self.base.timer.now(); // DT_TODO: Move this to start and report startup time?
-        sg_setup();
+        let desc = sg_desc::new();
+        let mut sg = sg_state_t::new();
+        sg_setup(&mut sg, &desc);
 
         //DT_TODO: Load UI assets
         self.app.load(&mut self.base, data);
