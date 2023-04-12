@@ -8,37 +8,37 @@ use windows_sys::Win32::Foundation::HINSTANCE;
 use crate::enum_sequential;
 use crate::EnumLoadError;
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_buffer {
     id: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_image {
     id: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_shader {
     id: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_pipeline {
     id: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_pass {
     id: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_context {
     id: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_color {
     r: f32,
     g: f32,
@@ -239,7 +239,7 @@ enum_sequential! {
 const SG_COMPAREFUNC_NUM: u32 = sg_compare_func::len() as u32;
 
 enum_sequential! {
-    #[derive(Default)]    
+    #[derive(Default, Clone, Copy)]  
     enum sg_stencil_op {
         #[default]
         DEFAULT,      /* value 0 reserved for default-init */
@@ -256,7 +256,7 @@ enum_sequential! {
 const SG_STENCILOP_NUM: u32 = sg_stencil_op::len() as u32;
 
 enum_sequential! {
-    #[derive(Default)]
+    #[derive(Default, Clone, Copy)]
     enum sg_blend_factor {
         #[default]
         DEFAULT,    /* value 0 reserved for default-init */
@@ -280,7 +280,7 @@ enum_sequential! {
 const SG_BLENDFACTOR_NUM: u32 = sg_blend_factor::len() as u32;
 
 enum_sequential! {
-    #[derive(Default)]
+    #[derive(Default, Clone, Copy)]
     enum sg_blend_op {
         #[default]
         SG_BLENDOP_DEFAULT,    /* value 0 reserved for default-init */
@@ -325,7 +325,7 @@ enum sg_color_mask {
 }
 
 enum_sequential! {
-    #[derive(Default)]    
+    #[derive(Default, Clone, Copy)]
     enum sg_cull_mode {
         #[default]
         DEFAULT,   /* value 0 reserved for default-init */
@@ -337,7 +337,7 @@ enum_sequential! {
 const SG_CULLMODE_NUM: u32 = sg_cull_mode::len() as u32;
 
 enum_sequential! {
-    #[derive(Default)]    
+    #[derive(Default, Clone, Copy)]   
     enum sg_face_winding {
         #[default]
         DEFAULT,    /* value 0 reserved for default-init */
@@ -413,7 +413,9 @@ enum_sequential! {
 const SG_BORDERCOLOR_NUM: u32 = sg_border_color::len() as u32;
 
 enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
     enum sg_uniform_type {
+        #[default]
         INVALID,
         FLOAT,
         FLOAT2,
@@ -429,7 +431,9 @@ enum_sequential! {
 const SG_UNIFORMTYPE_NUM: u32 = sg_uniform_type::len() as u32;
 
 enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
     enum sg_vertex_step {
+        #[default]
         DEFAULT,     /* value 0 reserved for default-init */
         PER_VERTEX,
         PER_INSTANCE,
@@ -437,7 +441,9 @@ enum_sequential! {
 }
 const SG_VERTEXSTEP_NUM: u32 = sg_vertex_step::len() as u32;
 
+#[derive(Default, Clone, Copy)]
 enum sg_sampler_type {
+    #[default]
     DEFAULT,  /* value 0 reserved for default-init */
     FLOAT,
     SINT,
@@ -445,7 +451,9 @@ enum sg_sampler_type {
 }
 
 enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
     enum sg_primitive_type {
+        #[default]
         DEFAULT,  /* value 0 reserved for default-init */
         POINTS,
         LINES,
@@ -457,7 +465,9 @@ enum_sequential! {
 const SG_PRIMITIVETYPE_NUM: u32 = sg_primitive_type::len() as u32;
 
 enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
     enum sg_vertex_format {
+        #[default]
         INVALID,
         FLOAT,
         FLOAT2,
@@ -481,7 +491,9 @@ enum_sequential! {
 const SG_VERTEXFORMAT_NUM: u32 = sg_vertex_format::len() as u32;
 
 enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
     enum sg_index_type {
+        #[default]        
         DEFAULT,   /* value 0 reserved for default-init */
         NONE,
         UINT16,
@@ -490,7 +502,7 @@ enum_sequential! {
 }
 const SG_INDEXTYPE_NUM: u32 = sg_index_type::len() as u32;
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_stencil_face_state {
     compare: sg_compare_func,
     fail_op: sg_stencil_op,
@@ -498,7 +510,7 @@ struct sg_stencil_face_state {
     pass_op: sg_stencil_op,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_stencil_state {
     enabled: bool,
     front: sg_stencil_face_state,
@@ -508,7 +520,7 @@ struct sg_stencil_state {
     ref_val: u8,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_depth_state {
     pixel_format: sg_pixel_format,
     compare: sg_compare_func,
@@ -518,7 +530,7 @@ struct sg_depth_state {
     bias_clamp: f32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_blend_state {
     enabled: bool,
     src_factor_rgb: sg_blend_factor,
@@ -529,6 +541,7 @@ struct sg_blend_state {
     op_alpha: sg_blend_op,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_color_state {
     pixel_format: sg_pixel_format,
     write_mask: sg_color_mask,
@@ -537,7 +550,7 @@ struct sg_color_state {
 
 type GLenum = u32;
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_gl_attr_t {
     vb_index: i8, /* -1 if attr is not enabled */
     divisor: i8,  /* -1 if not initialized */
@@ -560,6 +573,7 @@ struct sg_gl_texture_bind_slot {
     texture: u32,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_pass_attachment_common_t {
     image_id : sg_image, 
     mip_level : i32,
@@ -636,6 +650,7 @@ struct sg_gl_image_t {
 }
 type sg_image_t = sg_gl_image_t;
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_uniform_t {
     gl_loc : i32,
     type_val : sg_uniform_type,
@@ -643,32 +658,39 @@ struct sg_gl_uniform_t {
     offset : u16,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_uniform_block_t {
     num_uniforms : i32,
     uniforms : [sg_gl_uniform_t; SG_MAX_UB_MEMBERS as usize],
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_shader_image_t {
     gl_tex_slot : i32,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_str_t {
     buf : [u8; SG_STRING_SIZE as usize],
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_shader_attr_t {
     name : sg_str_t,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_shader_uniform_block_t {
     size : usize, 
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_shader_image_t {
     image_type : sg_image_type, 
     sampler_type : sg_sampler_type,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_shader_stage_t{
     num_uniform_blocks : i32,
     num_images : i32,
@@ -676,23 +698,27 @@ struct sg_shader_stage_t{
     images : [sg_shader_image_t; SG_MAX_SHADERSTAGE_IMAGES as usize],
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_buffer_layout_desc {
     stride : i32,
     step_func : sg_vertex_step,
     step_rate : i32,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_vertex_attr_desc {
     buffer_index : i32,
     offset : i32,
     format : sg_vertex_format,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_layout_desc {
     buffers : [sg_buffer_layout_desc; SG_MAX_SHADERSTAGE_BUFFERS as usize],
     attrs : [sg_vertex_attr_desc; SG_MAX_VERTEX_ATTRIBUTES as usize],
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_pipeline_common_t {
     vertex_layout_valid : [bool; SG_MAX_SHADERSTAGE_BUFFERS as usize],
     use_instanced_draw : bool,
@@ -711,21 +737,25 @@ struct sg_pipeline_common_t {
     alpha_to_coverage_enabled : bool, 
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_shader_common_t {
     stage : [sg_shader_stage_t; SG_NUM_SHADER_STAGES as usize],
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_shader_stage_t {
     uniform_blocks : [sg_gl_uniform_block_t; SG_MAX_SHADERSTAGE_UBS as usize],
     images : [sg_gl_shader_image_t; SG_MAX_SHADERSTAGE_IMAGES as usize],
 } 
 
+#[derive(Default, Clone, Copy)]
 struct GLShader_Data{
     prog : u32,
     attrs : [sg_gl_shader_attr_t; SG_MAX_VERTEX_ATTRIBUTES as usize],
     stage : [sg_gl_shader_stage_t; SG_NUM_SHADER_STAGES as usize],
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_shader_t{
     slot : sg_slot_t,
     cmn : sg_shader_common_t, 
@@ -733,6 +763,7 @@ struct sg_gl_shader_t{
 }
 type sg_shader_t = sg_gl_shader_t;
 
+#[derive(Default, Clone, Copy)]
 struct GLPipeline_Data{
     attrs : [sg_gl_attr_t; SG_MAX_VERTEX_ATTRIBUTES as usize],
     depth : sg_depth_state, 
@@ -746,6 +777,7 @@ struct GLPipeline_Data{
     alpha_to_coverage_enabled : bool,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_pipeline_t {
     slot : sg_slot_t,
     cmn : sg_pipeline_common_t, 
@@ -754,23 +786,27 @@ struct sg_gl_pipeline_t {
 }
 type sg_pipeline_t = sg_gl_pipeline_t;
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_attachment_t {
     //_sg_image_t* image;
     gl_msaa_resolve_buffer : u32,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_pass_common_t {
     num_color_atts : i32,
     color_atts : [sg_pass_attachment_common_t; SG_MAX_COLOR_ATTACHMENTS as usize],
     ds_att : sg_pass_attachment_common_t, 
 } 
 
+#[derive(Default, Clone, Copy)]
 struct GLPass_Data {
     fb : u32,
     color_atts : [sg_gl_attachment_t; SG_MAX_COLOR_ATTACHMENTS as usize],
     ds_att : sg_gl_attachment_t,
 }
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_pass_t {
     slot : sg_slot_t, 
     cmn : sg_pass_common_t,
@@ -779,6 +815,7 @@ struct sg_gl_pass_t {
 type sg_pass_t = sg_gl_pass_t;
 type sg_pass_attachment_t = sg_pass_attachment_common_t;
 
+#[derive(Default, Clone, Copy)]
 struct sg_gl_context_t {
     slot : sg_slot_t, 
     //#if !defined(SOKOL_GLES2)
@@ -993,23 +1030,19 @@ fn sg_setup_pools(p : &mut sg_pools_t, desc : &sg_desc) {
 
     debug_assert!((desc.shader_pool_size > 0) && (desc.shader_pool_size < SG_MAX_POOL_SIZE));
     sg_init_pool(&mut p.shader_pool, desc.shader_pool_size);
-    //size_t shader_pool_byte_size = sizeof(_sg_shader_t) * (size_t)p->shader_pool.size;
-    //p->shaders = (_sg_shader_t*) _sg_malloc_clear(shader_pool_byte_size);
+    p.shaders.resize(p.shader_pool.size as usize, sg_shader_t::default());
 
     debug_assert!((desc.pipeline_pool_size > 0) && (desc.pipeline_pool_size < SG_MAX_POOL_SIZE));
     sg_init_pool(&mut p.pipeline_pool, desc.pipeline_pool_size);
-    //size_t pipeline_pool_byte_size = sizeof(_sg_pipeline_t) * (size_t)p->pipeline_pool.size;
-    //p->pipelines = (_sg_pipeline_t*) _sg_malloc_clear(pipeline_pool_byte_size);
+    p.pipelines.resize(p.pipeline_pool.size as usize, sg_pipeline_t::default());
 
     debug_assert!((desc.pass_pool_size > 0) && (desc.pass_pool_size < SG_MAX_POOL_SIZE));
     sg_init_pool(&mut p.pass_pool, desc.pass_pool_size);
-    //size_t pass_pool_byte_size = sizeof(_sg_pass_t) * (size_t)p->pass_pool.size;
-    //p->passes = (_sg_pass_t*) _sg_malloc_clear(pass_pool_byte_size);
+    p.passes.resize(p.pass_pool.size as usize, sg_pass_t::default());
 
     debug_assert!((desc.context_pool_size > 0) && (desc.context_pool_size < SG_MAX_POOL_SIZE));
     sg_init_pool(&mut p.context_pool, desc.context_pool_size);
-    //size_t context_pool_byte_size = sizeof(_sg_context_t) * (size_t)p->context_pool.size;
-    //p->contexts = (_sg_context_t*) _sg_malloc_clear(context_pool_byte_size);
+    p.contexts.resize(p.context_pool.size as usize, sg_context_t::default());
 }
 
 pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
