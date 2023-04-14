@@ -4,6 +4,8 @@
 #![allow(unused_variables)]
 
 use windows_sys::Win32::Foundation::HINSTANCE;
+use windows_sys::Win32::System::LibraryLoader::LoadLibraryA;
+use windows_sys::s;
 
 use crate::enum_sequential;
 use crate::EnumLoadError;
@@ -1045,12 +1047,518 @@ fn sg_setup_pools(p : &mut sg_pools_t, desc : &sg_desc) {
     p.contexts.resize(p.context_pool.size as usize, sg_context_t::default());
 }
 
+
+const GL_INT_2_10_10_10_REV :u32 = 0x8D9F;
+const GL_PROGRAM_POINT_SIZE :u32 = 0x8642;
+const GL_STENCIL_ATTACHMENT :u32 = 0x8D20;
+const GL_DEPTH_ATTACHMENT :u32 = 0x8D00;
+const GL_COLOR_ATTACHMENT0 :u32 = 0x8CE0;
+const GL_COLOR_ATTACHMENT1 :u32 = 0x8CE1;
+const GL_COLOR_ATTACHMENT2 :u32 = 0x8CE2;
+const GL_COLOR_ATTACHMENT3 :u32 = 0x8CE3;
+const GL_DRAW_FRAMEBUFFER :u32 = 0x8CA9;
+const GL_FRAMEBUFFER_COMPLETE :u32 = 0x8CD5;
+const GL_NUM_EXTENSIONS :u32 = 0x821D;
+const GL_INFO_LOG_LENGTH :u32 = 0x8B84;
+const GL_VERTEX_SHADER :u32 = 0x8B31;
+const GL_INCR :u32 = 0x1E02;
+const GL_DYNAMIC_DRAW :u32 = 0x88E8;
+const GL_STATIC_DRAW :u32 = 0x88E4;
+const GL_TEXTURE_CUBE_MAP_POSITIVE_Z :u32 = 0x8519;
+const GL_TEXTURE_CUBE_MAP :u32 = 0x8513;
+const GL_FUNC_SUBTRACT :u32 = 0x800A;
+const GL_FUNC_REVERSE_SUBTRACT :u32 = 0x800B;
+const GL_CONSTANT_COLOR :u32 = 0x8001;
+const GL_DECR_WRAP :u32 = 0x8508;
+const GL_LINEAR_MIPMAP_LINEAR :u32 = 0x2703;
+const GL_ELEMENT_ARRAY_BUFFER :u32 = 0x8893;
+const GL_SHORT :u32 = 0x1402;
+const GL_DEPTH_TEST :u32 = 0x0B71;
+const GL_TEXTURE_CUBE_MAP_NEGATIVE_Y :u32 = 0x8518;
+const GL_LINK_STATUS :u32 = 0x8B82;
+const GL_TEXTURE_CUBE_MAP_POSITIVE_Y :u32 = 0x8517;
+const GL_SAMPLE_ALPHA_TO_COVERAGE :u32 = 0x809E;
+const GL_RGBA16F :u32 = 0x881A;
+const GL_CONSTANT_ALPHA :u32 = 0x8003;
+const GL_READ_FRAMEBUFFER :u32 = 0x8CA8;
+const GL_TEXTURE0 :u32 = 0x84C0;
+const GL_TEXTURE_MIN_LOD :u32 = 0x813A;
+const GL_CLAMP_TO_EDGE :u32 = 0x812F;
+const GL_UNSIGNED_SHORT_5_6_5 :u32 = 0x8363;
+const GL_TEXTURE_WRAP_R :u32 = 0x8072;
+const GL_UNSIGNED_SHORT_5_5_5_1 :u32 = 0x8034;
+const GL_NEAREST_MIPMAP_NEAREST :u32 = 0x2700;
+const GL_UNSIGNED_SHORT_4_4_4_4 :u32 = 0x8033;
+const GL_SRC_ALPHA_SATURATE :u32 = 0x0308;
+const GL_STREAM_DRAW :u32 = 0x88E0;
+const GL_ONE :u32 = 1;
+const GL_NEAREST_MIPMAP_LINEAR :u32 = 0x2702;
+const GL_RGB10_A2 :u32 = 0x8059;
+const GL_RGBA8 :u32 = 0x8058;
+const GL_SRGB8_ALPHA8 :u32 = 0x8C43;
+const GL_RGBA4 :u32 = 0x8056;
+const GL_RGB8 :u32 = 0x8051;
+const GL_ARRAY_BUFFER :u32 = 0x8892;
+const GL_STENCIL :u32 = 0x1802;
+const GL_TEXTURE_2D :u32 = 0x0DE1;
+const GL_DEPTH :u32 = 0x1801;
+const GL_FRONT :u32 = 0x0404;
+const GL_STENCIL_BUFFER_BIT :u32 = 0x00000400;
+const GL_REPEAT :u32 = 0x2901;
+const GL_RGBA :u32 = 0x1908;
+const GL_TEXTURE_CUBE_MAP_POSITIVE_X :u32 = 0x8515;
+const GL_DECR :u32 = 0x1E03;
+const GL_FRAGMENT_SHADER :u32 = 0x8B30;
+const GL_FLOAT :u32 = 0x1406;
+const GL_TEXTURE_MAX_LOD :u32 = 0x813B;
+const GL_DEPTH_COMPONENT :u32 = 0x1902;
+const GL_ONE_MINUS_DST_ALPHA :u32 = 0x0305;
+const GL_COLOR :u32 = 0x1800;
+const GL_TEXTURE_2D_ARRAY :u32 = 0x8C1A;
+const GL_TRIANGLES :u32 = 0x0004;
+const GL_UNSIGNED_BYTE :u32 = 0x1401;
+const GL_TEXTURE_MAG_FILTER :u32 = 0x2800;
+const GL_ONE_MINUS_CONSTANT_ALPHA :u32 = 0x8004;
+const GL_NONE :u32 = 0;
+const GL_SRC_COLOR :u32 = 0x0300;
+const GL_BYTE :u32 = 0x1400;
+const GL_TEXTURE_CUBE_MAP_NEGATIVE_Z :u32 = 0x851A;
+const GL_LINE_STRIP :u32 = 0x0003;
+const GL_TEXTURE_3D :u32 = 0x806F;
+const GL_CW :u32 = 0x0900;
+const GL_LINEAR :u32 = 0x2601;
+const GL_RENDERBUFFER :u32 = 0x8D41;
+const GL_GEQUAL :u32 = 0x0206;
+const GL_COLOR_BUFFER_BIT :u32 = 0x00004000;
+const GL_RGBA32F :u32 = 0x8814;
+const GL_BLEND :u32 = 0x0BE2;
+const GL_ONE_MINUS_SRC_ALPHA :u32 = 0x0303;
+const GL_ONE_MINUS_CONSTANT_COLOR :u32 = 0x8002;
+const GL_TEXTURE_WRAP_T :u32 = 0x2803;
+const GL_TEXTURE_WRAP_S :u32 = 0x2802;
+const GL_TEXTURE_MIN_FILTER :u32 = 0x2801;
+const GL_LINEAR_MIPMAP_NEAREST :u32 = 0x2701;
+const GL_EXTENSIONS :u32 = 0x1F03;
+const GL_NO_ERROR :u32 = 0;
+const GL_REPLACE :u32 = 0x1E01;
+const GL_KEEP :u32 = 0x1E00;
+const GL_CCW :u32 = 0x0901;
+const GL_TEXTURE_CUBE_MAP_NEGATIVE_X :u32 = 0x8516;
+const GL_RGB :u32 = 0x1907;
+const GL_TRIANGLE_STRIP :u32 = 0x0005;
+const GL_FALSE :u32 = 0;
+const GL_ZERO :u32 = 0;
+const GL_CULL_FACE :u32 = 0x0B44;
+const GL_INVERT :u32 = 0x150A;
+const GL_INT :u32 = 0x1404;
+const GL_UNSIGNED_INT :u32 = 0x1405;
+const GL_UNSIGNED_SHORT :u32 = 0x1403;
+const GL_NEAREST :u32 = 0x2600;
+const GL_SCISSOR_TEST :u32 = 0x0C11;
+const GL_LEQUAL :u32 = 0x0203;
+const GL_STENCIL_TEST :u32 = 0x0B90;
+const GL_DITHER :u32 = 0x0BD0;
+const GL_DEPTH_COMPONENT16 :u32 = 0x81A5;
+const GL_EQUAL :u32 = 0x0202;
+const GL_FRAMEBUFFER :u32 = 0x8D40;
+const GL_RGB5 :u32 = 0x8050;
+const GL_LINES :u32 = 0x0001;
+const GL_DEPTH_BUFFER_BIT :u32 = 0x00000100;
+const GL_SRC_ALPHA :u32 = 0x0302;
+const GL_INCR_WRAP :u32 = 0x8507;
+const GL_LESS :u32 = 0x0201;
+const GL_MULTISAMPLE :u32 = 0x809D;
+const GL_FRAMEBUFFER_BINDING :u32 = 0x8CA6;
+const GL_BACK :u32 = 0x0405;
+const GL_ALWAYS :u32 = 0x0207;
+const GL_FUNC_ADD :u32 = 0x8006;
+const GL_ONE_MINUS_DST_COLOR :u32 = 0x0307;
+const GL_NOTEQUAL :u32 = 0x0205;
+const GL_DST_COLOR :u32 = 0x0306;
+const GL_COMPILE_STATUS :u32 = 0x8B81;
+const GL_RED :u32 = 0x1903;
+const GL_DST_ALPHA :u32 = 0x0304;
+const GL_RGB5_A1 :u32 = 0x8057;
+const GL_GREATER :u32 = 0x0204;
+const GL_POLYGON_OFFSET_FILL :u32 = 0x8037;
+const GL_TRUE :u32 = 1;
+const GL_NEVER :u32 = 0x0200;
+const GL_POINTS :u32 = 0x0000;
+const GL_ONE_MINUS_SRC_COLOR :u32 = 0x0301;
+const GL_MIRRORED_REPEAT :u32 = 0x8370;
+const GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS :u32 = 0x8B4D;
+const GL_R11F_G11F_B10F :u32 = 0x8C3A;
+const GL_UNSIGNED_INT_10F_11F_11F_REV :u32 = 0x8C3B;
+const GL_RGB9_E5 :u32 = 0x8C3D;
+const GL_UNSIGNED_INT_5_9_9_9_REV :u32 = 0x8C3E;
+const GL_RGBA32UI :u32 = 0x8D70;
+const GL_RGB32UI :u32 = 0x8D71;
+const GL_RGBA16UI :u32 = 0x8D76;
+const GL_RGB16UI :u32 = 0x8D77;
+const GL_RGBA8UI :u32 = 0x8D7C;
+const GL_RGB8UI :u32 = 0x8D7D;
+const GL_RGBA32I :u32 = 0x8D82;
+const GL_RGB32I :u32 = 0x8D83;
+const GL_RGBA16I :u32 = 0x8D88;
+const GL_RGB16I :u32 = 0x8D89;
+const GL_RGBA8I :u32 = 0x8D8E;
+const GL_RGB8I :u32 = 0x8D8F;
+const GL_RED_INTEGER :u32 = 0x8D94;
+const GL_RG :u32 = 0x8227;
+const GL_RG_INTEGER :u32 = 0x8228;
+const GL_R8 :u32 = 0x8229;
+const GL_R16 :u32 = 0x822A;
+const GL_RG8 :u32 = 0x822B;
+const GL_RG16 :u32 = 0x822C;
+const GL_R16F :u32 = 0x822D;
+const GL_R32F :u32 = 0x822E;
+const GL_RG16F :u32 = 0x822F;
+const GL_RG32F :u32 = 0x8230;
+const GL_R8I :u32 = 0x8231;
+const GL_R8UI :u32 = 0x8232;
+const GL_R16I :u32 = 0x8233;
+const GL_R16UI :u32 = 0x8234;
+const GL_R32I :u32 = 0x8235;
+const GL_R32UI :u32 = 0x8236;
+const GL_RG8I :u32 = 0x8237;
+const GL_RG8UI :u32 = 0x8238;
+const GL_RG16I :u32 = 0x8239;
+const GL_RG16UI :u32 = 0x823A;
+const GL_RG32I :u32 = 0x823B;
+const GL_RG32UI :u32 = 0x823C;
+const GL_RGBA_INTEGER :u32 = 0x8D99;
+const GL_R8_SNORM :u32 = 0x8F94;
+const GL_RG8_SNORM :u32 = 0x8F95;
+const GL_RGB8_SNORM :u32 = 0x8F96;
+const GL_RGBA8_SNORM :u32 = 0x8F97;
+const GL_R16_SNORM :u32 = 0x8F98;
+const GL_RG16_SNORM :u32 = 0x8F99;
+const GL_RGB16_SNORM :u32 = 0x8F9A;
+const GL_RGBA16_SNORM :u32 = 0x8F9B;
+const GL_RGBA16 :u32 = 0x805B;
+const GL_MAX_TEXTURE_SIZE :u32 = 0x0D33;
+const GL_MAX_CUBE_MAP_TEXTURE_SIZE :u32 = 0x851C;
+const GL_MAX_3D_TEXTURE_SIZE :u32 = 0x8073;
+const GL_MAX_ARRAY_TEXTURE_LAYERS :u32 = 0x88FF;
+const GL_MAX_VERTEX_ATTRIBS :u32 = 0x8869;
+const GL_CLAMP_TO_BORDER :u32 = 0x812D;
+const GL_TEXTURE_BORDER_COLOR :u32 = 0x1004;
+const GL_CURRENT_PROGRAM :u32 = 0x8B8D;
+const GL_MAX_VERTEX_UNIFORM_VECTORS :u32 = 0x8DFB;
+const GL_UNPACK_ALIGNMENT :u32 = 0x0CF5;
+const GL_FRAMEBUFFER_SRGB :u32 = 0x8DB9;
+const GL_UNSIGNED_INT_2_10_10_10_REV :u32 = 0x8368;
+const GL_UNSIGNED_INT_24_8 :u32 = 0x84FA;
+const GL_TEXTURE_MAX_ANISOTROPY_EXT :u32 = 0x84FE;
+const GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT :u32 = 0x84FF;
+const GL_COMPRESSED_RGBA_S3TC_DXT1_EXT :u32 = 0x83F1;
+const GL_COMPRESSED_RGBA_S3TC_DXT3_EXT :u32 = 0x83F2;
+const GL_COMPRESSED_RGBA_S3TC_DXT5_EXT :u32 = 0x83F3;
+const GL_COMPRESSED_RED_RGTC1 :u32 = 0x8DBB;
+const GL_COMPRESSED_SIGNED_RED_RGTC1 :u32 = 0x8DBC;
+const GL_COMPRESSED_RED_GREEN_RGTC2 :u32 = 0x8DBD;
+const GL_COMPRESSED_SIGNED_RED_GREEN_RGTC2 :u32 = 0x8DBE;
+const GL_COMPRESSED_RGBA_BPTC_UNORM_ARB :u32 = 0x8E8C;
+const GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB :u32 = 0x8E8D;
+const GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB :u32 = 0x8E8E;
+const GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB :u32 = 0x8E8F;
+const GL_COMPRESSED_RGB_PVRTC_2BPPV1_IMG :u32 = 0x8C01;
+const GL_COMPRESSED_RGB_PVRTC_4BPPV1_IMG :u32 = 0x8C00;
+const GL_COMPRESSED_RGBA_PVRTC_2BPPV1_IMG :u32 = 0x8C03;
+const GL_COMPRESSED_RGBA_PVRTC_4BPPV1_IMG :u32 = 0x8C02;
+const GL_COMPRESSED_RGB8_ETC2 :u32 = 0x9274;
+const GL_COMPRESSED_RGBA8_ETC2_EAC :u32 = 0x9278;
+const GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2 :u32 = 0x9276;
+const GL_COMPRESSED_RG11_EAC :u32 = 0x9272;
+const GL_COMPRESSED_SIGNED_RG11_EAC :u32 = 0x9273;
+const GL_DEPTH24_STENCIL8 :u32 = 0x88F0;
+const GL_HALF_FLOAT :u32 = 0x140B;
+const GL_DEPTH_STENCIL :u32 = 0x84F9;
+const GL_LUMINANCE :u32 = 0x1909;
+
+/*
+        typedef unsigned int  GLenum;
+        typedef unsigned int  GLuint;
+        typedef int  GLsizei;
+        typedef char  GLchar;
+        typedef ptrdiff_t  GLintptr;
+        typedef ptrdiff_t  GLsizeiptr;
+        typedef double  GLclampd;
+        typedef unsigned short  GLushort;
+        typedef unsigned char  GLubyte;
+        typedef unsigned char  GLboolean;
+        typedef uint64_t  GLuint64;
+        typedef double  GLdouble;
+        typedef unsigned short  GLhalf;
+        typedef float  GLclampf;
+        typedef unsigned int  GLbitfield;
+        typedef signed char  GLbyte;
+        typedef short  GLshort;
+        typedef void  GLvoid;
+        typedef int64_t  GLint64;
+        typedef float  GLfloat;
+        typedef struct __GLsync * GLsync;
+        typedef int  GLint;
+
+
+// X Macro list of GL function names and signatures
+#define _SG_GL_FUNCS \
+    _SG_XMACRO(glBindVertexArray,                 void, (GLuint array)) \
+    _SG_XMACRO(glFramebufferTextureLayer,         void, (GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer)) \
+    _SG_XMACRO(glGenFramebuffers,                 void, (GLsizei n, GLuint * framebuffers)) \
+    _SG_XMACRO(glBindFramebuffer,                 void, (GLenum target, GLuint framebuffer)) \
+    _SG_XMACRO(glBindRenderbuffer,                void, (GLenum target, GLuint renderbuffer)) \
+    _SG_XMACRO(glGetStringi,                      const GLubyte *, (GLenum name, GLuint index)) \
+    _SG_XMACRO(glClearBufferfi,                   void, (GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil)) \
+    _SG_XMACRO(glClearBufferfv,                   void, (GLenum buffer, GLint drawbuffer, const GLfloat * value)) \
+    _SG_XMACRO(glClearBufferuiv,                  void, (GLenum buffer, GLint drawbuffer, const GLuint * value)) \
+    _SG_XMACRO(glClearBufferiv,                   void, (GLenum buffer, GLint drawbuffer, const GLint * value)) \
+    _SG_XMACRO(glDeleteRenderbuffers,             void, (GLsizei n, const GLuint * renderbuffers)) \
+    _SG_XMACRO(glUniform1fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
+    _SG_XMACRO(glUniform2fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
+    _SG_XMACRO(glUniform3fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
+    _SG_XMACRO(glUniform4fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
+    _SG_XMACRO(glUniform1iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
+    _SG_XMACRO(glUniform2iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
+    _SG_XMACRO(glUniform3iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
+    _SG_XMACRO(glUniform4iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
+    _SG_XMACRO(glUniformMatrix4fv,                void, (GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)) \
+    _SG_XMACRO(glUseProgram,                      void, (GLuint program)) \
+    _SG_XMACRO(glShaderSource,                    void, (GLuint shader, GLsizei count, const GLchar *const* string, const GLint * length)) \
+    _SG_XMACRO(glLinkProgram,                     void, (GLuint program)) \
+    _SG_XMACRO(glGetUniformLocation,              GLint, (GLuint program, const GLchar * name)) \
+    _SG_XMACRO(glGetShaderiv,                     void, (GLuint shader, GLenum pname, GLint * params)) \
+    _SG_XMACRO(glGetProgramInfoLog,               void, (GLuint program, GLsizei bufSize, GLsizei * length, GLchar * infoLog)) \
+    _SG_XMACRO(glGetAttribLocation,               GLint, (GLuint program, const GLchar * name)) \
+    _SG_XMACRO(glDisableVertexAttribArray,        void, (GLuint index)) \
+    _SG_XMACRO(glDeleteShader,                    void, (GLuint shader)) \
+    _SG_XMACRO(glDeleteProgram,                   void, (GLuint program)) \
+    _SG_XMACRO(glCompileShader,                   void, (GLuint shader)) \
+    _SG_XMACRO(glStencilFuncSeparate,             void, (GLenum face, GLenum func, GLint ref, GLuint mask)) \
+    _SG_XMACRO(glStencilOpSeparate,               void, (GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass)) \
+    _SG_XMACRO(glRenderbufferStorageMultisample,  void, (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)) \
+    _SG_XMACRO(glDrawBuffers,                     void, (GLsizei n, const GLenum * bufs)) \
+    _SG_XMACRO(glVertexAttribDivisor,             void, (GLuint index, GLuint divisor)) \
+    _SG_XMACRO(glBufferSubData,                   void, (GLenum target, GLintptr offset, GLsizeiptr size, const void * data)) \
+    _SG_XMACRO(glGenBuffers,                      void, (GLsizei n, GLuint * buffers)) \
+    _SG_XMACRO(glCheckFramebufferStatus,          GLenum, (GLenum target)) \
+    _SG_XMACRO(glFramebufferRenderbuffer,         void, (GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)) \
+    _SG_XMACRO(glCompressedTexImage2D,            void, (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void * data)) \
+    _SG_XMACRO(glCompressedTexImage3D,            void, (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void * data)) \
+    _SG_XMACRO(glActiveTexture,                   void, (GLenum texture)) \
+    _SG_XMACRO(glTexSubImage3D,                   void, (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void * pixels)) \
+    _SG_XMACRO(glRenderbufferStorage,             void, (GLenum target, GLenum internalformat, GLsizei width, GLsizei height)) \
+    _SG_XMACRO(glGenTextures,                     void, (GLsizei n, GLuint * textures)) \
+    _SG_XMACRO(glPolygonOffset,                   void, (GLfloat factor, GLfloat units)) \
+    _SG_XMACRO(glDrawElements,                    void, (GLenum mode, GLsizei count, GLenum type, const void * indices)) \
+    _SG_XMACRO(glDeleteFramebuffers,              void, (GLsizei n, const GLuint * framebuffers)) \
+    _SG_XMACRO(glBlendEquationSeparate,           void, (GLenum modeRGB, GLenum modeAlpha)) \
+    _SG_XMACRO(glDeleteTextures,                  void, (GLsizei n, const GLuint * textures)) \
+    _SG_XMACRO(glGetProgramiv,                    void, (GLuint program, GLenum pname, GLint * params)) \
+    _SG_XMACRO(glBindTexture,                     void, (GLenum target, GLuint texture)) \
+    _SG_XMACRO(glTexImage3D,                      void, (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void * pixels)) \
+    _SG_XMACRO(glCreateShader,                    GLuint, (GLenum type)) \
+    _SG_XMACRO(glTexSubImage2D,                   void, (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void * pixels)) \
+    _SG_XMACRO(glClearDepth,                      void, (GLdouble depth)) \
+    _SG_XMACRO(glFramebufferTexture2D,            void, (GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level)) \
+    _SG_XMACRO(glCreateProgram,                   GLuint, (void)) \
+    _SG_XMACRO(glViewport,                        void, (GLint x, GLint y, GLsizei width, GLsizei height)) \
+    _SG_XMACRO(glDeleteBuffers,                   void, (GLsizei n, const GLuint * buffers)) \
+    _SG_XMACRO(glDrawArrays,                      void, (GLenum mode, GLint first, GLsizei count)) \
+    _SG_XMACRO(glDrawElementsInstanced,           void, (GLenum mode, GLsizei count, GLenum type, const void * indices, GLsizei instancecount)) \
+    _SG_XMACRO(glVertexAttribPointer,             void, (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer)) \
+    _SG_XMACRO(glUniform1i,                       void, (GLint location, GLint v0)) \
+    _SG_XMACRO(glDisable,                         void, (GLenum cap)) \
+    _SG_XMACRO(glColorMask,                       void, (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)) \
+    _SG_XMACRO(glColorMaski,                      void, (GLuint buf, GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)) \
+    _SG_XMACRO(glBindBuffer,                      void, (GLenum target, GLuint buffer)) \
+    _SG_XMACRO(glDeleteVertexArrays,              void, (GLsizei n, const GLuint * arrays)) \
+    _SG_XMACRO(glDepthMask,                       void, (GLboolean flag)) \
+    _SG_XMACRO(glDrawArraysInstanced,             void, (GLenum mode, GLint first, GLsizei count, GLsizei instancecount)) \
+    _SG_XMACRO(glClearStencil,                    void, (GLint s)) \
+    _SG_XMACRO(glScissor,                         void, (GLint x, GLint y, GLsizei width, GLsizei height)) \
+    _SG_XMACRO(glGenRenderbuffers,                void, (GLsizei n, GLuint * renderbuffers)) \
+    _SG_XMACRO(glBufferData,                      void, (GLenum target, GLsizeiptr size, const void * data, GLenum usage)) \
+    _SG_XMACRO(glBlendFuncSeparate,               void, (GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha)) \
+    _SG_XMACRO(glTexParameteri,                   void, (GLenum target, GLenum pname, GLint param)) \
+    _SG_XMACRO(glGetIntegerv,                     void, (GLenum pname, GLint * data)) \
+    _SG_XMACRO(glEnable,                          void, (GLenum cap)) \
+    _SG_XMACRO(glBlitFramebuffer,                 void, (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter)) \
+    _SG_XMACRO(glStencilMask,                     void, (GLuint mask)) \
+    _SG_XMACRO(glAttachShader,                    void, (GLuint program, GLuint shader)) \
+    _SG_XMACRO(glGetError,                        GLenum, (void)) \
+    _SG_XMACRO(glClearColor,                      void, (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)) \
+    _SG_XMACRO(glBlendColor,                      void, (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)) \
+    _SG_XMACRO(glTexParameterf,                   void, (GLenum target, GLenum pname, GLfloat param)) \
+    _SG_XMACRO(glTexParameterfv,                  void, (GLenum target, GLenum pname, GLfloat* params)) \
+    _SG_XMACRO(glGetShaderInfoLog,                void, (GLuint shader, GLsizei bufSize, GLsizei * length, GLchar * infoLog)) \
+    _SG_XMACRO(glDepthFunc,                       void, (GLenum func)) \
+    _SG_XMACRO(glStencilOp ,                      void, (GLenum fail, GLenum zfail, GLenum zpass)) \
+    _SG_XMACRO(glStencilFunc,                     void, (GLenum func, GLint ref, GLuint mask)) \
+    _SG_XMACRO(glEnableVertexAttribArray,         void, (GLuint index)) \
+    _SG_XMACRO(glBlendFunc,                       void, (GLenum sfactor, GLenum dfactor)) \
+    _SG_XMACRO(glReadBuffer,                      void, (GLenum src)) \
+    _SG_XMACRO(glReadPixels,                      void, (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void * data)) \
+    _SG_XMACRO(glClear,                           void, (GLbitfield mask)) \
+    _SG_XMACRO(glTexImage2D,                      void, (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * pixels)) \
+    _SG_XMACRO(glGenVertexArrays,                 void, (GLsizei n, GLuint * arrays)) \
+    _SG_XMACRO(glFrontFace,                       void, (GLenum mode)) \
+    _SG_XMACRO(glCullFace,                        void, (GLenum mode)) \
+    _SG_XMACRO(glPixelStorei,                     void, (GLenum pname, GLint param))
+
+// generate GL function pointer typedefs
+#define _SG_XMACRO(name, ret, args) typedef ret (GL_APIENTRY* PFN_ ## name) args;
+_SG_GL_FUNCS
+#undef _SG_XMACRO
+
+// generate GL function pointers
+#define _SG_XMACRO(name, ret, args) static PFN_ ## name name;
+_SG_GL_FUNCS
+#undef _SG_XMACRO
+
+// helper function to lookup GL functions in GL DLL
+typedef PROC (WINAPI * _sg_wglGetProcAddress)(LPCSTR);
+_SOKOL_PRIVATE void* _sg_gl_getprocaddr(const char* name, _sg_wglGetProcAddress wgl_getprocaddress) {
+    void* proc_addr = (void*) wgl_getprocaddress(name);
+    if (0 == proc_addr) {
+        proc_addr = (void*) GetProcAddress(_sg.gl.opengl32_dll, name);
+    }
+    SOKOL_ASSERT(proc_addr);
+    return proc_addr;
+}
+*/
+
+fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
+    sg.backend = sg_backend::GLCORE33;
+
+    sg.features.origin_top_left = false;
+    sg.features.instancing = true;
+    sg.features.multiple_render_targets = true;
+    sg.features.msaa_render_targets = true;
+    sg.features.imagetype_3d = true;
+    sg.features.imagetype_array = true;
+    sg.features.image_clamp_to_border = true;
+    sg.features.mrt_independent_blend_state = false;
+    sg.features.mrt_independent_write_mask = true;
+
+    /* scan extensions */
+    let mut has_s3tc = false;  /* BC1..BC3 */
+    let mut has_rgtc = false;  /* BC4 and BC5 */
+    let mut has_bptc = false;  /* BC6H and BC7 */
+    let mut has_pvrtc = false;
+    let mut has_etc2 = false;
+    let mut num_ext = 0;
+    sg.gl.glGetIntegerv(GL_NUM_EXTENSIONS, &mut num_ext);
+    for i in 0..num_ext {
+        const char* ext = (const char*) glGetStringi(GL_EXTENSIONS, (GLuint)i);
+        if (ext) {
+            if (strstr(ext, "_texture_compression_s3tc")) {
+                has_s3tc = true;
+            }
+            else if (strstr(ext, "_texture_compression_rgtc")) {
+                has_rgtc = true;
+            }
+            else if (strstr(ext, "_texture_compression_bptc")) {
+                has_bptc = true;
+            }
+            else if (strstr(ext, "_texture_compression_pvrtc")) {
+                has_pvrtc = true;
+            }
+            else if (strstr(ext, "_ES3_compatibility")) {
+                has_etc2 = true;
+            }
+            else if (strstr(ext, "_texture_filter_anisotropic")) {
+                sg.gl.ext_anisotropic = true;
+            }
+        }
+    }
+
+    /* limits */
+    sg_gl_init_limits();
+
+    /* pixel formats */
+    let has_bgra = false;    /* not a bug */
+    let has_colorbuffer_float = true;
+    let has_colorbuffer_half_float = true;
+    let has_texture_float_linear = true; /* FIXME??? */
+    let has_texture_half_float_linear = true;
+    let has_float_blend = true;
+    sg_gl_init_pixelformats(has_bgra);
+    sg_gl_init_pixelformats_float(has_colorbuffer_float, has_texture_float_linear, has_float_blend);
+    sg_gl_init_pixelformats_half_float(has_colorbuffer_half_float, has_texture_half_float_linear);
+    if (has_s3tc) {
+        sg_gl_init_pixelformats_s3tc();
+    }
+    if (has_rgtc) {
+        sg_gl_init_pixelformats_rgtc();
+    }
+    if (has_bptc) {
+        sg_gl_init_pixelformats_bptc();
+    }
+    if (has_pvrtc) {
+        sg_gl_init_pixelformats_pvrtc();
+    }
+    if (has_etc2) {
+        sg_gl_init_pixelformats_etc2();
+    }
+}
+
+fn sg_gl_load_opengl(sg : &mut sg_state_t) {
+    debug_assert!(0 == sg.gl.opengl32_dll);
+    sg.gl.opengl32_dll = unsafe { LoadLibraryA(s!("opengl32.dll")) };
+    debug_assert!(sg.gl.opengl32_dll != 0);
+    _sg_wglGetProcAddress wgl_getprocaddress = (_sg_wglGetProcAddress) GetProcAddress(_sg.gl.opengl32_dll, "wglGetProcAddress");
+    debug_assert!(wgl_getprocaddress != None);
+    #define _SG_XMACRO(name, ret, args) name = (PFN_ ## name) _sg_gl_getprocaddr(#name, wgl_getprocaddress);
+    _SG_GL_FUNCS
+    #undef _SG_XMACRO
+}
+
+
+fn sg_gl_setup_backend(sg : &mut sg_state_t, desc : &sg_desc) {
+    /* assumes that _sg.gl is already zero-initialized */
+    sg.gl.valid = true;
+    //#if defined(SOKOL_GLES2) || defined(SOKOL_GLES3)
+    //sg.gl.gles2 = desc.context.gl.force_gles2;
+    //#else
+    //_SOKOL_UNUSED(desc);
+    sg.gl.gles2 = false;
+    //#endif
+
+    //#if defined(_SOKOL_USE_WIN32_GL_LOADER)
+    sg_gl_load_opengl(sg);
+    //#endif
+
+    /* clear initial GL error state */ // DT_TODO:
+    //#if defined(SOKOL_DEBUG)
+    //    while (glGetError() != GL_NO_ERROR);
+    //#endif
+    //#if defined(SOKOL_GLCORE33)
+        sg_gl_init_caps_glcore33(sg);
+    //#elif defined(SOKOL_GLES3)
+    //    if (_sg.gl.gles2) {
+    //        _sg_gl_init_caps_gles2();
+    //    }
+    //    else {
+    //        _sg_gl_init_caps_gles3();
+    //    }
+    //#else
+    //    _sg_gl_init_caps_gles2();
+    //#endif
+}
+
+
+
+fn sg_setup_backend(sg : &mut sg_state_t, desc : &sg_desc) {
+    sg_gl_setup_backend(sg, desc);
+}
+
 pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
     sg.desc = *desc;
     sg_setup_pools(&mut sg.pools, &sg.desc);
     //_sg_setup_commit_listeners(&_sg.desc);
     sg.frame_index = 1;
-    //_sg_setup_backend(&_sg.desc);
+    sg_setup_backend(sg, &sg.desc);
     sg.valid = true;
     //sg_setup_context();
 }
