@@ -550,8 +550,6 @@ struct sg_color_state {
     blend: sg_blend_state,
 }
 
-type GLenum = u32;
-
 #[derive(Default, Clone, Copy)]
 struct sg_gl_attr_t {
     vb_index: i8, /* -1 if attr is not enabled */
@@ -1276,31 +1274,35 @@ const GL_HALF_FLOAT :u32 = 0x140B;
 const GL_DEPTH_STENCIL :u32 = 0x84F9;
 const GL_LUMINANCE :u32 = 0x1909;
 
+type GLbyte = i8;
+type GLubyte = u8;
+type GLboolean = u8;
+type GLchar = u8;
+
+type GLshort = i16;
+type GLushort = u16;
+type GLhalf = u16;
+
+type GLint = i32;
+type GLenum = u32;
+type GLuint = u32;
+type GLbitfield = u32;
+
+type GLsizei = i32;
+type GLintptr = isize;
+type GLsizeiptr = usize;
+
+type GLint64 = i64;
+type GLuint64 = u64;
+
+type GLclampf = f32;
+type GLfloat = f32;
+
+type GLclampd = f64;
+type GLdouble = f64;
+
+
 /*
-        typedef unsigned int  GLenum;
-        typedef unsigned int  GLuint;
-        typedef int  GLsizei;
-        typedef char  GLchar;
-        typedef ptrdiff_t  GLintptr;
-        typedef ptrdiff_t  GLsizeiptr;
-        typedef double  GLclampd;
-        typedef unsigned short  GLushort;
-        typedef unsigned char  GLubyte;
-        typedef unsigned char  GLboolean;
-        typedef uint64_t  GLuint64;
-        typedef double  GLdouble;
-        typedef unsigned short  GLhalf;
-        typedef float  GLclampf;
-        typedef unsigned int  GLbitfield;
-        typedef signed char  GLbyte;
-        typedef short  GLshort;
-        typedef void  GLvoid;
-        typedef int64_t  GLint64;
-        typedef float  GLfloat;
-        typedef struct __GLsync * GLsync;
-        typedef int  GLint;
-
-
 // X Macro list of GL function names and signatures
 #define _SG_GL_FUNCS \
     _SG_XMACRO(glBindVertexArray,                 void, (GLuint array)) \
