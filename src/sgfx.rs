@@ -4,6 +4,8 @@
 #![allow(unused_variables)]
 
 use windows_sys::Win32::Foundation::HINSTANCE;
+use windows_sys::Win32::Foundation::PROC;
+use windows_sys::Win32::System::LibraryLoader::GetProcAddress;
 use windows_sys::Win32::System::LibraryLoader::LoadLibraryA;
 use windows_sys::s;
 
@@ -1301,13 +1303,100 @@ type GLfloat = f32;
 type GLclampd = f64;
 type GLdouble = f64;
 
+// helper function to lookup GL functions in GL DLL
+type sg_wglGetProcAddressT = extern "system" fn (name : *const u8) -> PROC;
+
+unsafe fn sg_gl_getprocaddr(sg : &sg_state_t, name : *const u8, wgl_getprocaddress : sg_wglGetProcAddressT) -> PROC {
+
+    let mut proc_addr = wgl_getprocaddress(name);
+    if proc_addr.is_none() {
+        proc_addr = GetProcAddress(sg.gl.opengl32_dll, name);
+    }
+    proc_addr
+}
+
+
+//_SG_XMACRO(glBindVertexArray,                 void, (GLuint array)) \
+//type Fn_glBindVertexArray = extern "system" fn(array: GLuint) -> ();
+//static mut glBindVertexArray : Fn_glBindVertexArray = unsafe { std::mem::zeroed() };
+
+type Fn_glBindVertexArray = extern "system" fn(array: GLuint) -> ();
+//static mut glBindVertexArray : Option<extern "system" fn(array: GLuint) -> ()> = None;
+
+mod TYPE{
+    use super::*;
+
+    pub type glBindVertexArray2 = extern "system" fn(array: GLuint) -> ();
+}
+
+mod DUMMY{
+    use super::*;
+
+    pub extern "system" fn glBindVertexArray2(array : GLuint) -> () { () }
+}
+
+//static mut glBindVertexArray2 : TYPE::glBindVertexArray2 = unsafe { std::mem::zeroed() };
+
+//static mut glBindVertexArray2 : *mut extern "system" fn(array: GLuint) -> () = std::ptr::null_mut();
+static mut glBindVertexArray2 : extern "system" fn(array: GLuint) -> () = DUMMY::glBindVertexArray2;
+//static mut glBindVertexArray2 : Option<extern "system" fn(array: GLuint) -> ()> = None;
+
+unsafe fn sg_gl_load_funcs2(sg : &sg_state_t, wgl_getprocaddress : sg_wglGetProcAddressT){
+
+    glBindVertexArray2 =
+        std::mem::transmute(GetProcAddress(0, s!("wglCreateContext")));
+
+    let loader =
+        std::mem::transmute(GetProcAddress(0, s!("wglCreateContext")));
+    if let Some(val) = loader {
+        glBindVertexArray2 = val;
+    }
+
+
+    glBindVertexArray2(4);
+    //(*glBindVertexArray2)(4);
+    //glBindVertexArray2.unwrap_unchecked()(4);
+}
+
+// DT_TODO: Use option and call unwrap_unchecked() 
+macro_rules! generate_gl_types {
+    ( $( $name:ident, $ret:ty, $retval:expr, ( $( $param:ident : $param_type:ty ),* ); )* ) => {
+        mod GLDUMMY {
+            use super::*;
+            $(
+                pub extern "system" fn $name( $( $param : $param_type ),* ) -> $ret { $retval }
+            )*
+        }
+
+        $(
+            static mut $name : extern "system" fn( $( $param : $param_type ),* ) -> $ret = GLDUMMY::$name;
+        )*
+
+        unsafe fn sg_gl_load_funcs(sg : &sg_state_t, wgl_getprocaddress : sg_wglGetProcAddressT){
+            $(
+                let loader = std::mem::transmute(sg_gl_getprocaddr(sg, concat!(stringify!($name), "\0").as_ptr(), wgl_getprocaddress));
+                if let Some(val) = loader {
+                    $name = val;
+                }                
+            )*            
+        }
+
+    };
+}
+
+generate_gl_types!(
+    glBindVertexArray, (), (), (array: GLuint);
+    glFramebufferTextureLayer, (), (), (target: GLenum, attachment: GLenum, texture: GLuint, level: GLint, layer: GLint);
+    glGenFramebuffers, (), (), (n : GLsizei, framebuffers: *const GLuint);
+);
+
 
 /*
 // X Macro list of GL function names and signatures
 #define _SG_GL_FUNCS \
-    _SG_XMACRO(glBindVertexArray,                 void, (GLuint array)) \
-    _SG_XMACRO(glFramebufferTextureLayer,         void, (GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer)) \
-    _SG_XMACRO(glGenFramebuffers,                 void, (GLsizei n, GLuint * framebuffers)) \
+    //_SG_XMACRO(glBindVertexArray,                 void, (GLuint array)) \
+    //_SG_XMACRO(glFramebufferTextureLayer,         void, (GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer)) \
+    //_SG_XMACRO(glGenFramebuffers,                 void, (GLsizei n, GLuint * framebuffers)) \
     _SG_XMACRO(glBindFramebuffer,                 void, (GLenum target, GLuint framebuffer)) \
     _SG_XMACRO(glBindRenderbuffer,                void, (GLenum target, GLuint renderbuffer)) \
     _SG_XMACRO(glGetStringi,                      const GLubyte *, (GLenum name, GLuint index)) \
@@ -1418,16 +1507,7 @@ _SG_GL_FUNCS
 _SG_GL_FUNCS
 #undef _SG_XMACRO
 
-// helper function to lookup GL functions in GL DLL
-typedef PROC (WINAPI * _sg_wglGetProcAddress)(LPCSTR);
-_SOKOL_PRIVATE void* _sg_gl_getprocaddr(const char* name, _sg_wglGetProcAddress wgl_getprocaddress) {
-    void* proc_addr = (void*) wgl_getprocaddress(name);
-    if (0 == proc_addr) {
-        proc_addr = (void*) GetProcAddress(_sg.gl.opengl32_dll, name);
-    }
-    SOKOL_ASSERT(proc_addr);
-    return proc_addr;
-}
+
 */
 
 fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
@@ -1509,11 +1589,17 @@ fn sg_gl_load_opengl(sg : &mut sg_state_t) {
     debug_assert!(0 == sg.gl.opengl32_dll);
     sg.gl.opengl32_dll = unsafe { LoadLibraryA(s!("opengl32.dll")) };
     debug_assert!(sg.gl.opengl32_dll != 0);
-    _sg_wglGetProcAddress wgl_getprocaddress = (_sg_wglGetProcAddress) GetProcAddress(_sg.gl.opengl32_dll, "wglGetProcAddress");
-    debug_assert!(wgl_getprocaddress != None);
-    #define _SG_XMACRO(name, ret, args) name = (PFN_ ## name) _sg_gl_getprocaddr(#name, wgl_getprocaddress);
-    _SG_GL_FUNCS
-    #undef _SG_XMACRO
+
+    unsafe {
+        let wgl_getprocaddress_fn : Option<sg_wglGetProcAddressT> = std::mem::transmute(GetProcAddress(sg.gl.opengl32_dll, s!("wglGetProcAddress")));
+        if let Some(wgl_getprocaddress) = wgl_getprocaddress_fn {
+            sg_gl_load_funcs(sg, wgl_getprocaddress);
+        }
+    }
+    //_sg_wglGetProcAddress wgl_getprocaddress = (_sg_wglGetProcAddress) GetProcAddress(_sg.gl.opengl32_dll, "wglGetProcAddress");
+    //debug_assert!(wgl_getprocaddress != None);
+    //#define _SG_XMACRO(name, ret, args) name = (PFN_ ## name) _sg_gl_getprocaddr(#name, wgl_getprocaddress);
+    //_SG_GL_FUNCS
 }
 
 
