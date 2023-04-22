@@ -1315,61 +1315,17 @@ unsafe fn sg_gl_getprocaddr(sg : &sg_state_t, name : *const u8, wgl_getprocaddre
     proc_addr
 }
 
-
-//_SG_XMACRO(glBindVertexArray,                 void, (GLuint array)) \
-//type Fn_glBindVertexArray = extern "system" fn(array: GLuint) -> ();
-//static mut glBindVertexArray : Fn_glBindVertexArray = unsafe { std::mem::zeroed() };
-
-type Fn_glBindVertexArray = extern "system" fn(array: GLuint) -> ();
-//static mut glBindVertexArray : Option<extern "system" fn(array: GLuint) -> ()> = None;
-
-mod TYPE{
-    use super::*;
-
-    pub type glBindVertexArray2 = extern "system" fn(array: GLuint) -> ();
-}
-
-mod DUMMY{
-    use super::*;
-
-    pub extern "system" fn glBindVertexArray2(array : GLuint) -> () { () }
-}
-
-//static mut glBindVertexArray2 : TYPE::glBindVertexArray2 = unsafe { std::mem::zeroed() };
-
-//static mut glBindVertexArray2 : *mut extern "system" fn(array: GLuint) -> () = std::ptr::null_mut();
-static mut glBindVertexArray2 : extern "system" fn(array: GLuint) -> () = DUMMY::glBindVertexArray2;
-//static mut glBindVertexArray2 : Option<extern "system" fn(array: GLuint) -> ()> = None;
-
-unsafe fn sg_gl_load_funcs2(sg : &sg_state_t, wgl_getprocaddress : sg_wglGetProcAddressT){
-
-    glBindVertexArray2 =
-        std::mem::transmute(GetProcAddress(0, s!("wglCreateContext")));
-
-    let loader =
-        std::mem::transmute(GetProcAddress(0, s!("wglCreateContext")));
-    if let Some(val) = loader {
-        glBindVertexArray2 = val;
-    }
-
-
-    glBindVertexArray2(4);
-    //(*glBindVertexArray2)(4);
-    //glBindVertexArray2.unwrap_unchecked()(4);
-}
-
-// DT_TODO: Use option and call unwrap_unchecked() 
 macro_rules! generate_gl_types {
     ( $( $name:ident, $ret:ty, $retval:expr, ( $( $param:ident : $param_type:ty ),* ); )* ) => {
         mod GLDUMMY {
             use super::*;
             $(
-                pub extern "system" fn $name( $( $param : $param_type ),* ) -> $ret { $retval }
+                pub unsafe extern "system" fn $name( $( $param : $param_type ),* ) -> $ret { $retval }
             )*
         }
 
         $(
-            static mut $name : extern "system" fn( $( $param : $param_type ),* ) -> $ret = GLDUMMY::$name;
+            static mut $name : unsafe extern "system" fn( $( $param : $param_type ),* ) -> $ret = GLDUMMY::$name;
         )*
 
         unsafe fn sg_gl_load_funcs(sg : &sg_state_t, wgl_getprocaddress : sg_wglGetProcAddressT){
@@ -1388,127 +1344,107 @@ generate_gl_types!(
     glBindVertexArray, (), (), (array: GLuint);
     glFramebufferTextureLayer, (), (), (target: GLenum, attachment: GLenum, texture: GLuint, level: GLint, layer: GLint);
     glGenFramebuffers, (), (), (n : GLsizei, framebuffers: *const GLuint);
+    glBindFramebuffer, (), (), (target : GLenum , framebuffer: GLuint );
+    glBindRenderbuffer, (), (), (target : GLenum, renderbuffer : GLuint);
+    glGetStringi, *const GLubyte, std::ptr::null(), (name : GLenum, index : GLuint);
+    glClearBufferfi, (), (), (buffer : GLenum, drawbuffer: GLint, depth : GLfloat, stencil : GLint);
+    glClearBufferfv, (), (), (buffer : GLenum, drawbuffer: GLint, value : *const GLfloat);
+    glClearBufferuiv, (), (), (buffer : GLenum, drawbuffer: GLint, value : *const GLuint);
+    glClearBufferiv,  (), (), (buffer : GLenum, drawbuffer: GLint, value : *const GLint);
+    glDeleteRenderbuffers, (), (), (n : GLsizei, renderbuffers : *const GLuint);
+    glUniform1fv, (), (), (location : GLint, count : GLsizei, value : *const GLfloat);
+    glUniform2fv, (), (), (location : GLint, count : GLsizei, value : *const GLfloat);
+    glUniform3fv, (), (), (location : GLint, count : GLsizei, value : *const GLfloat);
+    glUniform4fv, (), (), (location : GLint, count : GLsizei, value : *const GLfloat);
+    glUniform1iv, (), (), (location : GLint, count : GLsizei, value : *const GLint);
+    glUniform2iv, (), (), (location : GLint, count : GLsizei, value : *const GLint);
+    glUniform3iv, (), (), (location : GLint, count : GLsizei, value : *const GLint);
+    glUniform4iv, (), (), (location : GLint, count : GLsizei, value : *const GLint);
+    glUniformMatrix4fv,                (), (), (location : GLint, count : GLsizei, transpose : GLboolean, value : *const GLfloat);
+    glUseProgram,                      (), (), (program : GLuint);
+    glShaderSource,                    (), (), (shader : GLuint, count : GLsizei, string : *const *const GLchar, length : *const GLint);
+    glLinkProgram,                     (), (), (program : GLuint);
+    glGetUniformLocation,              GLint,0, (program : GLuint, name : *const GLchar);
+    glGetShaderiv,                     (), (), (shader : GLuint, pname : GLenum, params : *mut GLint);
+    glGetProgramInfoLog,               (), (), (program : GLuint, bufSize : GLsizei, length : *mut GLsizei, infoLog : *mut GLchar);
+    glGetAttribLocation,               GLint,0, (program : GLuint, name : *const GLchar);
+    glDisableVertexAttribArray,        (), (), (index : GLuint);
+    glDeleteShader,                    (), (), (shader : GLuint);
+    glDeleteProgram,                   (), (), (program : GLuint);
+    glCompileShader,                   (), (), (shader : GLuint);
+    glStencilFuncSeparate,             (), (), (face : GLenum, func : GLenum, refval : GLint, mask : GLuint);
+    glStencilOpSeparate,               (), (), (face : GLenum, sfail : GLenum, dpfail : GLenum, dppass : GLenum);
+    glRenderbufferStorageMultisample,  (), (), (target : GLenum, samples : GLsizei, internalformat : GLenum, width : GLsizei, height : GLsizei);
+    glDrawBuffers,                     (), (), (n : GLsizei, bufs : *const GLenum);
+    glVertexAttribDivisor,             (), (), (index : GLuint, divisor : GLuint);
+    glBufferSubData,                   (), (), (target : GLenum, offset : GLintptr, size : GLsizeiptr, data : *const ::core::ffi::c_void);
+    glGenBuffers,                      (), (), (n : GLsizei, buffers : *mut GLuint);
+    glCheckFramebufferStatus,          GLenum,0, (target : GLenum);
+    glFramebufferRenderbuffer,         (), (), (target : GLenum, attachment : GLenum, renderbuffertarget : GLenum, renderbuffer : GLuint);
+    glCompressedTexImage2D,            (), (), (target : GLenum, level : GLint, internalformat : GLenum, width : GLsizei, height : GLsizei, border : GLint, imageSize : GLsizei, data : *const ::core::ffi::c_void);
+    glCompressedTexImage3D,            (), (), (target : GLenum, level : GLint, internalformat : GLenum, width : GLsizei, height : GLsizei, depth : GLsizei, border : GLint, imageSize : GLsizei, data : *const ::core::ffi::c_void);
+    glActiveTexture,                   (), (), (texture : GLenum);
+    glTexSubImage3D,                   (), (), (target : GLenum, level : GLint, xoffset : GLint, yoffset : GLint, zoffset : GLint, width : GLsizei, height : GLsizei, depth : GLsizei, format : GLenum, typeval : GLenum, pixels : *const ::core::ffi::c_void);
+    glRenderbufferStorage,             (), (), (target : GLenum, internalformat : GLenum, width : GLsizei, height : GLsizei);
+    glGenTextures,                     (), (), (n : GLsizei, textures : *mut GLuint);
+    glPolygonOffset,                   (), (), (factor : GLfloat, units : GLfloat);
+    glDrawElements,                    (), (), (mode : GLenum, count : GLsizei, typeval : GLenum, indices : *const ::core::ffi::c_void);
+    glDeleteFramebuffers,              (), (), (n : GLsizei, framebuffers : *const GLuint);
+    glBlendEquationSeparate,           (), (), (modeRGB : GLenum, modeAlpha : GLenum);
+    glDeleteTextures,                  (), (), (n : GLsizei, textures : *const GLuint);
+    glGetProgramiv,                    (), (), (program : GLuint, pname : GLenum, params : *mut GLint);
+    glBindTexture,                     (), (), (target : GLenum, texture : GLuint);
+    glTexImage3D,                      (), (), (target : GLenum, level : GLint, internalformat : GLint, width : GLsizei, height : GLsizei, depth : GLsizei, border : GLint, format : GLenum, typeval : GLenum, pixels : *const ::core::ffi::c_void);
+    glCreateShader,                    GLuint,0, (typeval : GLenum);
+    glTexSubImage2D,                   (), (), (target : GLenum, level : GLint, xoffset : GLint, yoffset : GLint, width : GLsizei, height : GLsizei, format : GLenum, typeval : GLenum, pixels : *const ::core::ffi::c_void);
+    glClearDepth,                      (), (), (depth : GLdouble);
+    glFramebufferTexture2D,            (), (), (target : GLenum, attachment : GLenum, textarget : GLenum, texture : GLuint, level : GLint);
+    glCreateProgram,                   GLuint,0, ();
+    glViewport,                        (), (), (x : GLint, y : GLint, width : GLsizei, height : GLsizei);
+    glDeleteBuffers,                   (), (), (n : GLsizei, buffers : *const GLuint);
+    glDrawArrays,                      (), (), (mode : GLenum, first : GLint, count : GLsizei);
+    glDrawElementsInstanced,           (), (), (mode : GLenum, count : GLsizei, typeval : GLenum, indices : *const ::core::ffi::c_void, instancecount : GLsizei);
+    glVertexAttribPointer,             (), (), (index : GLuint, size : GLint, typeval : GLenum, normalized : GLboolean, stride : GLsizei, pointer : *const ::core::ffi::c_void);
+    glUniform1i,                       (), (), (location : GLint, v0 : GLint);
+    glDisable,                         (), (), (cap : GLenum);
+    glColorMask,                       (), (), (red : GLboolean, green : GLboolean, blue : GLboolean, alpha : GLboolean);
+    glColorMaski,                      (), (), (buf : GLuint, red : GLboolean, green : GLboolean, blue : GLboolean, alpha : GLboolean);
+    glBindBuffer,                      (), (), (target : GLenum, buffer : GLuint);
+    glDeleteVertexArrays,              (), (), (n : GLsizei, arrays : *const GLuint);
+    glDepthMask,                       (), (), (flag : GLboolean);
+    glDrawArraysInstanced,             (), (), (mode : GLenum, first : GLint, count : GLsizei, instancecount : GLsizei);
+    glClearStencil,                    (), (), (s : GLint);
+    glScissor,                         (), (), (x : GLint, y : GLint, width : GLsizei, height : GLsizei);
+    glGenRenderbuffers,                (), (), (n : GLsizei, renderbuffers : *mut GLuint);
+    glBufferData,                      (), (), (target : GLenum, size : GLsizeiptr, data : *const ::core::ffi::c_void, usage : GLenum);
+    glBlendFuncSeparate,               (), (), (sfactorRGB : GLenum, dfactorRGB : GLenum, sfactorAlpha : GLenum, dfactorAlpha : GLenum);
+    glTexParameteri,                   (), (), (target : GLenum, pname : GLenum, param : GLint);
+    glGetIntegerv,                     (), (), (pname : GLenum, data : *mut GLint);
+    glEnable,                          (), (), (cap : GLenum);
+    glBlitFramebuffer,                 (), (), (srcX0 : GLint, srcY0 : GLint, srcX1 : GLint, srcY1 : GLint, dstX0 : GLint, dstY0 : GLint, dstX1 : GLint, dstY1 : GLint, mask : GLbitfield, filter : GLenum);
+    glStencilMask,                     (), (), (mask : GLuint);
+    glAttachShader,                    (), (), (program : GLuint, shader : GLuint);
+    glGetError,                        GLenum,0, ();
+    glClearColor,                      (), (), (red : GLfloat, green : GLfloat, blue : GLfloat, alpha : GLfloat);
+    glBlendColor,                      (), (), (red : GLfloat, green : GLfloat, blue : GLfloat, alpha : GLfloat);
+    glTexParameterf,                   (), (), (target : GLenum, pname : GLenum, param : GLfloat);
+    glTexParameterfv,                  (), (), (target : GLenum, pname : GLenum, params : *mut GLfloat);
+    glGetShaderInfoLog,                (), (), (shader : GLuint, bufSize : GLsizei, length : *mut GLsizei, infoLog : *mut GLchar);
+    glDepthFunc,                       (), (), (func : GLenum);
+    glStencilOp ,                      (), (), (fail : GLenum, zfail : GLenum, zpass : GLenum);
+    glStencilFunc,                     (), (), (func : GLenum, refval : GLint, mask : GLuint);
+    glEnableVertexAttribArray,         (), (), (index : GLuint);
+    glBlendFunc,                       (), (), (sfactor : GLenum, dfactor : GLenum);
+    glReadBuffer,                      (), (), (src : GLenum);
+    glReadPixels,                      (), (), (x : GLint, y : GLint, width : GLsizei, height : GLsizei, format : GLenum, typeval : GLenum, data : *mut ::core::ffi::c_void);
+    glClear,                           (), (), (mask : GLbitfield);
+    glTexImage2D,                      (), (), (target : GLenum, level : GLint, internalformat : GLint, width : GLsizei, height : GLsizei, border : GLint, format : GLenum, typeval : GLenum, pixels : *const ::core::ffi::c_void);
+    glGenVertexArrays,                 (), (), (n : GLsizei, arrays : *mut GLuint);
+    glFrontFace,                       (), (), (mode : GLenum);
+    glCullFace,                        (), (), (mode : GLenum);
+    glPixelStorei,                     (), (), (pname : GLenum, param : GLint);
+
 );
-
-
-/*
-// X Macro list of GL function names and signatures
-#define _SG_GL_FUNCS \
-    //_SG_XMACRO(glBindVertexArray,                 void, (GLuint array)) \
-    //_SG_XMACRO(glFramebufferTextureLayer,         void, (GLenum target, GLenum attachment, GLuint texture, GLint level, GLint layer)) \
-    //_SG_XMACRO(glGenFramebuffers,                 void, (GLsizei n, GLuint * framebuffers)) \
-    _SG_XMACRO(glBindFramebuffer,                 void, (GLenum target, GLuint framebuffer)) \
-    _SG_XMACRO(glBindRenderbuffer,                void, (GLenum target, GLuint renderbuffer)) \
-    _SG_XMACRO(glGetStringi,                      const GLubyte *, (GLenum name, GLuint index)) \
-    _SG_XMACRO(glClearBufferfi,                   void, (GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil)) \
-    _SG_XMACRO(glClearBufferfv,                   void, (GLenum buffer, GLint drawbuffer, const GLfloat * value)) \
-    _SG_XMACRO(glClearBufferuiv,                  void, (GLenum buffer, GLint drawbuffer, const GLuint * value)) \
-    _SG_XMACRO(glClearBufferiv,                   void, (GLenum buffer, GLint drawbuffer, const GLint * value)) \
-    _SG_XMACRO(glDeleteRenderbuffers,             void, (GLsizei n, const GLuint * renderbuffers)) \
-    _SG_XMACRO(glUniform1fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
-    _SG_XMACRO(glUniform2fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
-    _SG_XMACRO(glUniform3fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
-    _SG_XMACRO(glUniform4fv,                      void, (GLint location, GLsizei count, const GLfloat * value)) \
-    _SG_XMACRO(glUniform1iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
-    _SG_XMACRO(glUniform2iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
-    _SG_XMACRO(glUniform3iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
-    _SG_XMACRO(glUniform4iv,                      void, (GLint location, GLsizei count, const GLint * value)) \
-    _SG_XMACRO(glUniformMatrix4fv,                void, (GLint location, GLsizei count, GLboolean transpose, const GLfloat * value)) \
-    _SG_XMACRO(glUseProgram,                      void, (GLuint program)) \
-    _SG_XMACRO(glShaderSource,                    void, (GLuint shader, GLsizei count, const GLchar *const* string, const GLint * length)) \
-    _SG_XMACRO(glLinkProgram,                     void, (GLuint program)) \
-    _SG_XMACRO(glGetUniformLocation,              GLint, (GLuint program, const GLchar * name)) \
-    _SG_XMACRO(glGetShaderiv,                     void, (GLuint shader, GLenum pname, GLint * params)) \
-    _SG_XMACRO(glGetProgramInfoLog,               void, (GLuint program, GLsizei bufSize, GLsizei * length, GLchar * infoLog)) \
-    _SG_XMACRO(glGetAttribLocation,               GLint, (GLuint program, const GLchar * name)) \
-    _SG_XMACRO(glDisableVertexAttribArray,        void, (GLuint index)) \
-    _SG_XMACRO(glDeleteShader,                    void, (GLuint shader)) \
-    _SG_XMACRO(glDeleteProgram,                   void, (GLuint program)) \
-    _SG_XMACRO(glCompileShader,                   void, (GLuint shader)) \
-    _SG_XMACRO(glStencilFuncSeparate,             void, (GLenum face, GLenum func, GLint ref, GLuint mask)) \
-    _SG_XMACRO(glStencilOpSeparate,               void, (GLenum face, GLenum sfail, GLenum dpfail, GLenum dppass)) \
-    _SG_XMACRO(glRenderbufferStorageMultisample,  void, (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height)) \
-    _SG_XMACRO(glDrawBuffers,                     void, (GLsizei n, const GLenum * bufs)) \
-    _SG_XMACRO(glVertexAttribDivisor,             void, (GLuint index, GLuint divisor)) \
-    _SG_XMACRO(glBufferSubData,                   void, (GLenum target, GLintptr offset, GLsizeiptr size, const void * data)) \
-    _SG_XMACRO(glGenBuffers,                      void, (GLsizei n, GLuint * buffers)) \
-    _SG_XMACRO(glCheckFramebufferStatus,          GLenum, (GLenum target)) \
-    _SG_XMACRO(glFramebufferRenderbuffer,         void, (GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer)) \
-    _SG_XMACRO(glCompressedTexImage2D,            void, (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const void * data)) \
-    _SG_XMACRO(glCompressedTexImage3D,            void, (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void * data)) \
-    _SG_XMACRO(glActiveTexture,                   void, (GLenum texture)) \
-    _SG_XMACRO(glTexSubImage3D,                   void, (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void * pixels)) \
-    _SG_XMACRO(glRenderbufferStorage,             void, (GLenum target, GLenum internalformat, GLsizei width, GLsizei height)) \
-    _SG_XMACRO(glGenTextures,                     void, (GLsizei n, GLuint * textures)) \
-    _SG_XMACRO(glPolygonOffset,                   void, (GLfloat factor, GLfloat units)) \
-    _SG_XMACRO(glDrawElements,                    void, (GLenum mode, GLsizei count, GLenum type, const void * indices)) \
-    _SG_XMACRO(glDeleteFramebuffers,              void, (GLsizei n, const GLuint * framebuffers)) \
-    _SG_XMACRO(glBlendEquationSeparate,           void, (GLenum modeRGB, GLenum modeAlpha)) \
-    _SG_XMACRO(glDeleteTextures,                  void, (GLsizei n, const GLuint * textures)) \
-    _SG_XMACRO(glGetProgramiv,                    void, (GLuint program, GLenum pname, GLint * params)) \
-    _SG_XMACRO(glBindTexture,                     void, (GLenum target, GLuint texture)) \
-    _SG_XMACRO(glTexImage3D,                      void, (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const void * pixels)) \
-    _SG_XMACRO(glCreateShader,                    GLuint, (GLenum type)) \
-    _SG_XMACRO(glTexSubImage2D,                   void, (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void * pixels)) \
-    _SG_XMACRO(glClearDepth,                      void, (GLdouble depth)) \
-    _SG_XMACRO(glFramebufferTexture2D,            void, (GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level)) \
-    _SG_XMACRO(glCreateProgram,                   GLuint, (void)) \
-    _SG_XMACRO(glViewport,                        void, (GLint x, GLint y, GLsizei width, GLsizei height)) \
-    _SG_XMACRO(glDeleteBuffers,                   void, (GLsizei n, const GLuint * buffers)) \
-    _SG_XMACRO(glDrawArrays,                      void, (GLenum mode, GLint first, GLsizei count)) \
-    _SG_XMACRO(glDrawElementsInstanced,           void, (GLenum mode, GLsizei count, GLenum type, const void * indices, GLsizei instancecount)) \
-    _SG_XMACRO(glVertexAttribPointer,             void, (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void * pointer)) \
-    _SG_XMACRO(glUniform1i,                       void, (GLint location, GLint v0)) \
-    _SG_XMACRO(glDisable,                         void, (GLenum cap)) \
-    _SG_XMACRO(glColorMask,                       void, (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)) \
-    _SG_XMACRO(glColorMaski,                      void, (GLuint buf, GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha)) \
-    _SG_XMACRO(glBindBuffer,                      void, (GLenum target, GLuint buffer)) \
-    _SG_XMACRO(glDeleteVertexArrays,              void, (GLsizei n, const GLuint * arrays)) \
-    _SG_XMACRO(glDepthMask,                       void, (GLboolean flag)) \
-    _SG_XMACRO(glDrawArraysInstanced,             void, (GLenum mode, GLint first, GLsizei count, GLsizei instancecount)) \
-    _SG_XMACRO(glClearStencil,                    void, (GLint s)) \
-    _SG_XMACRO(glScissor,                         void, (GLint x, GLint y, GLsizei width, GLsizei height)) \
-    _SG_XMACRO(glGenRenderbuffers,                void, (GLsizei n, GLuint * renderbuffers)) \
-    _SG_XMACRO(glBufferData,                      void, (GLenum target, GLsizeiptr size, const void * data, GLenum usage)) \
-    _SG_XMACRO(glBlendFuncSeparate,               void, (GLenum sfactorRGB, GLenum dfactorRGB, GLenum sfactorAlpha, GLenum dfactorAlpha)) \
-    _SG_XMACRO(glTexParameteri,                   void, (GLenum target, GLenum pname, GLint param)) \
-    _SG_XMACRO(glGetIntegerv,                     void, (GLenum pname, GLint * data)) \
-    _SG_XMACRO(glEnable,                          void, (GLenum cap)) \
-    _SG_XMACRO(glBlitFramebuffer,                 void, (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter)) \
-    _SG_XMACRO(glStencilMask,                     void, (GLuint mask)) \
-    _SG_XMACRO(glAttachShader,                    void, (GLuint program, GLuint shader)) \
-    _SG_XMACRO(glGetError,                        GLenum, (void)) \
-    _SG_XMACRO(glClearColor,                      void, (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)) \
-    _SG_XMACRO(glBlendColor,                      void, (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha)) \
-    _SG_XMACRO(glTexParameterf,                   void, (GLenum target, GLenum pname, GLfloat param)) \
-    _SG_XMACRO(glTexParameterfv,                  void, (GLenum target, GLenum pname, GLfloat* params)) \
-    _SG_XMACRO(glGetShaderInfoLog,                void, (GLuint shader, GLsizei bufSize, GLsizei * length, GLchar * infoLog)) \
-    _SG_XMACRO(glDepthFunc,                       void, (GLenum func)) \
-    _SG_XMACRO(glStencilOp ,                      void, (GLenum fail, GLenum zfail, GLenum zpass)) \
-    _SG_XMACRO(glStencilFunc,                     void, (GLenum func, GLint ref, GLuint mask)) \
-    _SG_XMACRO(glEnableVertexAttribArray,         void, (GLuint index)) \
-    _SG_XMACRO(glBlendFunc,                       void, (GLenum sfactor, GLenum dfactor)) \
-    _SG_XMACRO(glReadBuffer,                      void, (GLenum src)) \
-    _SG_XMACRO(glReadPixels,                      void, (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void * data)) \
-    _SG_XMACRO(glClear,                           void, (GLbitfield mask)) \
-    _SG_XMACRO(glTexImage2D,                      void, (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void * pixels)) \
-    _SG_XMACRO(glGenVertexArrays,                 void, (GLsizei n, GLuint * arrays)) \
-    _SG_XMACRO(glFrontFace,                       void, (GLenum mode)) \
-    _SG_XMACRO(glCullFace,                        void, (GLenum mode)) \
-    _SG_XMACRO(glPixelStorei,                     void, (GLenum pname, GLint param))
-
-// generate GL function pointer typedefs
-#define _SG_XMACRO(name, ret, args) typedef ret (GL_APIENTRY* PFN_ ## name) args;
-_SG_GL_FUNCS
-#undef _SG_XMACRO
-
-// generate GL function pointers
-#define _SG_XMACRO(name, ret, args) static PFN_ ## name name;
-_SG_GL_FUNCS
-#undef _SG_XMACRO
-
-
-*/
 
 fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
     sg.backend = sg_backend::GLCORE33;
@@ -1530,27 +1466,29 @@ fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
     let mut has_pvrtc = false;
     let mut has_etc2 = false;
     let mut num_ext = 0;
-    sg.gl.glGetIntegerv(GL_NUM_EXTENSIONS, &mut num_ext);
-    for i in 0..num_ext {
-        const char* ext = (const char*) glGetStringi(GL_EXTENSIONS, (GLuint)i);
-        if (ext) {
-            if (strstr(ext, "_texture_compression_s3tc")) {
-                has_s3tc = true;
-            }
-            else if (strstr(ext, "_texture_compression_rgtc")) {
-                has_rgtc = true;
-            }
-            else if (strstr(ext, "_texture_compression_bptc")) {
-                has_bptc = true;
-            }
-            else if (strstr(ext, "_texture_compression_pvrtc")) {
-                has_pvrtc = true;
-            }
-            else if (strstr(ext, "_ES3_compatibility")) {
-                has_etc2 = true;
-            }
-            else if (strstr(ext, "_texture_filter_anisotropic")) {
-                sg.gl.ext_anisotropic = true;
+    unsafe {
+        glGetIntegerv(GL_NUM_EXTENSIONS, &mut num_ext);
+        for i in 0..num_ext {
+            let ext = glGetStringi(GL_EXTENSIONS, i as GLuint);
+            if (ext) {
+                if (strstr(ext, "_texture_compression_s3tc")) {
+                    has_s3tc = true;
+                }
+                else if (strstr(ext, "_texture_compression_rgtc")) {
+                    has_rgtc = true;
+                }
+                else if (strstr(ext, "_texture_compression_bptc")) {
+                    has_bptc = true;
+                }
+                else if (strstr(ext, "_texture_compression_pvrtc")) {
+                    has_pvrtc = true;
+                }
+                else if (strstr(ext, "_ES3_compatibility")) {
+                    has_etc2 = true;
+                }
+                else if (strstr(ext, "_texture_filter_anisotropic")) {
+                    sg.gl.ext_anisotropic = true;
+                }
             }
         }
     }
@@ -1596,10 +1534,6 @@ fn sg_gl_load_opengl(sg : &mut sg_state_t) {
             sg_gl_load_funcs(sg, wgl_getprocaddress);
         }
     }
-    //_sg_wglGetProcAddress wgl_getprocaddress = (_sg_wglGetProcAddress) GetProcAddress(_sg.gl.opengl32_dll, "wglGetProcAddress");
-    //debug_assert!(wgl_getprocaddress != None);
-    //#define _SG_XMACRO(name, ret, args) name = (PFN_ ## name) _sg_gl_getprocaddr(#name, wgl_getprocaddress);
-    //_SG_GL_FUNCS
 }
 
 
