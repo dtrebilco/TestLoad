@@ -1048,6 +1048,69 @@ fn sg_setup_pools(p : &mut sg_pools_t, desc : &sg_desc) {
 }
 
 
+/* capability table pixel format helper functions */
+fn sg_pixelformat_all(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.filter = true;
+    pfi.blend = true;
+    pfi.render = true;
+    pfi.msaa = true;
+}
+
+fn sg_pixelformat_s(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+}
+
+fn sg_pixelformat_sf(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.filter = true;
+}
+
+fn sg_pixelformat_sr(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.render = true;
+}
+
+fn sg_pixelformat_srmd(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.render = true;
+    pfi.msaa = true;
+    pfi.depth = true;
+}
+
+fn sg_pixelformat_srm(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.render = true;
+    pfi.msaa = true;
+}
+
+fn sg_pixelformat_sfrm(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.filter = true;
+    pfi.render = true;
+    pfi.msaa = true;
+}
+fn sg_pixelformat_sbrm(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.blend = true;
+    pfi.render = true;
+    pfi.msaa = true;
+}
+
+fn sg_pixelformat_sbr(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.blend = true;
+    pfi.render = true;
+}
+
+fn sg_pixelformat_sfbr(pfi : &mut sg_pixelformat_info) {
+    pfi.sample = true;
+    pfi.filter = true;
+    pfi.blend = true;
+    pfi.render = true;
+}
+
+
 const GL_INT_2_10_10_10_REV :u32 = 0x8D9F;
 const GL_PROGRAM_POINT_SIZE :u32 = 0x8642;
 const GL_STENCIL_ATTACHMENT :u32 = 0x8D20;
@@ -1446,7 +1509,275 @@ generate_gl_types!(
 
 );
 
-fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
+fn sg_gl_init_pixelformats(sg : &mut sg_state_t, has_bgra : bool) {
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        sg_pixelformat_all(&mut sg.formats[sg_pixel_format::R8 as usize]);
+    }
+    else {
+        sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R8 as usize]);
+    }
+    //#else
+    //sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R8]);
+    //#endif
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R8SN as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::R8UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::R8SI as usize]);
+        //#if !defined(SOKOL_GLES3)
+            sg_pixelformat_all(&mut sg.formats[sg_pixel_format::R16 as usize]);
+            sg_pixelformat_all(&mut sg.formats[sg_pixel_format::R16SN as usize]);
+        //#endif
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::R16UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::R16SI as usize]);
+        sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RG8 as usize]);
+        sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RG8SN as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RG8UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RG8SI as usize]);
+        sg_pixelformat_sr(&mut sg.formats[sg_pixel_format::R32UI as usize]);
+        sg_pixelformat_sr(&mut sg.formats[sg_pixel_format::R32SI as usize]);
+        //#if !defined(SOKOL_GLES3)
+            sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RG16 as usize]);
+            sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RG16SN as usize]);
+        //#endif
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RG16UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RG16SI as usize]);
+    }
+    //#endif
+    sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA8 as usize]);
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        sg_pixelformat_all(&mut sg.formats[sg_pixel_format::SRGB8A8 as usize]);
+        sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RGBA8SN as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RGBA8UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RGBA8SI as usize]);
+    }
+    //#endif
+    if has_bgra {
+        sg_pixelformat_all(&mut sg.formats[sg_pixel_format::BGRA8 as usize]);
+    }
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGB10A2 as usize]);
+        sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RG11B10F as usize]);
+        sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RGB9E5 as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RG32UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RG32SI as usize]);
+        //#if !defined(SOKOL_GLES3)
+            sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA16 as usize]);
+            sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA16SN as usize]);
+        //#endif
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RGBA16UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RGBA16SI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RGBA32UI as usize]);
+        sg_pixelformat_srm(&mut sg.formats[sg_pixel_format::RGBA32SI as usize]);
+    }
+    //#endif
+    // FIXME: WEBGL_depth_texture extension?
+    sg_pixelformat_srmd(&mut sg.formats[sg_pixel_format::DEPTH as usize]);
+    sg_pixelformat_srmd(&mut sg.formats[sg_pixel_format::DEPTH_STENCIL as usize]);
+}
+
+/* FIXME: OES_half_float_blend */
+fn sg_gl_init_pixelformats_half_float(sg : &mut sg_state_t, has_colorbuffer_half_float : bool, has_texture_half_float_linear : bool) {
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        if (has_texture_half_float_linear) {
+            if (has_colorbuffer_half_float) {
+                sg_pixelformat_all(&mut sg.formats[sg_pixel_format::R16F as usize]);
+                sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RG16F as usize]);
+                sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+            else {
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R16F as usize]);
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RG16F as usize]);
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+        }
+        else {
+            if (has_colorbuffer_half_float) {
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::R16F as usize]);
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RG16F as usize]);
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+            else {
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::R16F as usize]);
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::RG16F as usize]);
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+        }
+    }
+    else {
+    //#endif
+        /* GLES2 can only render to RGBA, and there's no RG format */
+        if (has_texture_half_float_linear) {
+            if (has_colorbuffer_half_float) {
+                sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+            else {
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+            sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R16F as usize]);
+        }
+        else {
+            if (has_colorbuffer_half_float) {
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+            else {
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
+            }
+            sg_pixelformat_s(&mut sg.formats[sg_pixel_format::R16F as usize]);
+        }
+    //#if !defined(SOKOL_GLES2)
+    }
+    //#endif
+}
+
+fn sg_gl_init_pixelformats_float(sg : &mut sg_state_t, has_colorbuffer_float : bool, has_texture_float_linear : bool, has_float_blend : bool) {
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        if (has_texture_float_linear) {
+            if (has_colorbuffer_float) {
+                if (has_float_blend) {
+                    sg_pixelformat_all(&mut sg.formats[sg_pixel_format::R32F as usize]);
+                    sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RG32F as usize]);
+                    sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+                }
+                else {
+                    sg_pixelformat_sfrm(&mut sg.formats[sg_pixel_format::R32F as usize]);
+                    sg_pixelformat_sfrm(&mut sg.formats[sg_pixel_format::RG32F as usize]);
+                    sg_pixelformat_sfrm(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+                }
+            }
+            else {
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R32F as usize]);
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RG32F as usize]);
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+            }
+        }
+        else {
+            if (has_colorbuffer_float) {
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::R32F as usize]);
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RG32F as usize]);
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+            }
+            else {
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::R32F as usize]);
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::RG32F as usize]);
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+            }
+        }
+    }
+    else {
+    //#endif
+        /* GLES2 can only render to RGBA, and there's no RG format */
+        if has_texture_float_linear {
+            if has_colorbuffer_float {
+                if has_float_blend {
+                    sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+                }
+                else {
+                    sg_pixelformat_sfrm(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+                }
+            }
+            else {
+                sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+            }
+            sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R32F as usize]);
+        }
+        else {
+            if (has_colorbuffer_float) {
+                sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+            }
+            else {
+                sg_pixelformat_s(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
+            }
+            sg_pixelformat_s(&mut sg.formats[sg_pixel_format::R32F as usize]);
+        }
+    //#if !defined(SOKOL_GLES2)
+    }
+    //#endif
+}
+
+
+fn sg_gl_init_pixelformats_s3tc(sg : &mut sg_state_t) {
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC1_RGBA as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC2_RGBA as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC3_RGBA as usize]);
+}
+
+fn sg_gl_init_pixelformats_rgtc(sg : &mut sg_state_t) {
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC4_R as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC4_RSN as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC5_RG as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC5_RGSN as usize]);
+}
+
+fn sg_gl_init_pixelformats_bptc(sg : &mut sg_state_t) {
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC6H_RGBF as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC6H_RGBUF as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::BC7_RGBA as usize]);
+}
+
+fn sg_gl_init_pixelformats_pvrtc(sg : &mut sg_state_t) {
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::PVRTC_RGB_2BPP as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::PVRTC_RGB_4BPP as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::PVRTC_RGBA_2BPP as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::PVRTC_RGBA_4BPP as usize]);
+}
+
+fn sg_gl_init_pixelformats_etc2(sg : &mut sg_state_t) {
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::ETC2_RGB8 as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::ETC2_RGB8A1 as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::ETC2_RGBA8 as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::ETC2_RG11 as usize]);
+    sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::ETC2_RG11SN as usize]);
+}
+
+unsafe fn sg_gl_init_limits(sg : &mut sg_state_t) {
+    //_SG_GL_CHECK_ERROR(); // DT_TODO:
+    let mut gl_int : GLint  = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mut gl_int);
+    //_SG_GL_CHECK_ERROR();
+    sg.limits.max_image_size_2d = gl_int;
+    sg.limits.max_image_size_array = gl_int;
+    glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mut gl_int);
+    //_SG_GL_CHECK_ERROR();
+    sg.limits.max_image_size_cube = gl_int;
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &mut gl_int);
+    //_SG_GL_CHECK_ERROR();
+    if gl_int > SG_MAX_VERTEX_ATTRIBUTES as i32{
+        gl_int = SG_MAX_VERTEX_ATTRIBUTES as i32;
+    }
+    sg.limits.max_vertex_attrs = gl_int;
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &mut gl_int);
+    //_SG_GL_CHECK_ERROR();
+    sg.limits.gl_max_vertex_uniform_vectors = gl_int;
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &mut gl_int);
+        //_SG_GL_CHECK_ERROR();
+        sg.limits.max_image_size_3d = gl_int;
+        glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &mut gl_int);
+        //_SG_GL_CHECK_ERROR();
+        sg.limits.max_image_array_layers = gl_int;
+    }
+    //#endif
+    if (sg.gl.ext_anisotropic) {
+        glGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &mut gl_int);
+        //_SG_GL_CHECK_ERROR();
+        sg.gl.max_anisotropy = gl_int;
+    }
+    else {
+        sg.gl.max_anisotropy = 1;
+    }
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &mut gl_int);
+    //_SG_GL_CHECK_ERROR();
+    sg.limits.gl_max_combined_texture_image_units = gl_int;
+}
+
+unsafe fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
     sg.backend = sg_backend::GLCORE33;
 
     sg.features.origin_top_left = false;
@@ -1466,35 +1797,37 @@ fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
     let mut has_pvrtc = false;
     let mut has_etc2 = false;
     let mut num_ext = 0;
-    unsafe {
-        glGetIntegerv(GL_NUM_EXTENSIONS, &mut num_ext);
-        for i in 0..num_ext {
-            let ext = glGetStringi(GL_EXTENSIONS, i as GLuint);
-            if (ext) {
-                if (strstr(ext, "_texture_compression_s3tc")) {
-                    has_s3tc = true;
-                }
-                else if (strstr(ext, "_texture_compression_rgtc")) {
-                    has_rgtc = true;
-                }
-                else if (strstr(ext, "_texture_compression_bptc")) {
-                    has_bptc = true;
-                }
-                else if (strstr(ext, "_texture_compression_pvrtc")) {
-                    has_pvrtc = true;
-                }
-                else if (strstr(ext, "_ES3_compatibility")) {
-                    has_etc2 = true;
-                }
-                else if (strstr(ext, "_texture_filter_anisotropic")) {
-                    sg.gl.ext_anisotropic = true;
-                }
+
+    glGetIntegerv(GL_NUM_EXTENSIONS, &mut num_ext);
+    for i in 0..num_ext {
+        let ext = glGetStringi(GL_EXTENSIONS, i as GLuint);
+        /*
+        if (ext) {
+            if (strstr(ext, "_texture_compression_s3tc")) {
+                has_s3tc = true;
+            }
+            else if (strstr(ext, "_texture_compression_rgtc")) {
+                has_rgtc = true;
+            }
+            else if (strstr(ext, "_texture_compression_bptc")) {
+                has_bptc = true;
+            }
+            else if (strstr(ext, "_texture_compression_pvrtc")) {
+                has_pvrtc = true;
+            }
+            else if (strstr(ext, "_ES3_compatibility")) {
+                has_etc2 = true;
+            }
+            else if (strstr(ext, "_texture_filter_anisotropic")) {
+                sg.gl.ext_anisotropic = true;
             }
         }
+        */
     }
 
+
     /* limits */
-    sg_gl_init_limits();
+    sg_gl_init_limits(sg);
 
     /* pixel formats */
     let has_bgra = false;    /* not a bug */
@@ -1503,23 +1836,23 @@ fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
     let has_texture_float_linear = true; /* FIXME??? */
     let has_texture_half_float_linear = true;
     let has_float_blend = true;
-    sg_gl_init_pixelformats(has_bgra);
-    sg_gl_init_pixelformats_float(has_colorbuffer_float, has_texture_float_linear, has_float_blend);
-    sg_gl_init_pixelformats_half_float(has_colorbuffer_half_float, has_texture_half_float_linear);
-    if (has_s3tc) {
-        sg_gl_init_pixelformats_s3tc();
+    sg_gl_init_pixelformats(sg, has_bgra);
+    sg_gl_init_pixelformats_float(sg, has_colorbuffer_float, has_texture_float_linear, has_float_blend);
+    sg_gl_init_pixelformats_half_float(sg, has_colorbuffer_half_float, has_texture_half_float_linear);
+    if has_s3tc {
+        sg_gl_init_pixelformats_s3tc(sg);
     }
-    if (has_rgtc) {
-        sg_gl_init_pixelformats_rgtc();
+    if has_rgtc {
+        sg_gl_init_pixelformats_rgtc(sg);
     }
-    if (has_bptc) {
-        sg_gl_init_pixelformats_bptc();
+    if has_bptc {
+        sg_gl_init_pixelformats_bptc(sg);
     }
-    if (has_pvrtc) {
-        sg_gl_init_pixelformats_pvrtc();
+    if has_pvrtc {
+        sg_gl_init_pixelformats_pvrtc(sg);
     }
-    if (has_etc2) {
-        sg_gl_init_pixelformats_etc2();
+    if has_etc2 {
+        sg_gl_init_pixelformats_etc2(sg);
     }
 }
 
@@ -1537,11 +1870,11 @@ fn sg_gl_load_opengl(sg : &mut sg_state_t) {
 }
 
 
-fn sg_gl_setup_backend(sg : &mut sg_state_t, desc : &sg_desc) {
+fn sg_gl_setup_backend(sg : &mut sg_state_t) {
     /* assumes that _sg.gl is already zero-initialized */
     sg.gl.valid = true;
     //#if defined(SOKOL_GLES2) || defined(SOKOL_GLES3)
-    //sg.gl.gles2 = desc.context.gl.force_gles2;
+    //sg.gl.gles2 = sg.desc.context.gl.force_gles2;
     //#else
     //_SOKOL_UNUSED(desc);
     sg.gl.gles2 = false;
@@ -1556,7 +1889,7 @@ fn sg_gl_setup_backend(sg : &mut sg_state_t, desc : &sg_desc) {
     //    while (glGetError() != GL_NO_ERROR);
     //#endif
     //#if defined(SOKOL_GLCORE33)
-        sg_gl_init_caps_glcore33(sg);
+        unsafe { sg_gl_init_caps_glcore33(sg); }
     //#elif defined(SOKOL_GLES3)
     //    if (_sg.gl.gles2) {
     //        _sg_gl_init_caps_gles2();
@@ -1571,8 +1904,8 @@ fn sg_gl_setup_backend(sg : &mut sg_state_t, desc : &sg_desc) {
 
 
 
-fn sg_setup_backend(sg : &mut sg_state_t, desc : &sg_desc) {
-    sg_gl_setup_backend(sg, desc);
+fn sg_setup_backend(sg : &mut sg_state_t) {
+    sg_gl_setup_backend(sg);
 }
 
 pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
@@ -1580,7 +1913,7 @@ pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
     sg_setup_pools(&mut sg.pools, &sg.desc);
     //_sg_setup_commit_listeners(&_sg.desc);
     sg.frame_index = 1;
-    sg_setup_backend(sg, &sg.desc);
+    sg_setup_backend(sg);
     sg.valid = true;
     //sg_setup_context();
 }
