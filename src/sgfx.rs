@@ -1801,28 +1801,38 @@ unsafe fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
     glGetIntegerv(GL_NUM_EXTENSIONS, &mut num_ext);
     for i in 0..num_ext {
         let ext = glGetStringi(GL_EXTENSIONS, i as GLuint);
-        /*
-        if (ext) {
-            if (strstr(ext, "_texture_compression_s3tc")) {
+
+        if ext != std::ptr::null() {
+            let ext = std::ffi::CStr::from_ptr(ext as *const i8).to_bytes();
+
+            // Test that the extension ends with the passed value
+            fn test_extension(ext : &[u8], cmp :&[u8]) -> bool
+            {
+                if ext.len() < cmp.len() {
+                    return false;
+                }
+                ext[(ext.len() - cmp.len())..] == *cmp
+            }
+
+            if !has_s3tc && test_extension(ext, "_texture_compression_s3tc".as_bytes()) {
                 has_s3tc = true;
             }
-            else if (strstr(ext, "_texture_compression_rgtc")) {
+            else if !has_rgtc && test_extension(ext, "_texture_compression_rgtc".as_bytes()) {
                 has_rgtc = true;
             }
-            else if (strstr(ext, "_texture_compression_bptc")) {
+            else if !has_bptc && test_extension(ext, "_texture_compression_bptc".as_bytes()) {
                 has_bptc = true;
             }
-            else if (strstr(ext, "_texture_compression_pvrtc")) {
+            else if !has_pvrtc && test_extension(ext, "_texture_compression_pvrtc".as_bytes()) {
                 has_pvrtc = true;
             }
-            else if (strstr(ext, "_ES3_compatibility")) {
+            else if !has_etc2 && test_extension(ext, "_ES3_compatibility".as_bytes()) {
                 has_etc2 = true;
             }
-            else if (strstr(ext, "_texture_filter_anisotropic")) {
+            else if !sg.gl.ext_anisotropic && test_extension(ext, "_texture_filter_anisotropic".as_bytes()) {
                 sg.gl.ext_anisotropic = true;
             }
         }
-        */
     }
 
 
