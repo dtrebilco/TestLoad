@@ -92,7 +92,7 @@ enum sg_backend {
     DUMMY,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq)]
 enum sg_resource_state {
     #[default]
     INITIAL,
@@ -287,10 +287,10 @@ enum_sequential! {
     #[derive(Default, Clone, Copy)]
     enum sg_blend_op {
         #[default]
-        SG_BLENDOP_DEFAULT,    /* value 0 reserved for default-init */
-        SG_BLENDOP_ADD,
-        SG_BLENDOP_SUBTRACT,
-        SG_BLENDOP_REVERSE_SUBTRACT,
+        DEFAULT,    /* value 0 reserved for default-init */
+        ADD,
+        SUBTRACT,
+        REVERSE_SUBTRACT,
     }
 }
 const SG_BLENDOP_NUM: u32 = sg_blend_op::len() as u32;
@@ -821,7 +821,7 @@ type sg_pass_attachment_t = sg_pass_attachment_common_t;
 struct sg_gl_context_t {
     slot : sg_slot_t, 
     //#if !defined(SOKOL_GLES2)
-    //GLuint vao;
+    vao : GLuint,
     //#endif
     default_framebuffer : u32,
 }
@@ -869,7 +869,7 @@ struct sg_gl_backend_t {
     cur_pass_id: sg_pass,
     cache: sg_gl_state_cache_t,
     ext_anisotropic: bool,
-    max_anisotropy: i32,
+    max_anisotropy: u32,
 
     opengl32_dll: HINSTANCE,
 }
@@ -890,14 +890,14 @@ struct sg_features {
 
 #[derive(Default)]
 struct sg_limits {
-    max_image_size_2d: i32,      // max width/height of SG_IMAGETYPE_2D images
-    max_image_size_cube: i32,    // max width/height of SG_IMAGETYPE_CUBE images
-    max_image_size_3d: i32,      // max width/height/depth of SG_IMAGETYPE_3D images
-    max_image_size_array: i32,   // max width/height of SG_IMAGETYPE_ARRAY images
-    max_image_array_layers: i32, // max number of layers in SG_IMAGETYPE_ARRAY images
-    max_vertex_attrs: i32,       // <= SG_MAX_VERTEX_ATTRIBUTES or less (on some GLES2 impls)
-    gl_max_vertex_uniform_vectors: i32, // <= GL_MAX_VERTEX_UNIFORM_VECTORS (only on GL backends)
-    gl_max_combined_texture_image_units: i32, // <= GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS (only on GL backends)
+    max_image_size_2d: u32,      // max width/height of SG_IMAGETYPE_2D images
+    max_image_size_cube: u32,    // max width/height of SG_IMAGETYPE_CUBE images
+    max_image_size_3d: u32,      // max width/height/depth of SG_IMAGETYPE_3D images
+    max_image_size_array: u32,   // max width/height of SG_IMAGETYPE_ARRAY images
+    max_image_array_layers: u32, // max number of layers in SG_IMAGETYPE_ARRAY images
+    max_vertex_attrs: u32,       // <= SG_MAX_VERTEX_ATTRIBUTES or less (on some GLES2 impls)
+    gl_max_vertex_uniform_vectors: u32, // <= GL_MAX_VERTEX_UNIFORM_VECTORS (only on GL backends)
+    gl_max_combined_texture_image_units: u32, // <= GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS (only on GL backends)
 }
 
 #[derive(Clone, Copy)]
@@ -1583,8 +1583,8 @@ fn sg_gl_init_pixelformats(sg : &mut sg_state_t, has_bgra : bool) {
 fn sg_gl_init_pixelformats_half_float(sg : &mut sg_state_t, has_colorbuffer_half_float : bool, has_texture_half_float_linear : bool) {
     //#if !defined(SOKOL_GLES2)
     if !sg.gl.gles2 {
-        if (has_texture_half_float_linear) {
-            if (has_colorbuffer_half_float) {
+        if has_texture_half_float_linear {
+            if has_colorbuffer_half_float {
                 sg_pixelformat_all(&mut sg.formats[sg_pixel_format::R16F as usize]);
                 sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RG16F as usize]);
                 sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
@@ -1596,7 +1596,7 @@ fn sg_gl_init_pixelformats_half_float(sg : &mut sg_state_t, has_colorbuffer_half
             }
         }
         else {
-            if (has_colorbuffer_half_float) {
+            if has_colorbuffer_half_float {
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::R16F as usize]);
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RG16F as usize]);
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
@@ -1611,8 +1611,8 @@ fn sg_gl_init_pixelformats_half_float(sg : &mut sg_state_t, has_colorbuffer_half
     else {
     //#endif
         /* GLES2 can only render to RGBA, and there's no RG format */
-        if (has_texture_half_float_linear) {
-            if (has_colorbuffer_half_float) {
+        if has_texture_half_float_linear {
+            if has_colorbuffer_half_float {
                 sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
             }
             else {
@@ -1621,7 +1621,7 @@ fn sg_gl_init_pixelformats_half_float(sg : &mut sg_state_t, has_colorbuffer_half
             sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R16F as usize]);
         }
         else {
-            if (has_colorbuffer_half_float) {
+            if has_colorbuffer_half_float {
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA16F as usize]);
             }
             else {
@@ -1637,9 +1637,9 @@ fn sg_gl_init_pixelformats_half_float(sg : &mut sg_state_t, has_colorbuffer_half
 fn sg_gl_init_pixelformats_float(sg : &mut sg_state_t, has_colorbuffer_float : bool, has_texture_float_linear : bool, has_float_blend : bool) {
     //#if !defined(SOKOL_GLES2)
     if !sg.gl.gles2 {
-        if (has_texture_float_linear) {
-            if (has_colorbuffer_float) {
-                if (has_float_blend) {
+        if has_texture_float_linear {
+            if has_colorbuffer_float {
+                if has_float_blend {
                     sg_pixelformat_all(&mut sg.formats[sg_pixel_format::R32F as usize]);
                     sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RG32F as usize]);
                     sg_pixelformat_all(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
@@ -1657,7 +1657,7 @@ fn sg_gl_init_pixelformats_float(sg : &mut sg_state_t, has_colorbuffer_float : b
             }
         }
         else {
-            if (has_colorbuffer_float) {
+            if has_colorbuffer_float {
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::R32F as usize]);
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RG32F as usize]);
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
@@ -1740,41 +1740,41 @@ unsafe fn sg_gl_init_limits(sg : &mut sg_state_t) {
     let mut gl_int : GLint  = 0;
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mut gl_int);
     //_SG_GL_CHECK_ERROR();
-    sg.limits.max_image_size_2d = gl_int;
-    sg.limits.max_image_size_array = gl_int;
+    sg.limits.max_image_size_2d = gl_int as u32;
+    sg.limits.max_image_size_array = gl_int as u32;
     glGetIntegerv(GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mut gl_int);
     //_SG_GL_CHECK_ERROR();
-    sg.limits.max_image_size_cube = gl_int;
+    sg.limits.max_image_size_cube = gl_int as u32;
     glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &mut gl_int);
     //_SG_GL_CHECK_ERROR();
     if gl_int > SG_MAX_VERTEX_ATTRIBUTES as i32{
         gl_int = SG_MAX_VERTEX_ATTRIBUTES as i32;
     }
-    sg.limits.max_vertex_attrs = gl_int;
+    sg.limits.max_vertex_attrs = gl_int as u32;
     glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &mut gl_int);
     //_SG_GL_CHECK_ERROR();
-    sg.limits.gl_max_vertex_uniform_vectors = gl_int;
+    sg.limits.gl_max_vertex_uniform_vectors = gl_int as u32;
     //#if !defined(SOKOL_GLES2)
     if !sg.gl.gles2 {
         glGetIntegerv(GL_MAX_3D_TEXTURE_SIZE, &mut gl_int);
         //_SG_GL_CHECK_ERROR();
-        sg.limits.max_image_size_3d = gl_int;
+        sg.limits.max_image_size_3d = gl_int as u32;
         glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &mut gl_int);
         //_SG_GL_CHECK_ERROR();
-        sg.limits.max_image_array_layers = gl_int;
+        sg.limits.max_image_array_layers = gl_int as u32;
     }
     //#endif
-    if (sg.gl.ext_anisotropic) {
+    if sg.gl.ext_anisotropic {
         glGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &mut gl_int);
         //_SG_GL_CHECK_ERROR();
-        sg.gl.max_anisotropy = gl_int;
+        sg.gl.max_anisotropy = gl_int as u32;
     }
     else {
         sg.gl.max_anisotropy = 1;
     }
     glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &mut gl_int);
     //_SG_GL_CHECK_ERROR();
-    sg.limits.gl_max_combined_texture_image_units = gl_int;
+    sg.limits.gl_max_combined_texture_image_units = gl_int as u32;
 }
 
 unsafe fn sg_gl_init_caps_glcore33(sg : &mut sg_state_t) {
@@ -1918,6 +1918,234 @@ fn sg_setup_backend(sg : &mut sg_state_t) {
     sg_gl_setup_backend(sg);
 }
 
+fn sg_pool_alloc_index(pool : &mut sg_pool_t) -> u32 {
+    if pool.queue_top > 0 {
+        pool.queue_top -= 1;
+        let slot_index = pool.free_queue[pool.queue_top as usize];
+        debug_assert!((slot_index > 0) && (slot_index < pool.size));
+        return slot_index;
+    }
+    else {
+        /* pool exhausted */
+        return SG_INVALID_SLOT_INDEX;
+    }
+}
+
+/* allocate the slot at slot_index:
+    - bump the slot's generation counter
+    - create a resource id from the generation counter and slot index
+    - set the slot's id to this id
+    - set the slot's state to ALLOC
+    - return the resource id
+*/
+fn sg_slot_alloc(pool: &mut sg_pool_t, slot : &mut sg_slot_t, slot_index : u32) -> u32 {
+    /* FIXME: add handling for an overflowing generation counter,
+       for now, just overflow (another option is to disable
+       the slot)
+    */
+    debug_assert!((slot_index > SG_INVALID_SLOT_INDEX) && (slot_index < pool.size));
+    debug_assert!((slot.state == sg_resource_state::INITIAL) && (slot.id == SG_INVALID_ID));
+    
+    let ctr = &mut pool.gen_ctrs[slot_index as usize];
+    *ctr += 1;
+    slot.id = (*ctr << SG_SLOT_SHIFT) | (slot_index & SG_SLOT_MASK);
+    slot.state = sg_resource_state::ALLOC;
+    slot.id
+}
+
+/* extract slot index from id */
+fn sg_slot_index(id : u32) -> u32{
+    let slot_index = id & SG_SLOT_MASK;
+    debug_assert!(SG_INVALID_SLOT_INDEX != slot_index);
+    slot_index
+}
+
+fn sg_context_at(p: &mut sg_pools_t , context_id: u32) -> &mut sg_context_t {
+    debug_assert!(SG_INVALID_ID != context_id);
+    let slot_index = sg_slot_index(context_id);
+    debug_assert!((slot_index > SG_INVALID_SLOT_INDEX) && (slot_index < p.context_pool.size));
+    return &mut p.contexts[slot_index as usize];
+}
+
+/*-- GL backend resource creation and destruction ----------------------------*/
+fn sg_gl_create_context(sg : &mut sg_state_t) {
+    let ctx: &mut sg_gl_context_t = sg_context_at(&mut sg.pools, sg.active_context.id);
+    unsafe {
+        debug_assert!(0 == ctx.default_framebuffer);
+        //_SG_GL_CHECK_ERROR();
+        let mut get_int = 0;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &mut get_int);
+        ctx.default_framebuffer = get_int as u32;
+        //_SG_GL_CHECK_ERROR();
+        //#if !defined(SOKOL_GLES2)
+        if !sg.gl.gles2 {
+            debug_assert!(0 == ctx.vao);
+            glGenVertexArrays(1, &mut ctx.vao);
+            glBindVertexArray(ctx.vao);
+            //_SG_GL_CHECK_ERROR();
+        }
+        //#endif
+        // incoming texture data is generally expected to be packed tightly
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    }
+    ctx.slot.state = sg_resource_state::VALID;
+}
+
+fn sg_create_context(sg : &mut sg_state_t) {
+    return sg_gl_create_context(sg);
+}
+
+unsafe fn sg_gl_cache_clear_buffer_bindings(sg : &mut sg_state_t, force : bool) {
+    if force || (sg.gl.cache.vertex_buffer != 0) {
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        sg.gl.cache.vertex_buffer = 0;
+    }
+    if force || (sg.gl.cache.index_buffer != 0) {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        sg.gl.cache.index_buffer = 0;
+    }
+}
+
+unsafe fn sg_gl_cache_clear_texture_bindings(sg : &mut sg_state_t, force: bool) {
+    let mut max_images = sg.limits.gl_max_combined_texture_image_units;
+    if max_images > SG_GL_IMAGE_CACHE_SIZE {
+        max_images = SG_GL_IMAGE_CACHE_SIZE;
+    }
+    for i in 0..max_images  {
+        if force || (sg.gl.cache.textures[i as usize].texture != 0) {
+            let gl_texture_slot = (GL_TEXTURE0 + i) as GLenum;
+            glActiveTexture(gl_texture_slot);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+            //#if !defined(SOKOL_GLES2)
+            if !sg.gl.gles2 {
+                glBindTexture(GL_TEXTURE_3D, 0);
+                glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+            }
+            //#endif
+            sg.gl.cache.textures[i as usize].target = 0;
+            sg.gl.cache.textures[i as usize].texture = 0;
+            sg.gl.cache.cur_active_texture = gl_texture_slot;
+        }
+    }
+}
+
+unsafe fn sg_gl_reset_state_cache(sg : &mut sg_state_t) {
+    
+    if sg.active_context.id != SG_INVALID_ID {
+        let ctx = sg_context_at(&mut sg.pools, sg.active_context.id);        
+        //_SG_GL_CHECK_ERROR();
+        //#if !defined(SOKOL_GLES2)
+        if !sg.gl.gles2 {
+            glBindVertexArray(ctx.vao);
+            //_SG_GL_CHECK_ERROR();
+        }
+        //#endif
+        sg.gl.cache = sg_gl_state_cache_t::default();
+        sg_gl_cache_clear_buffer_bindings(sg, true);
+        //_SG_GL_CHECK_ERROR();
+        sg_gl_cache_clear_texture_bindings(sg, true);
+        //_SG_GL_CHECK_ERROR();
+        for i in 0..sg.limits.max_vertex_attrs {
+            let attr = &mut sg.gl.cache.attrs[i as usize].gl_attr;
+            attr.vb_index = -1;
+            attr.divisor = -1;
+            glDisableVertexAttribArray(i as GLuint);
+            //_SG_GL_CHECK_ERROR();
+        }
+        sg.gl.cache.cur_primitive_type = GL_TRIANGLES;
+
+        /* shader program */
+        let mut get_int = 0;
+        glGetIntegerv(GL_CURRENT_PROGRAM, &mut get_int);
+        sg.gl.cache.prog = get_int as u32;
+        //_SG_GL_CHECK_ERROR();
+
+        /* depth and stencil state */
+        sg.gl.cache.depth.compare = sg_compare_func::ALWAYS;
+        sg.gl.cache.stencil.front.compare = sg_compare_func::ALWAYS;
+        sg.gl.cache.stencil.front.fail_op = sg_stencil_op::KEEP;
+        sg.gl.cache.stencil.front.depth_fail_op = sg_stencil_op::KEEP;
+        sg.gl.cache.stencil.front.pass_op = sg_stencil_op::KEEP;
+        sg.gl.cache.stencil.back.compare = sg_compare_func::ALWAYS;
+        sg.gl.cache.stencil.back.fail_op = sg_stencil_op::KEEP;
+        sg.gl.cache.stencil.back.depth_fail_op = sg_stencil_op::KEEP;
+        sg.gl.cache.stencil.back.pass_op = sg_stencil_op::KEEP;
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_ALWAYS);
+        glDepthMask(GL_FALSE as u8);
+        glDisable(GL_STENCIL_TEST);
+        glStencilFunc(GL_ALWAYS, 0, 0);
+        glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+        glStencilMask(0);
+
+        /* blend state */
+        sg.gl.cache.blend.src_factor_rgb = sg_blend_factor::ONE;
+        sg.gl.cache.blend.dst_factor_rgb = sg_blend_factor::ZERO;
+        sg.gl.cache.blend.op_rgb = sg_blend_op::ADD;
+        sg.gl.cache.blend.src_factor_alpha = sg_blend_factor::ONE;
+        sg.gl.cache.blend.dst_factor_alpha = sg_blend_factor::ZERO;
+        sg.gl.cache.blend.op_alpha = sg_blend_op::ADD;
+        glDisable(GL_BLEND);
+        glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ONE, GL_ZERO);
+        glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+        glBlendColor(0.0, 0.0, 0.0, 0.0);
+
+        /* standalone state */
+        for mask in &mut sg.gl.cache.color_write_mask {
+            *mask = sg_color_mask::RGBA;
+        }
+        sg.gl.cache.cull_mode = sg_cull_mode::NONE;
+        sg.gl.cache.face_winding = sg_face_winding::CW;
+        sg.gl.cache.sample_count = 1;
+        glColorMask(GL_TRUE as u8, GL_TRUE as u8, GL_TRUE as u8, GL_TRUE as u8);
+        glPolygonOffset(0.0, 0.0);
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        glDisable(GL_CULL_FACE);
+        glFrontFace(GL_CW);
+        glCullFace(GL_BACK);
+        glEnable(GL_SCISSOR_TEST);
+        glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        glEnable(GL_DITHER);
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        //#if defined(SOKOL_GLCORE33)
+            glEnable(GL_MULTISAMPLE);
+            glEnable(GL_PROGRAM_POINT_SIZE);
+        //#endif
+    }
+}
+
+fn sg_gl_activate_context(sg : &mut sg_state_t) {
+    debug_assert!(sg.gl.valid);
+    /* NOTE: ctx can be 0 to unset the current context */
+    //sg.gl.cur_context = ctx;
+    unsafe {sg_gl_reset_state_cache(sg); }
+}
+
+fn sg_activate_context(sg : &mut sg_state_t) {
+    sg_gl_activate_context(sg);
+}
+
+fn sg_setup_context(sg : &mut sg_state_t) -> sg_context {
+    //SOKOL_ASSERT(_sg.valid);
+    let slot_index = sg_pool_alloc_index(&mut sg.pools.context_pool);
+
+    if SG_INVALID_SLOT_INDEX != slot_index {
+        let res_id = sg_slot_alloc(&mut sg.pools.context_pool, &mut sg.pools.contexts[slot_index as usize].slot, slot_index);
+        sg.active_context = sg_context { id: res_id }; // DT_TODO: Setting active context here to be accessed in sg_create_context and sg_activate_context - should I pass as parameter?
+
+        sg_create_context(sg);
+        //debug_assert!(ctx.slot.state == sg_resource_state::VALID);
+        sg_activate_context(sg);
+    }
+    else {
+        /* pool is exhausted */
+        sg.active_context = sg_context { id: SG_INVALID_ID };        
+    }
+
+    return sg.active_context;
+}
+
 pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
     sg.desc = *desc;
     sg_setup_pools(&mut sg.pools, &sg.desc);
@@ -1925,7 +2153,7 @@ pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
     sg.frame_index = 1;
     sg_setup_backend(sg);
     sg.valid = true;
-    //sg_setup_context();
+    sg_setup_context(sg);
 }
 
 pub fn sg_shutdown() {}

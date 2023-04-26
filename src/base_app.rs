@@ -133,7 +133,6 @@ where
     T: AppI,
 {
     fn init(&mut self, data: &mut SAppData) {
-        self.app.init(&mut self.base, data);
 
         self.base.start_ticks = self.base.timer.now(); // DT_TODO: Move this to start and report startup time?
         let desc = sg_desc {
@@ -145,6 +144,7 @@ where
         sg_setup(&mut self.base.sg, &desc);
 
         //DT_TODO: Load UI assets
+        self.app.init(&mut self.base, data);        
         self.app.load(&mut self.base, data);
         self.app.reset_camera(&mut self.base, data);
     }
