@@ -3,10 +3,8 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use windows_sys::Win32::Foundation::HINSTANCE;
-use windows_sys::Win32::Foundation::PROC;
-use windows_sys::Win32::System::LibraryLoader::GetProcAddress;
-use windows_sys::Win32::System::LibraryLoader::LoadLibraryA;
+use windows_sys::Win32::Foundation::{HINSTANCE, PROC};
+use windows_sys::Win32::System::LibraryLoader::{LoadLibraryA, FreeLibrary, GetProcAddress};
 use windows_sys::s;
 
 use crate::enum_sequential;
@@ -1879,6 +1877,11 @@ fn sg_gl_load_opengl(sg : &mut sg_state_t) {
     }
 }
 
+fn sg_gl_unload_opengl(sg : &mut sg_state_t) {
+    debug_assert!(sg.gl.opengl32_dll != 0);
+    unsafe { FreeLibrary(sg.gl.opengl32_dll); }
+    sg.gl.opengl32_dll = 0;
+}
 
 fn sg_gl_setup_backend(sg : &mut sg_state_t) {
     /* assumes that _sg.gl is already zero-initialized */
@@ -1912,10 +1915,20 @@ fn sg_gl_setup_backend(sg : &mut sg_state_t) {
     //#endif
 }
 
-
+fn sg_gl_discard_backend(sg : &mut sg_state_t) {
+    debug_assert!(sg.gl.valid);
+    sg.gl.valid = false;
+    //#if defined(_SOKOL_USE_WIN32_GL_LOADER)
+    sg_gl_unload_opengl(sg);
+    //#endif
+}
 
 fn sg_setup_backend(sg : &mut sg_state_t) {
     sg_gl_setup_backend(sg);
+}
+
+fn sg_discard_backend() {
+    sg_gl_discard_backend(sg);
 }
 
 fn sg_pool_alloc_index(pool : &mut sg_pool_t) -> u32 {
@@ -2148,7 +2161,7 @@ fn sg_gl_activate_context(sg : &mut sg_state_t, ctx_id : sg_context) {
     unsafe {sg_gl_reset_state_cache(sg, ctx_id); }
 }
 
-fn sg_activate_context(sg : &mut sg_state_t, ctx_id : sg_context) {
+fn sg_activate_context_internal(sg : &mut sg_state_t, ctx_id : sg_context) {
     sg_gl_activate_context(sg, ctx_id);
 }
 
@@ -2161,7 +2174,7 @@ fn sg_setup_context(sg : &mut sg_state_t) -> sg_context {
 
         sg_create_context(sg, res_id);
         debug_assert!(sg_context_at(&mut sg.pools, res_id.id).slot.state == sg_resource_state::VALID);
-        sg_activate_context(sg, res_id);
+        sg_activate_context_internal(sg, res_id);
         res_id
     }
     else {
@@ -2183,7 +2196,48 @@ pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
     sg_setup_context(sg);
 }
 
-fn sg_discard_all_resources(_sg_pools_t* p, uint32_t ctx_id) {
+
+/* called when _sg_gl_deinit_buffer() */
+fn sg_gl_cache_invalidate_buffer(buf : GLuint) {
+    if buf == sg.gl.cache.vertex_buffer {
+        sg.gl.cache.vertex_buffer = 0;
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+    if buf == sg.gl.cache.index_buffer {
+        sg.gl.cache.index_buffer = 0;
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+    if buf == sg.gl.cache.stored_vertex_buffer {
+        sg.gl.cache.stored_vertex_buffer = 0;
+    }
+    if buf == sg.gl.cache.stored_index_buffer {
+        sg.gl.cache.stored_index_buffer = 0;
+    }
+    for i in 0..SG_MAX_VERTEX_ATTRIBUTES as usize { 
+        if (buf == sg.gl.cache.attrs[i].gl_vbuf) {
+            sg.gl.cache.attrs[i].gl_vbuf = 0;
+        }
+    }
+}
+
+fn sg_gl_discard_buffer(buf : &mut sg_buffer_t) {
+    //_SG_GL_CHECK_ERROR();
+    for slot in 0..buf.cmn.num_slots as usize {
+        if buf.gl.buf[slot] != 0 {
+            sg_gl_cache_invalidate_buffer(buf.gl.buf[slot]);
+            if !buf.gl.ext_buffers {
+                unsafe { glDeleteBuffers(1, &buf.gl.buf[slot]); }
+            }
+        }
+    }
+    //_SG_GL_CHECK_ERROR();
+}
+
+fn sg_discard_buffer(buf : &mut sg_buffer_t) {
+    sg_gl_discard_buffer(buf);
+}
+
+fn sg_discard_all_resources(p : &mut sg_pools_t, ctx_id : u32) {
     /*  this is a bit dumb since it loops over all pool slots to
         find the occupied slots, on the other hand it is only ever
         executed at shutdown
@@ -2191,42 +2245,42 @@ fn sg_discard_all_resources(_sg_pools_t* p, uint32_t ctx_id) {
               ...because the free queues will not be reset
               and the resource slots not be cleared!
     */
-    for (int i = 1; i < p->buffer_pool.size; i++) {
-        if (p->buffers[i].slot.ctx_id == ctx_id) {
-            sg_resource_state state = p->buffers[i].slot.state;
-            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
-                _sg_discard_buffer(&p->buffers[i]);
+    for i in 1..p.buffer_pool.size as usize{ 
+        if p.buffers[i].slot.ctx_id == ctx_id {
+            let state = p.buffers[i].slot.state;
+            if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
+                sg_discard_buffer(&mut p.buffers[i]);
             }
         }
     }
-    for (int i = 1; i < p->image_pool.size; i++) {
-        if (p->images[i].slot.ctx_id == ctx_id) {
-            sg_resource_state state = p->images[i].slot.state;
-            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+    for i in 1..p.image_pool.size as usize{     
+        if p.images[i].slot.ctx_id == ctx_id {
+            let state = p.images[i].slot.state;
+            if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
                 _sg_discard_image(&p->images[i]);
             }
         }
     }
-    for (int i = 1; i < p->shader_pool.size; i++) {
-        if (p->shaders[i].slot.ctx_id == ctx_id) {
-            sg_resource_state state = p->shaders[i].slot.state;
-            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+    for i in 1..p.shader_pool.size as usize{         
+        if p.shaders[i].slot.ctx_id == ctx_id {
+            let state = p.shaders[i].slot.state;
+            if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
                 _sg_discard_shader(&p->shaders[i]);
             }
         }
     }
-    for (int i = 1; i < p->pipeline_pool.size; i++) {
-        if (p->pipelines[i].slot.ctx_id == ctx_id) {
-            sg_resource_state state = p->pipelines[i].slot.state;
-            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+    for i in 1..p.pipeline_pool.size as usize{             
+        if p.pipelines[i].slot.ctx_id == ctx_id {
+            let state = p.pipelines[i].slot.state;
+            if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
                 _sg_discard_pipeline(&p->pipelines[i]);
             }
         }
     }
-    for (int i = 1; i < p->pass_pool.size; i++) {
-        if (p->passes[i].slot.ctx_id == ctx_id) {
-            sg_resource_state state = p->passes[i].slot.state;
-            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+    for i in 1..p.pass_pool.size as usize{                 
+        if p.passes[i].slot.ctx_id == ctx_id {
+            let state = p.passes[i].slot.state;
+            if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
                 _sg_discard_pass(&p->passes[i]);
             }
         }
@@ -2237,21 +2291,6 @@ fn sg_discard_context_internal(sg : &mut sg_state_t, ctx_id : sg_context) {
     sg_gl_discard_context(sg, ctx_id);
 }
 
-fn sg_discard_context(sg : &mut sg_state_t, ctx_id : sg_context) {
-    SOKOL_ASSERT(_sg.valid);
-    _sg_discard_all_resources(&_sg.pools, ctx_id.id);
-    _sg_context_t* ctx = _sg_lookup_context(&_sg.pools, ctx_id.id);
-    if (ctx) {
-        sg_discard_context_internal(sg, ctx);
-        _sg_reset_context_to_alloc_state(ctx);
-        _sg_reset_slot(&ctx->slot);
-        _sg_pool_free_index(&_sg.pools.context_pool, _sg_slot_index(ctx_id.id));
-    }
-    _sg.active_context.id = SG_INVALID_ID;
-    _sg_activate_context(0);
-}
-
-
 pub fn sg_shutdown(sg : &mut sg_state_t) {
     /* can only delete resources for the currently set context here, if multiple
     contexts are used, the app code must take care of properly releasing them
@@ -2260,13 +2299,13 @@ pub fn sg_shutdown(sg : &mut sg_state_t) {
     if sg.active_context.id != SG_INVALID_ID {
         let ctx = sg_lookup_context(&mut sg.pools, sg.active_context.id);
         if let Some(ctx) = ctx {
-            sg_discard_all_resources(&sg.pools, sg.active_context.id);
+            sg_discard_all_resources(&mut sg.pools, sg.active_context.id);
             sg_discard_context_internal(ctx);
         }
     }
     sg_discard_backend();
     //sg_discard_commit_listeners();
-    sg_discard_pools(&sg.pools);
+    sg_discard_pools(&mut sg.pools);
     SG_CLEAR_ARC_STRUCT(_sg_state_t, _sg);
 }
 
