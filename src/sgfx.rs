@@ -1960,16 +1960,27 @@ fn sg_slot_index(id : u32) -> u32{
     slot_index
 }
 
-fn sg_context_at(p: &mut sg_pools_t , context_id: u32) -> &mut sg_context_t {
+fn sg_context_at(p: &mut sg_pools_t, context_id: u32) -> &mut sg_context_t {
     debug_assert!(SG_INVALID_ID != context_id);
     let slot_index = sg_slot_index(context_id);
     debug_assert!((slot_index > SG_INVALID_SLOT_INDEX) && (slot_index < p.context_pool.size));
     return &mut p.contexts[slot_index as usize];
 }
 
+fn sg_lookup_context(p: &mut sg_pools_t, ctx_id : u32) -> Option<&mut sg_context_t> {
+
+    if SG_INVALID_ID != ctx_id {
+        let ctx = sg_context_at(p, ctx_id);
+        if ctx.slot.id == ctx_id {
+            return Some(ctx);
+        }
+    }
+    None
+}
+
 /*-- GL backend resource creation and destruction ----------------------------*/
-fn sg_gl_create_context(sg : &mut sg_state_t) {
-    let ctx: &mut sg_gl_context_t = sg_context_at(&mut sg.pools, sg.active_context.id);
+fn sg_gl_create_context(sg : &mut sg_state_t, ctx_id : sg_context) {
+    let ctx: &mut sg_gl_context_t = sg_context_at(&mut sg.pools, ctx_id.id);
     unsafe {
         debug_assert!(0 == ctx.default_framebuffer);
         //_SG_GL_CHECK_ERROR();
@@ -1991,8 +2002,23 @@ fn sg_gl_create_context(sg : &mut sg_state_t) {
     ctx.slot.state = sg_resource_state::VALID;
 }
 
-fn sg_create_context(sg : &mut sg_state_t) {
-    return sg_gl_create_context(sg);
+fn sg_gl_discard_context(sg : &mut sg_state_t, ctx_id : sg_context) {
+
+    let ctx: &mut sg_gl_context_t = sg_context_at(&mut sg.pools, ctx_id.id);
+    //#if !defined(SOKOL_GLES2)
+    if !sg.gl.gles2 {
+        if ctx.vao {
+            unsafe { glDeleteVertexArrays(1, &ctx.vao); }
+        }
+        //_SG_GL_CHECK_ERROR();
+    }
+    //#else
+    //_SOKOL_UNUSED(ctx);
+    //#endif
+}
+
+fn sg_create_context(sg : &mut sg_state_t, ctx_id : sg_context) {
+    return sg_gl_create_context(sg, ctx_id);
 }
 
 unsafe fn sg_gl_cache_clear_buffer_bindings(sg : &mut sg_state_t, force : bool) {
@@ -2030,10 +2056,10 @@ unsafe fn sg_gl_cache_clear_texture_bindings(sg : &mut sg_state_t, force: bool) 
     }
 }
 
-unsafe fn sg_gl_reset_state_cache(sg : &mut sg_state_t) {
+unsafe fn sg_gl_reset_state_cache(sg : &mut sg_state_t, ctx_id : sg_context) {
     
-    if sg.active_context.id != SG_INVALID_ID {
-        let ctx = sg_context_at(&mut sg.pools, sg.active_context.id);        
+    if ctx_id.id != SG_INVALID_ID {
+        let ctx = sg_context_at(&mut sg.pools, ctx_id.id);        
         //_SG_GL_CHECK_ERROR();
         //#if !defined(SOKOL_GLES2)
         if !sg.gl.gles2 {
@@ -2115,34 +2141,35 @@ unsafe fn sg_gl_reset_state_cache(sg : &mut sg_state_t) {
     }
 }
 
-fn sg_gl_activate_context(sg : &mut sg_state_t) {
+fn sg_gl_activate_context(sg : &mut sg_state_t, ctx_id : sg_context) {
     debug_assert!(sg.gl.valid);
     /* NOTE: ctx can be 0 to unset the current context */
     //sg.gl.cur_context = ctx;
-    unsafe {sg_gl_reset_state_cache(sg); }
+    unsafe {sg_gl_reset_state_cache(sg, ctx_id); }
 }
 
-fn sg_activate_context(sg : &mut sg_state_t) {
-    sg_gl_activate_context(sg);
+fn sg_activate_context(sg : &mut sg_state_t, ctx_id : sg_context) {
+    sg_gl_activate_context(sg, ctx_id);
 }
 
 fn sg_setup_context(sg : &mut sg_state_t) -> sg_context {
     //SOKOL_ASSERT(_sg.valid);
     let slot_index = sg_pool_alloc_index(&mut sg.pools.context_pool);
 
-    if SG_INVALID_SLOT_INDEX != slot_index {
-        let res_id = sg_slot_alloc(&mut sg.pools.context_pool, &mut sg.pools.contexts[slot_index as usize].slot, slot_index);
-        sg.active_context = sg_context { id: res_id }; // DT_TODO: Setting active context here to be accessed in sg_create_context and sg_activate_context - should I pass as parameter?
+    let ctx_id = if SG_INVALID_SLOT_INDEX != slot_index {
+        let res_id = sg_context { id: sg_slot_alloc(&mut sg.pools.context_pool, &mut sg.pools.contexts[slot_index as usize].slot, slot_index) };
 
-        sg_create_context(sg);
-        //debug_assert!(ctx.slot.state == sg_resource_state::VALID);
-        sg_activate_context(sg);
+        sg_create_context(sg, res_id);
+        debug_assert!(sg_context_at(&mut sg.pools, res_id.id).slot.state == sg_resource_state::VALID);
+        sg_activate_context(sg, res_id);
+        res_id
     }
     else {
         /* pool is exhausted */
-        sg.active_context = sg_context { id: SG_INVALID_ID };        
-    }
+        sg_context { id: SG_INVALID_ID }
+    };
 
+    sg.active_context = ctx_id;
     return sg.active_context;
 }
 
@@ -2156,7 +2183,92 @@ pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
     sg_setup_context(sg);
 }
 
-pub fn sg_shutdown() {}
+fn sg_discard_all_resources(_sg_pools_t* p, uint32_t ctx_id) {
+    /*  this is a bit dumb since it loops over all pool slots to
+        find the occupied slots, on the other hand it is only ever
+        executed at shutdown
+        NOTE: ONLY EXECUTE THIS AT SHUTDOWN
+              ...because the free queues will not be reset
+              and the resource slots not be cleared!
+    */
+    for (int i = 1; i < p->buffer_pool.size; i++) {
+        if (p->buffers[i].slot.ctx_id == ctx_id) {
+            sg_resource_state state = p->buffers[i].slot.state;
+            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+                _sg_discard_buffer(&p->buffers[i]);
+            }
+        }
+    }
+    for (int i = 1; i < p->image_pool.size; i++) {
+        if (p->images[i].slot.ctx_id == ctx_id) {
+            sg_resource_state state = p->images[i].slot.state;
+            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+                _sg_discard_image(&p->images[i]);
+            }
+        }
+    }
+    for (int i = 1; i < p->shader_pool.size; i++) {
+        if (p->shaders[i].slot.ctx_id == ctx_id) {
+            sg_resource_state state = p->shaders[i].slot.state;
+            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+                _sg_discard_shader(&p->shaders[i]);
+            }
+        }
+    }
+    for (int i = 1; i < p->pipeline_pool.size; i++) {
+        if (p->pipelines[i].slot.ctx_id == ctx_id) {
+            sg_resource_state state = p->pipelines[i].slot.state;
+            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+                _sg_discard_pipeline(&p->pipelines[i]);
+            }
+        }
+    }
+    for (int i = 1; i < p->pass_pool.size; i++) {
+        if (p->passes[i].slot.ctx_id == ctx_id) {
+            sg_resource_state state = p->passes[i].slot.state;
+            if ((state == SG_RESOURCESTATE_VALID) || (state == SG_RESOURCESTATE_FAILED)) {
+                _sg_discard_pass(&p->passes[i]);
+            }
+        }
+    }
+}
+
+fn sg_discard_context_internal(sg : &mut sg_state_t, ctx_id : sg_context) {
+    sg_gl_discard_context(sg, ctx_id);
+}
+
+fn sg_discard_context(sg : &mut sg_state_t, ctx_id : sg_context) {
+    SOKOL_ASSERT(_sg.valid);
+    _sg_discard_all_resources(&_sg.pools, ctx_id.id);
+    _sg_context_t* ctx = _sg_lookup_context(&_sg.pools, ctx_id.id);
+    if (ctx) {
+        sg_discard_context_internal(sg, ctx);
+        _sg_reset_context_to_alloc_state(ctx);
+        _sg_reset_slot(&ctx->slot);
+        _sg_pool_free_index(&_sg.pools.context_pool, _sg_slot_index(ctx_id.id));
+    }
+    _sg.active_context.id = SG_INVALID_ID;
+    _sg_activate_context(0);
+}
+
+
+pub fn sg_shutdown(sg : &mut sg_state_t) {
+    /* can only delete resources for the currently set context here, if multiple
+    contexts are used, the app code must take care of properly releasing them
+    (since only the app code can switch between 3D-API contexts)
+    */
+    if sg.active_context.id != SG_INVALID_ID {
+        let ctx = sg_lookup_context(&mut sg.pools, sg.active_context.id);
+        if let Some(ctx) = ctx {
+            sg_discard_all_resources(&sg.pools, sg.active_context.id);
+            sg_discard_context_internal(ctx);
+        }
+    }
+    sg_discard_backend();
+    //sg_discard_commit_listeners();
+    sg_discard_pools(&sg.pools);
+    SG_CLEAR_ARC_STRUCT(_sg_state_t, _sg);
+}
 
 pub fn sg_commit() {
     //todo!()
