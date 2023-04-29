@@ -138,7 +138,12 @@ where
         let desc = sg_desc {
             //color_format = (sg_pixel_format) data.color_format();
             //depth_format = (sg_pixel_format) data.depth_format();
-            //sample_count = data.sample_count(),
+            context : sg_context_desc {
+                color_format: sg_pixel_format::RGBA8, // DT_TODO: See sg_desc_defaults - different targets have different defaults
+                depth_format: sg_pixel_format::DEPTH_STENCIL,
+                sample_count: data.sample_count(),
+                gl: sg_gl_context_desc { force_gles2: false },
+            },
             ..sg_desc::default()
         };
         sg_setup(&mut self.base.sg, &desc);

@@ -2867,6 +2867,11 @@ impl SAppData {
     pub fn toggle_fullscreen(&mut self) {
         sapp_win32_toggle_fullscreen(self);
     }
+
+    pub fn sample_count(&self) -> u32 {
+        self.sample_count
+    }
+
 }
 
 pub struct SApp<'a> {

@@ -907,7 +907,7 @@ pub struct sg_gl_context_desc {
 pub struct sg_context_desc {
     pub color_format: sg_pixel_format,
     pub depth_format: sg_pixel_format,
-    pub sample_count: i32,
+    pub sample_count: u32,
     pub gl: sg_gl_context_desc,
     //sg_metal_context_desc metal;
     //sg_d3d11_context_desc d3d11;
