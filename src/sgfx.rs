@@ -852,7 +852,7 @@ struct sg_gl_state_cache_t {
     cur_index_type : GLenum,
     cur_active_texture : GLenum,
     //_sg_pipeline_t* cur_pipeline;
-    cur_pipeline_id: sg_pipeline,
+    cur_pipeline_id: sg_pipeline, // DT_TODO: Is this duplicated in the main state? sg_pipeline
 }
 
 #[derive(Default)]
@@ -2289,6 +2289,64 @@ fn sg_discard_image(gl : &mut sg_gl_backend_t, img : &mut sg_image_t) {
     sg_gl_discard_image(gl, img);
 } 
 
+/* called from _sg_gl_discard_shader() */
+fn sg_gl_cache_invalidate_program(gl : &mut sg_gl_backend_t, prog : GLuint) {
+    if prog == gl.cache.prog {
+        gl.cache.prog = 0;
+        unsafe { glUseProgram(0); }
+    }
+}
+
+fn sg_gl_discard_shader(gl : &mut sg_gl_backend_t, shd : &mut sg_shader_t) {
+    //_SG_GL_CHECK_ERROR();
+    if shd.gl.prog != 0 {
+        sg_gl_cache_invalidate_program(gl, shd.gl.prog);
+        unsafe { glDeleteProgram(shd.gl.prog); }
+    }
+    //_SG_GL_CHECK_ERROR();
+}
+
+fn sg_discard_shader(gl : &mut sg_gl_backend_t, shd : &mut sg_shader_t) {
+    sg_gl_discard_shader(gl, shd);
+}
+
+/* called from _sg_gl_discard_pipeline() */
+fn sg_gl_cache_invalidate_pipeline(gl : &mut sg_gl_backend_t, pip : &mut sg_pipeline_t) {
+    if pip.slot.id == gl.cache.cur_pipeline_id.id { // DT_TODO: Checked code change here comparing ids
+        //gl.cache.cur_pipeline = 0;
+        gl.cache.cur_pipeline_id.id = SG_INVALID_ID;
+    }
+}
+
+fn sg_gl_discard_pipeline(gl : &mut sg_gl_backend_t,pip : &mut sg_pipeline_t) {
+    sg_gl_cache_invalidate_pipeline(gl, pip);
+}
+
+fn sg_discard_pipeline(gl : &mut sg_gl_backend_t,pip : &mut sg_pipeline_t) {
+    sg_gl_discard_pipeline(gl, pip);
+}
+
+fn sg_gl_discard_pass(gl : &mut sg_gl_backend_t, pass : &mut sg_pass_t) {
+    debug_assert!(pass.slot.id != gl.cur_pass_id.id);
+    //_SG_GL_CHECK_ERROR();
+    if 0 != pass.gl.fb {
+        unsafe { glDeleteFramebuffers(1, &pass.gl.fb); }
+    }
+    for att in &pass.gl.color_atts {
+        if att.gl_msaa_resolve_buffer != 0 {
+            unsafe { glDeleteFramebuffers(1, &att.gl_msaa_resolve_buffer); }
+        }
+    }
+    if pass.gl.ds_att.gl_msaa_resolve_buffer != 0 {
+        unsafe { glDeleteFramebuffers(1, &pass.gl.ds_att.gl_msaa_resolve_buffer); }
+    }
+    //_SG_GL_CHECK_ERROR();
+}
+
+fn sg_discard_pass(gl : &mut sg_gl_backend_t, pass : &mut sg_pass_t) {
+    sg_gl_discard_pass(gl, pass);
+}
+
 fn sg_discard_all_resources(sg : &mut sg_state_t, ctx_id : u32) {
     
     let p = &mut sg.pools;
@@ -2319,7 +2377,7 @@ fn sg_discard_all_resources(sg : &mut sg_state_t, ctx_id : u32) {
         if p.shaders[i].slot.ctx_id == ctx_id {
             let state = p.shaders[i].slot.state;
             if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
-                _sg_discard_shader(&p->shaders[i]);
+                sg_discard_shader(&mut sg.gl, &mut p.shaders[i]);
             }
         }
     }
@@ -2327,7 +2385,7 @@ fn sg_discard_all_resources(sg : &mut sg_state_t, ctx_id : u32) {
         if p.pipelines[i].slot.ctx_id == ctx_id {
             let state = p.pipelines[i].slot.state;
             if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
-                _sg_discard_pipeline(&p->pipelines[i]);
+                sg_discard_pipeline(&mut sg.gl, &mut p.pipelines[i]);
             }
         }
     }
@@ -2335,7 +2393,7 @@ fn sg_discard_all_resources(sg : &mut sg_state_t, ctx_id : u32) {
         if p.passes[i].slot.ctx_id == ctx_id {
             let state = p.passes[i].slot.state;
             if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
-                _sg_discard_pass(&p->passes[i]);
+                sg_discard_pass(&mut sg.gl, &mut p.passes[i]);
             }
         }
     }
