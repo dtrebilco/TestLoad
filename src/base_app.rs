@@ -207,7 +207,7 @@ where
         self.base.controls();
         self.app.draw_frame(&mut self.base, data);
 
-        sg_commit();
+        sg_commit(&mut self.base.sg);
     }
 
     fn shutdown(&mut self, data: &mut SAppData) {

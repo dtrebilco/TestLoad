@@ -2421,8 +2421,17 @@ pub fn sg_shutdown(sg : &mut sg_state_t) {
     *sg = sg_state_t::default();
 }
 
-pub fn sg_commit() {
-    //todo!()
+fn sg_gl_commit(sg : &mut sg_state_t) {
+    debug_assert!(!sg.gl.in_pass);
+    /* "soft" clear bindings (only those that are actually bound) */
+    unsafe {
+    sg_gl_cache_clear_buffer_bindings(sg, false);
+    sg_gl_cache_clear_texture_bindings(sg, false);
+    }
+}
+
+pub fn sg_commit(sg : &mut sg_state_t) {
+    sg_gl_commit(sg)
 }
 
 /*
