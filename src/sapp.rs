@@ -4,7 +4,10 @@ use windows_sys::Win32::Devices::HumanInterfaceDevice::MOUSE_MOVE_ABSOLUTE;
 use windows_sys::Win32::Foundation::*;
 use windows_sys::Win32::Globalization::*;
 use windows_sys::Win32::Graphics::Gdi::*;
-use windows_sys::Win32::Graphics::OpenGL::{HGLRC, PIXELFORMATDESCRIPTOR, ChoosePixelFormat, DescribePixelFormat, SetPixelFormat, SwapBuffers, PFD_DOUBLEBUFFER, PFD_DRAW_TO_WINDOW, PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA};
+use windows_sys::Win32::Graphics::OpenGL::{
+    ChoosePixelFormat, DescribePixelFormat, SetPixelFormat, SwapBuffers, HGLRC, PFD_DOUBLEBUFFER,
+    PFD_DRAW_TO_WINDOW, PFD_SUPPORT_OPENGL, PFD_TYPE_RGBA, PIXELFORMATDESCRIPTOR,
+};
 use windows_sys::Win32::System::Console::*;
 use windows_sys::Win32::System::DataExchange::*;
 use windows_sys::Win32::System::LibraryLoader::{
@@ -2871,7 +2874,6 @@ impl SAppData {
     pub fn sample_count(&self) -> u32 {
         self.sample_count
     }
-
 }
 
 pub struct SApp<'a> {

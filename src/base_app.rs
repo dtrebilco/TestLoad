@@ -4,7 +4,7 @@ use crate::timer::Timer;
 use crate::vector::*;
 
 pub struct BaseData {
-    pub sg : sg_state_t,
+    pub sg: sg_state_t,
 
     pub app_time: f32,
     pub frame_time: f32,
@@ -45,7 +45,7 @@ pub trait AppI {
 impl BaseData {
     fn new() -> BaseData {
         BaseData {
-            sg : sg_state_t::default(),
+            sg: sg_state_t::default(),
 
             app_time: 0.0,
             frame_time: 0.33,
@@ -133,12 +133,11 @@ where
     T: AppI,
 {
     fn init(&mut self, data: &mut SAppData) {
-
         self.base.start_ticks = self.base.timer.now(); // DT_TODO: Move this to start and report startup time?
         let desc = sg_desc {
             //color_format = (sg_pixel_format) data.color_format();
             //depth_format = (sg_pixel_format) data.depth_format();
-            context : sg_context_desc {
+            context: sg_context_desc {
                 color_format: sg_pixel_format::RGBA8, // DT_TODO: See sg_desc_defaults - different targets have different defaults
                 depth_format: sg_pixel_format::DEPTH_STENCIL,
                 sample_count: data.sample_count(),
@@ -149,7 +148,7 @@ where
         sg_setup(&mut self.base.sg, &desc);
 
         //DT_TODO: Load UI assets
-        self.app.init(&mut self.base, data);        
+        self.app.init(&mut self.base, data);
         self.app.load(&mut self.base, data);
         self.app.reset_camera(&mut self.base, data);
     }
