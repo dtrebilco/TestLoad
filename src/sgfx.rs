@@ -567,7 +567,7 @@ struct sg_gl_cache_attr_t {
     gl_vbuf: u32,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct sg_gl_texture_bind_slot {
     target : GLenum,
     texture: u32,
@@ -1685,7 +1685,7 @@ fn sg_gl_init_pixelformats_float(sg : &mut sg_state_t, has_colorbuffer_float : b
             sg_pixelformat_sf(&mut sg.formats[sg_pixel_format::R32F as usize]);
         }
         else {
-            if (has_colorbuffer_float) {
+            if has_colorbuffer_float {
                 sg_pixelformat_sbrm(&mut sg.formats[sg_pixel_format::RGBA32F as usize]);
             }
             else {
@@ -2237,6 +2237,58 @@ fn sg_discard_buffer(gl : &mut sg_gl_backend_t, buf : &mut sg_buffer_t) {
     sg_gl_discard_buffer(gl, buf);
 }
 
+fn sg_gl_cache_active_texture(gl : &mut sg_gl_backend_t, texture: GLenum) {
+    if gl.cache.cur_active_texture != texture {
+        gl.cache.cur_active_texture = texture;
+        unsafe { glActiveTexture(texture); }
+    }
+}
+
+/* called from _sg_gl_destroy_texture() */
+fn sg_gl_cache_invalidate_texture(gl : &mut sg_gl_backend_t, tex : GLuint) {
+    
+    for i in 0..SG_GL_IMAGE_CACHE_SIZE {
+        let slot = gl.cache.textures[i as usize];
+        if tex == slot.texture {
+            sg_gl_cache_active_texture(gl, (GL_TEXTURE0 + i) as GLenum);
+            unsafe { glBindTexture(slot.target, 0); }
+            
+            // Above copies the value to satisfy the borrow - set values here
+            let slot = &mut gl.cache.textures[i as usize];
+            slot.target = 0;
+            slot.texture = 0;
+        }
+    }
+    if tex == gl.cache.stored_texture.texture {
+        gl.cache.stored_texture.target = 0;
+        gl.cache.stored_texture.texture = 0;
+    }
+}
+
+fn sg_gl_discard_image(gl : &mut sg_gl_backend_t, img : &mut sg_image_t) {
+    //_SG_GL_CHECK_ERROR();
+    for slot in 0..img.cmn.num_slots {
+        let gl_tex = img.gl.tex[slot as usize];
+        if gl_tex != 0 {
+            sg_gl_cache_invalidate_texture(gl, gl_tex);
+            if !img.gl.ext_textures {
+                unsafe { glDeleteTextures(1, &gl_tex); }
+            }
+        }
+    }
+    if img.gl.depth_render_buffer != 0 {
+        unsafe { glDeleteRenderbuffers(1, &img.gl.depth_render_buffer); }
+    }
+    if img.gl.msaa_render_buffer != 0 {
+        unsafe { glDeleteRenderbuffers(1, &img.gl.msaa_render_buffer); }
+    }
+    //_SG_GL_CHECK_ERROR();
+}
+
+fn sg_discard_image(gl : &mut sg_gl_backend_t, img : &mut sg_image_t) {
+    sg_gl_discard_image(gl, img);
+} 
+
 fn sg_discard_all_resources(sg : &mut sg_state_t, ctx_id : u32) {
     
     let p = &mut sg.pools;
@@ -2259,7 +2311,7 @@ fn sg_discard_all_resources(sg : &mut sg_state_t, ctx_id : u32) {
         if p.images[i].slot.ctx_id == ctx_id {
             let state = p.images[i].slot.state;
             if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
-                _sg_discard_image(&p->images[i]);
+                sg_discard_image(&mut sg.gl, &mut p.images[i]);
             }
         }
     }
