@@ -211,7 +211,7 @@ where
     }
 
     fn shutdown(&mut self, data: &mut SAppData) {
-        sg_shutdown();
+        sg_shutdown(&mut self.base.sg);
     }
 }
 

@@ -1927,7 +1927,7 @@ fn sg_setup_backend(sg : &mut sg_state_t) {
     sg_gl_setup_backend(sg);
 }
 
-fn sg_discard_backend() {
+fn sg_discard_backend(sg : &mut sg_state_t) {
     sg_gl_discard_backend(sg);
 }
 
@@ -2020,7 +2020,7 @@ fn sg_gl_discard_context(sg : &mut sg_state_t, ctx_id : sg_context) {
     let ctx: &mut sg_gl_context_t = sg_context_at(&mut sg.pools, ctx_id.id);
     //#if !defined(SOKOL_GLES2)
     if !sg.gl.gles2 {
-        if ctx.vao {
+        if ctx.vao != 0 {
             unsafe { glDeleteVertexArrays(1, &ctx.vao); }
         }
         //_SG_GL_CHECK_ERROR();
@@ -2198,33 +2198,33 @@ pub fn sg_setup(sg : &mut sg_state_t, desc : &sg_desc) {
 
 
 /* called when _sg_gl_deinit_buffer() */
-fn sg_gl_cache_invalidate_buffer(buf : GLuint) {
-    if buf == sg.gl.cache.vertex_buffer {
-        sg.gl.cache.vertex_buffer = 0;
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+fn sg_gl_cache_invalidate_buffer(gl : &mut sg_gl_backend_t, buf : GLuint) {
+    if buf == gl.cache.vertex_buffer {
+        gl.cache.vertex_buffer = 0;
+        unsafe { glBindBuffer(GL_ARRAY_BUFFER, 0); }
     }
-    if buf == sg.gl.cache.index_buffer {
-        sg.gl.cache.index_buffer = 0;
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    if buf == gl.cache.index_buffer {
+        gl.cache.index_buffer = 0;
+        unsafe { glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0); }
     }
-    if buf == sg.gl.cache.stored_vertex_buffer {
-        sg.gl.cache.stored_vertex_buffer = 0;
+    if buf == gl.cache.stored_vertex_buffer {
+        gl.cache.stored_vertex_buffer = 0;
     }
-    if buf == sg.gl.cache.stored_index_buffer {
-        sg.gl.cache.stored_index_buffer = 0;
+    if buf == gl.cache.stored_index_buffer {
+        gl.cache.stored_index_buffer = 0;
     }
-    for i in 0..SG_MAX_VERTEX_ATTRIBUTES as usize { 
-        if (buf == sg.gl.cache.attrs[i].gl_vbuf) {
-            sg.gl.cache.attrs[i].gl_vbuf = 0;
+    for attr in &mut gl.cache.attrs {
+        if buf == attr.gl_vbuf {
+            attr.gl_vbuf = 0;
         }
     }
 }
 
-fn sg_gl_discard_buffer(buf : &mut sg_buffer_t) {
+fn sg_gl_discard_buffer(gl : &mut sg_gl_backend_t, buf : &mut sg_buffer_t) {
     //_SG_GL_CHECK_ERROR();
     for slot in 0..buf.cmn.num_slots as usize {
         if buf.gl.buf[slot] != 0 {
-            sg_gl_cache_invalidate_buffer(buf.gl.buf[slot]);
+            sg_gl_cache_invalidate_buffer(gl, buf.gl.buf[slot]);
             if !buf.gl.ext_buffers {
                 unsafe { glDeleteBuffers(1, &buf.gl.buf[slot]); }
             }
@@ -2233,11 +2233,13 @@ fn sg_gl_discard_buffer(buf : &mut sg_buffer_t) {
     //_SG_GL_CHECK_ERROR();
 }
 
-fn sg_discard_buffer(buf : &mut sg_buffer_t) {
-    sg_gl_discard_buffer(buf);
+fn sg_discard_buffer(gl : &mut sg_gl_backend_t, buf : &mut sg_buffer_t) {
+    sg_gl_discard_buffer(gl, buf);
 }
 
-fn sg_discard_all_resources(p : &mut sg_pools_t, ctx_id : u32) {
+fn sg_discard_all_resources(sg : &mut sg_state_t, ctx_id : u32) {
+    
+    let p = &mut sg.pools;
     /*  this is a bit dumb since it loops over all pool slots to
         find the occupied slots, on the other hand it is only ever
         executed at shutdown
@@ -2249,7 +2251,7 @@ fn sg_discard_all_resources(p : &mut sg_pools_t, ctx_id : u32) {
         if p.buffers[i].slot.ctx_id == ctx_id {
             let state = p.buffers[i].slot.state;
             if (state == sg_resource_state::VALID) || (state == sg_resource_state::FAILED) {
-                sg_discard_buffer(&mut p.buffers[i]);
+                sg_discard_buffer(&mut sg.gl, &mut p.buffers[i]);
             }
         }
     }
@@ -2299,14 +2301,14 @@ pub fn sg_shutdown(sg : &mut sg_state_t) {
     if sg.active_context.id != SG_INVALID_ID {
         let ctx = sg_lookup_context(&mut sg.pools, sg.active_context.id);
         if let Some(ctx) = ctx {
-            sg_discard_all_resources(&mut sg.pools, sg.active_context.id);
-            sg_discard_context_internal(ctx);
+            sg_discard_all_resources(sg, sg.active_context.id);
+            sg_discard_context_internal(sg, sg.active_context);
         }
     }
-    sg_discard_backend();
+    sg_discard_backend(sg);
     //sg_discard_commit_listeners();
-    sg_discard_pools(&mut sg.pools);
-    SG_CLEAR_ARC_STRUCT(_sg_state_t, _sg);
+    //sg_discard_pools(&mut sg.pools);
+    *sg = sg_state_t::default();
 }
 
 pub fn sg_commit() {
