@@ -66,20 +66,22 @@ impl Light {
 
 }
 
-  /*
-  struct Portal {
-    inline Portal(uint32_t sect, const vec3& vc0, const vec3& vc1, const vec3& vc2) {
-      sector = sect;
-      v[0] = vc0;
-      v[1] = vc1;
-      v[2] = vc1 + vc2 - vc0;
-      v[3] = vc2;
+struct Portal {
+    v : [vec3; 4],
+    sector: u32,
+}
+impl Portal {  
+  fn new(sector :u32, vc0 : &vec3, vc1: &vec3, vc2 : &vec3) -> Portal {
+    Portal {
+    sector,
+    v : [*vc0, *vc1, *vc1 + *vc2 - *vc0, *vc2],
     }
-  
-    vec3 v[4];
-    uint32_t sector = 0;
-  };
-  
+  }
+}
+
+
+
+  /*
   class Sector {
   public:
   
