@@ -128,36 +128,6 @@ impl Sector {
       }
 }
 
-
-  /*
-  class App : public BaseApp
-  {
-  public:
-  
-    void ResetCamera() override;
-    bool Load() override;
-    void DrawFrame() override;
-  
-  protected:
-  
-    Sector sectors[5];
-  
-    sg_shader shader = {};
-    sg_image base[3] = {};
-    sg_image bump[3] = {};
-    sg_pipeline room_pipline = {};
-    sg_pipeline room_pipline_blend = {};
-  
-    sg_shader pfx_shader = {};
-    sg_image pfx_particle = {};
-    sg_pipeline pfx_pipline = {};
-  
-    sg_buffer pfx_index = {};
-    sg_buffer pfx_vertex = {};
-  
-  };
-*/
-
 struct App {
     timer: Timer,
 
@@ -191,6 +161,17 @@ impl AppI for App {
         println!("Clipboard:{}", sapp.get_clipboard_string());
     }
 
+    fn reset_camera(&mut self, app: &mut BaseData, _sapp: &mut SAppData) {
+        app.cam_pos = vec3(470.0, 220.0, 210.0);
+        app.wx = 0.0;
+        app.wy = std::f32::consts::PI / 2.0;
+        app.wz = 0.0;
+    }
+
+    fn load(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) -> bool {
+        false
+    }
+
     fn on_event(&mut self, _app: &mut BaseData, sapp: &mut SAppData, event: &Event) -> bool {
         if let Event::FilesDropped = event {
             for str in sapp.get_dropped_file_paths() {
@@ -205,6 +186,9 @@ impl AppI for App {
 
         false // DT_TODO: Use enum here
     }
+
+    fn draw_frame(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) {}
+
 }
 
 fn main() {
@@ -298,3 +282,106 @@ fn main() {
 
     //println!("MyEnum: {:?} {test3}", test2);
 }
+
+static vs_src2 : &str = r"
+#version 330
+out vec2 texCoord;
+out vec3 lightVec;
+out vec3 viewVec;
+
+uniform vec4 vs_params[6];
+
+layout(location = 0) in vec4 position;
+layout(location = 1) in vec2 uv;
+layout(location = 2) in vec3 mat0;
+layout(location = 3) in vec3 mat1;
+layout(location = 4) in vec3 mat2;
+
+void main() {
+
+    mat4 mvp = mat4(vs_params[0], vs_params[1], vs_params[2], vs_params[3]);
+    gl_Position = mvp * position;
+
+    texCoord = uv.xy;
+
+    vec3 lightPos = vs_params[4].xyz;
+    vec3 camPos = vs_params[5].xyz;
+
+    vec3 lVec = lightPos - position.xyz;
+    lightVec.x = dot(mat0.xyz, lVec);
+    lightVec.y = dot(mat1.xyz, lVec);
+    lightVec.z = dot(mat2.xyz, lVec);
+
+    vec3 vVec = camPos - position.xyz;
+    viewVec.x = dot(mat0.xyz, vVec);
+    viewVec.y = dot(mat1.xyz, vVec);
+    viewVec.z = dot(mat2.xyz, vVec);
+}
+";
+    
+static fs_src2: &str = r"
+#version 330
+uniform sampler2D Base;
+uniform sampler2D Bump;
+
+uniform vec4 fs_params[1];
+
+in vec2 texCoord;
+in vec3 lightVec;
+in vec3 viewVec;
+
+layout(location = 0) out vec4 frag_color;
+
+void main(){
+
+    float invRadius = fs_params[0].x;
+    float ambient = fs_params[0].y;
+
+    vec4 base = texture(Base, texCoord);
+    vec3 bump = texture(Bump, texCoord).xyz * 2.0 - 1.0;
+
+    bump = normalize(bump);
+
+    float distSqr = dot(lightVec, lightVec);
+    vec3 lVec = lightVec * inversesqrt(distSqr);
+
+    float atten = clamp(1.0 - invRadius * sqrt(distSqr), 0.0, 1.0);
+    float diffuse = clamp(dot(lVec, bump), 0.0, 1.0);
+
+    float specular = pow(clamp(dot(reflect(normalize(-viewVec), bump), lVec), 0.0, 1.0), 16.0);
+    
+    frag_color = ambient * base + (diffuse * base + 0.6 * specular) * atten;
+}
+";
+    
+    
+static vs_src_pfx: &str = r"
+#version 330
+uniform vec4 vs_params[4];
+layout(location = 0) in vec4 position;
+layout(location = 1) in vec2 in_uv;
+layout(location = 2) in vec4 in_color;
+out vec2 uv;
+out vec4 color;
+void main() {
+
+    // Position it
+    mat4 mvp = mat4(vs_params[0], vs_params[1], vs_params[2], vs_params[3]);
+    gl_Position = mvp * position;
+
+    uv = in_uv;
+    color = in_color;
+}
+";
+    
+static fs_src_pfx : &str = r"
+#version 330
+layout(location = 0) out vec4 frag_color;
+in vec2 uv;
+in vec4 color;
+uniform sampler2D tex0;
+void main() {
+    frag_color = texture(tex0, uv);
+    frag_color *= color;
+}
+";
