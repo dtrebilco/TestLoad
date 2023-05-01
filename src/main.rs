@@ -79,46 +79,56 @@ impl Portal {
   }
 }
 
+struct Sector {
+    room : Model,
+    portals : Vec<Portal>,
+    lights : Vec<Light>,
+    min : vec3,
+    max : vec3,
+    has_been_drawn: bool,
+}
+
+impl Sector {
+    fn new() -> Sector {
+        Sector {
+            room: Model { batches: Vec::with_capacity(0) },
+            portals: Vec::with_capacity(1),
+            lights: Vec::with_capacity(1),
+            min: vec3(0.0,0.0,0.0),
+            max: vec3(0.0,0.0,0.0),
+            has_been_drawn: false
+        }
+    }
+
+    fn is_in_bounding_box(&self, pos: &vec3) -> bool {
+        return 
+        pos.x > self.min.x && pos.x < self.max.x &&
+        pos.y > self.min.y && pos.y < self.max.y &&
+        pos.z > self.min.z && pos.z < self.max.z;
+      }
+    
+      fn is_sphere_in_sector(&self, pos : &vec3, radius : f32) -> bool {
+        self.get_distance_sqr(pos) < (radius * radius)
+      }
+    
+      fn get_distance_sqr(&self, pos : &vec3) -> f32 {
+        let mut d = 0.0f32;
+        for i in 0..3 {
+          if pos[i] < self.min[i] {
+            let s = pos[i] - self.min[i];
+            d += s * s;
+          }
+          else if pos[i] > self.max[i] {
+            let s = pos[i] - self.max[i];
+            d += s * s;
+          }
+        }
+        d
+      }
+}
 
 
   /*
-  class Sector {
-  public:
-  
-    inline bool isInBoundingBox(vec3& pos) const {
-      return (pos.x > min.x && pos.x < max.x&&
-        pos.y > min.y && pos.y < max.y&&
-        pos.z > min.z && pos.z < max.z);
-    }
-  
-    inline bool isSphereInSector(const vec3& pos, const float radius) const {
-      return (getDistanceSqr(pos) < radius * radius);
-    }
-  
-    inline float getDistanceSqr(const vec3& pos) const {
-      float s, d = 0;
-      for (int i = 0; i < 3; i++) {
-        if (pos[i] < min[i]) {
-          s = pos[i] - min[i];
-          d += s * s;
-        }
-        else if (pos[i] > max[i]) {
-          s = pos[i] - max[i];
-          d += s * s;
-        }
-      }
-      return d;
-    }
-  
-  
-    Model room;
-    std::vector<Portal> portals;
-    std::vector<Light> lights;
-  
-    vec3 min, max;
-    bool hasBeenDrawn = false;
-  };
-  
   class App : public BaseApp
   {
   public:

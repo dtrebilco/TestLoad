@@ -1,4 +1,4 @@
-use std::mem::size_of;
+use std::{mem::size_of, ops::Index};
 
 #[macro_export]
 macro_rules! static_assert {
@@ -158,6 +158,19 @@ impl std::ops::Neg for vec3 {
 
     fn neg(self) -> Self::Output {
         vec3(-self.x, -self.y, -self.z)
+    }
+}
+
+impl Index<usize> for vec3 {
+    type Output = f32;
+
+    fn index(&self, i: usize) -> &Self::Output {
+        match i {
+            0 => &self.x,
+            1 => &self.y,
+            2 => &self.z,
+            _ => panic!(),
+        }
     }
 }
 
