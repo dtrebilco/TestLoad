@@ -11,37 +11,37 @@ use crate::enum_sequential;
 use crate::EnumLoadError;
 
 #[derive(Default, Clone, Copy)]
-struct sg_buffer {
+pub struct sg_buffer {
     id: u32,
 }
 
 #[derive(Default, Clone, Copy)]
-struct sg_image {
+pub struct sg_image {
     id: u32,
 }
 
 #[derive(Default, Clone, Copy)]
-struct sg_shader {
+pub struct sg_shader {
     id: u32,
 }
 
 #[derive(Default, Clone, Copy)]
-struct sg_pipeline {
+pub struct sg_pipeline {
     id: u32,
 }
 
 #[derive(Default, Clone, Copy)]
-struct sg_pass {
+pub struct sg_pass {
     id: u32,
 }
 
 #[derive(Default, Clone, Copy)]
-struct sg_context {
+pub struct sg_context {
     id: u32,
 }
 
 #[derive(Default, Clone, Copy)]
-struct sg_color {
+pub struct sg_color {
     r: f32,
     g: f32,
     b: f32,

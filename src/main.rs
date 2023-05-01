@@ -14,6 +14,7 @@ use game_rand::GameRand;
 use model::*;
 use particle_system::*;
 use sapp::*;
+use sgfx::*;
 use timer::*;
 use vector::*;
 
@@ -159,6 +160,21 @@ impl Sector {
 
 struct App {
     timer: Timer,
+
+    sectors : [Sector; 5],
+  
+    shader : sg_shader, 
+    base : [sg_image; 3],
+    bump : [sg_image; 3],
+    room_pipline : sg_pipeline,
+    room_pipline_blend : sg_pipeline,
+  
+    pfx_shader : sg_shader, 
+    pfx_particle : sg_image,
+    pfx_pipline : sg_pipeline,
+  
+    pfx_index : sg_buffer,
+    pfx_vertex : sg_buffer, 
 }
 
 impl AppI for App {
@@ -206,6 +222,21 @@ fn main() {
 
     let App = App {
         timer: Timer::new(),
+        sectors : core::array::from_fn(|_| Sector::new()),
+  
+        shader : sg_shader::default(), 
+        base : [sg_image::default(); 3],
+        bump : [sg_image::default(); 3],
+        room_pipline : sg_pipeline::default(),
+        room_pipline_blend : sg_pipeline::default(),
+      
+        pfx_shader : sg_shader::default(), 
+        pfx_particle : sg_image::default(),
+        pfx_pipline : sg_pipeline::default(),
+      
+        pfx_index : sg_buffer::default(),
+        pfx_vertex : sg_buffer::default(),
+
     };
     base_app::run_app(App, &desc);
 
