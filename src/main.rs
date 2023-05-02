@@ -18,6 +18,10 @@ use sgfx::*;
 use timer::*;
 use vector::*;
 
+const MAX_PFX_PARTICLES : u32 = 1200;
+const MAX_TOTAL_PARTICLES : u32 = MAX_PFX_PARTICLES * 5;
+const PFX_VERTEX_SIZE : u32 = (4 * 3) + (4 * 2) + (4 * 4);
+
 struct Light {
     particles : ParticleSystem,
     position : vec3,
@@ -169,7 +173,212 @@ impl AppI for App {
     }
 
     fn load(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) -> bool {
-        false
+        {
+            let indices = vec![0u16; MAX_TOTAL_PARTICLES as usize * 6];
+            uint16_t* dest = indices.data();
+            for (unsigned int i = 0; i < MAX_TOTAL_PARTICLES; i++) {
+              *dest++ = 4 * i;
+              *dest++ = 4 * i + 1;
+              *dest++ = 4 * i + 3;
+              *dest++ = 4 * i + 2;
+              *dest++ = 4 * i + 3;
+              *dest++ = 4 * i + 1;
+            }
+            pfx_index = sg_make_buffer(sg_buffer_desc{
+                .type = SG_BUFFERTYPE_INDEXBUFFER,
+                .data = sg_range{.ptr = indices.data(), .size = (indices.size() * sizeof(uint16_t)) } ,
+              });
+          }
+          pfx_vertex = sg_make_buffer(sg_buffer_desc{
+              .size = MAX_TOTAL_PARTICLES * PFX_VERTEX_SIZE * 4,
+              .usage = SG_USAGE_STREAM
+            });
+        
+          // create an image 
+          sg_image_desc imageDesc = {
+            .min_filter = SG_FILTER_LINEAR_MIPMAP_NEAREST,
+            .mag_filter = SG_FILTER_LINEAR,
+            .wrap_u = SG_WRAP_REPEAT,
+            .wrap_v = SG_WRAP_REPEAT,
+          };
+        
+          {
+            sg_shader_desc shaderDesc = {};
+            shaderDesc.attrs[0] = { .name = "position" };
+            shaderDesc.attrs[1] = { .name = "uv" };
+            shaderDesc.attrs[2] = { .name = "mat0" };
+            shaderDesc.attrs[3] = { .name = "mat1" };
+            shaderDesc.attrs[4] = { .name = "mat2" };
+        
+            shaderDesc.vs.source = vs_src2;
+            shaderDesc.vs.entry = "main";
+            shaderDesc.vs.uniform_blocks[0].size = 6 * 16;
+            shaderDesc.vs.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+            shaderDesc.vs.uniform_blocks[0].uniforms[0].name = "vs_params";
+            shaderDesc.vs.uniform_blocks[0].uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+            shaderDesc.vs.uniform_blocks[0].uniforms[0].array_count = 6;
+        
+            shaderDesc.fs.source = fs_src2;
+            shaderDesc.fs.entry = "main";
+            shaderDesc.fs.uniform_blocks[0].size = 1 * 16;
+            shaderDesc.fs.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+            shaderDesc.fs.uniform_blocks[0].uniforms[0].name = "fs_params";
+            shaderDesc.fs.uniform_blocks[0].uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+            shaderDesc.fs.uniform_blocks[0].uniforms[0].array_count = 1;
+            shaderDesc.fs.images[0].name = "Base";
+            shaderDesc.fs.images[0].image_type = SG_IMAGETYPE_2D;
+            shaderDesc.fs.images[0].sampler_type = SG_SAMPLERTYPE_FLOAT;
+            shaderDesc.fs.images[1].name = "Bump";
+            shaderDesc.fs.images[1].image_type = SG_IMAGETYPE_2D;
+            shaderDesc.fs.images[1].sampler_type = SG_SAMPLERTYPE_FLOAT;
+        
+            shader = sg_make_shader(shaderDesc);
+          }
+        
+          {
+            sg_shader_desc shaderDesc = {};
+            shaderDesc.attrs[0] = { .name = "position" };
+            shaderDesc.attrs[1] = { .name = "in_uv" };
+            shaderDesc.attrs[2] = { .name = "in_color" };
+        
+            shaderDesc.vs.source = vs_src_pfx;
+            shaderDesc.vs.entry = "main";
+            shaderDesc.vs.uniform_blocks[0].size = 4 * 16;
+            shaderDesc.vs.uniform_blocks[0].layout = SG_UNIFORMLAYOUT_STD140;
+            shaderDesc.vs.uniform_blocks[0].uniforms[0].name = "vs_params";
+            shaderDesc.vs.uniform_blocks[0].uniforms[0].type = SG_UNIFORMTYPE_FLOAT4;
+            shaderDesc.vs.uniform_blocks[0].uniforms[0].array_count = 4;
+        
+            shaderDesc.fs.source = fs_src_pfx;
+            shaderDesc.fs.entry = "main";
+            shaderDesc.fs.images[0].name = "tex0";
+            shaderDesc.fs.images[0].image_type = SG_IMAGETYPE_2D;
+            shaderDesc.fs.images[0].sampler_type = SG_SAMPLERTYPE_FLOAT;
+        
+            pfx_shader = sg_make_shader(shaderDesc);
+          }
+        
+          base[0] = create_texture("data/Wood.png", imageDesc);
+          base[1] = create_texture("data/laying_rock7.png", imageDesc);
+          base[2] = create_texture("data/victoria.png", imageDesc);
+        
+          bump[0] = create_texture("data/Wood_N.png", imageDesc);
+          bump[1] = create_texture("data/laying_rock7_N.png", imageDesc);
+          bump[2] = create_texture("data/victoria_N.png", imageDesc);
+        
+          sg_image_desc pfx_imageDesc = {
+            .min_filter = SG_FILTER_LINEAR_MIPMAP_NEAREST,
+            .mag_filter = SG_FILTER_LINEAR,
+            .wrap_u = SG_WRAP_CLAMP_TO_EDGE,
+            .wrap_v = SG_WRAP_CLAMP_TO_EDGE,
+          };
+          pfx_particle = create_texture("data/Particle.png", pfx_imageDesc);
+        
+          auto load_model = [](const char* filename, Sector& sector, vec3 offset) {
+            load_model_from_file(filename, sector.room);
+        
+            //mat4 mat(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+            //mat.translate(offset);
+            mat4 mat(
+              vec4(1.0, 0.0, 0.0, 0.0),
+              vec4(0.0, 1.0, 0.0, 0.0),
+              vec4(0.0, 0.0, 1.0, 0.0),
+              vec4(offset, 1.0));
+        
+            transform_model(sector.room, mat);
+        
+            // Calculate min/max bounds
+            get_bounding_box(sector.room, sector.min, sector.max);
+            make_model_renderable(sector.room);
+          };
+        
+          load_model("data/room0.hmdl", sectors[0], vec3(0, 256, 0));
+          load_model("data/room1.hmdl", sectors[1], vec3(-384, 256, 3072));
+          load_model("data/room2.hmdl", sectors[2], vec3(1536, 256, 2688));
+          load_model("data/room3.hmdl", sectors[3], vec3(-1024, -768, 2688));
+          load_model("data/room4.hmdl", sectors[4], vec3(-2304, 256, 2688));
+        
+          // Setup portals
+          sectors[0].portals.push_back(Portal(1, vec3(-384, 384, 1024), vec3(-128, 384, 1024), vec3(-384, 0, 1024)));
+          sectors[1].portals.push_back(Portal(0, vec3(-384, 384, 1024), vec3(-128, 384, 1024), vec3(-384, 0, 1024)));
+        
+          sectors[1].portals.push_back(Portal(2, vec3(512, 384, 2816), vec3(512, 384, 3072), vec3(512, 0, 2816)));
+          sectors[2].portals.push_back(Portal(1, vec3(512, 384, 2816), vec3(512, 384, 3072), vec3(512, 0, 2816)));
+        
+          sectors[2].portals.push_back(Portal(3, vec3(512, -256, 2304), vec3(512, -256, 2560), vec3(512, -640, 2304)));
+          sectors[3].portals.push_back(Portal(2, vec3(512, -256, 2304), vec3(512, -256, 2560), vec3(512, -640, 2304)));
+        
+          sectors[1].portals.push_back(Portal(4, vec3(-1280, 384, 1664), vec3(-1280, 384, 1920), vec3(-1280, 128, 1664)));
+          sectors[4].portals.push_back(Portal(1, vec3(-1280, 384, 1664), vec3(-1280, 384, 1920), vec3(-1280, 128, 1664)));
+        
+          sectors[1].portals.push_back(Portal(4, vec3(-1280, 192, 3840), vec3(-1280, 192, 4096), vec3(-1280, -256, 3840)));
+          sectors[4].portals.push_back(Portal(1, vec3(-1280, 192, 3840), vec3(-1280, 192, 4096), vec3(-1280, -256, 3840)));
+        
+          // Setup lights
+          sectors[0].lights.push_back(Light(vec3(0, 128, 0), 800, 100, 100, 100));
+        
+          sectors[1].lights.push_back(Light(vec3(-256, 224, 1800), 650, 100, 80, 100));
+          sectors[1].lights.push_back(Light(vec3(-512, 128, 3100), 900, 100, 100, 300));
+        
+          sectors[2].lights.push_back(Light(vec3(1300, 128, 2700), 800, 100, 100, 200));
+        
+          sectors[3].lights.push_back(Light(vec3(-100, -700, 2432), 600, 50, 50, 50));
+          sectors[3].lights.push_back(Light(vec3(-1450, -700, 2900), 1200, 250, 80, 250));
+        
+          sectors[4].lights.push_back(Light(vec3(-2200, 256, 2300), 800, 100, 100, 100));
+          sectors[4].lights.push_back(Light(vec3(-2000, 0, 4000), 800, 100, 100, 100));
+        
+          {
+            sg_pipeline_desc roomPipDesc = {};
+            roomPipDesc.layout.attrs[0] = { .offset = 0, .format = SG_VERTEXFORMAT_FLOAT3 }; // position
+            roomPipDesc.layout.attrs[1] = { .offset = 12, .format = SG_VERTEXFORMAT_FLOAT2 }; // uv
+            roomPipDesc.layout.attrs[2] = { .offset = 20, .format = SG_VERTEXFORMAT_FLOAT3 }; // mat0
+            roomPipDesc.layout.attrs[3] = { .offset = 32, .format = SG_VERTEXFORMAT_FLOAT3 }; // mat1
+            roomPipDesc.layout.attrs[4] = { .offset = 44, .format = SG_VERTEXFORMAT_FLOAT3 }; // mat2
+            roomPipDesc.shader = shader;
+            roomPipDesc.index_type = SG_INDEXTYPE_UINT16;
+            roomPipDesc.depth = {
+                .compare = SG_COMPAREFUNC_LESS_EQUAL,
+                .write_enabled = true,
+            };
+            roomPipDesc.cull_mode = SG_CULLMODE_BACK;
+            //roomPipDesc.face_winding = SG_FACEWINDING_CCW;
+            room_pipline = sg_make_pipeline(roomPipDesc);
+        
+            roomPipDesc.colors[0].blend = {
+                .enabled = true,
+                .src_factor_rgb = SG_BLENDFACTOR_ONE,
+                .dst_factor_rgb = SG_BLENDFACTOR_ONE,
+                .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+            };
+            room_pipline_blend = sg_make_pipeline(roomPipDesc);
+          }
+        
+          {
+            sg_pipeline_desc pipDesc = {};
+            pipDesc.layout.attrs[0] = { .offset = 0, .format = SG_VERTEXFORMAT_FLOAT3 }; // position
+            pipDesc.layout.attrs[1] = { .offset = 12, .format = SG_VERTEXFORMAT_FLOAT2 }; // uv
+            pipDesc.layout.attrs[2] = { .offset = 20, .format = SG_VERTEXFORMAT_FLOAT4 }; // color
+            pipDesc.shader = pfx_shader;
+            pipDesc.index_type = SG_INDEXTYPE_UINT16;
+            pipDesc.depth = {
+                .compare = SG_COMPAREFUNC_LESS_EQUAL,
+                .write_enabled = false,
+            };
+            pipDesc.colors[0].blend = {
+                .enabled = true,
+                .src_factor_rgb = SG_BLENDFACTOR_ONE,
+                .dst_factor_rgb = SG_BLENDFACTOR_ONE,
+                .src_factor_alpha = SG_BLENDFACTOR_ONE,
+                .dst_factor_alpha = SG_BLENDFACTOR_ONE,
+            };
+            pipDesc.cull_mode = SG_CULLMODE_BACK;
+            //pipDesc.face_winding = SG_FACEWINDING_CCW;
+            pfx_pipline = sg_make_pipeline(pipDesc);
+          }
+
+        true
     }
 
     fn on_event(&mut self, _app: &mut BaseData, sapp: &mut SAppData, event: &Event) -> bool {
