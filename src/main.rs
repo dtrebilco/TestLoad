@@ -175,14 +175,15 @@ impl AppI for App {
     fn load(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) -> bool {
         {
             let indices = vec![0u16; MAX_TOTAL_PARTICLES as usize * 6];
-            uint16_t* dest = indices.data();
-            for (unsigned int i = 0; i < MAX_TOTAL_PARTICLES; i++) {
-              *dest++ = 4 * i;
-              *dest++ = 4 * i + 1;
-              *dest++ = 4 * i + 3;
-              *dest++ = 4 * i + 2;
-              *dest++ = 4 * i + 3;
-              *dest++ = 4 * i + 1;
+            for i in 0..MAX_TOTAL_PARTICLES {
+              let offset = i as usize * 6;
+              let index_offset = i as u16 * 4;
+              indices[offset + 0] = index_offset + 0;
+              indices[offset + 1] = index_offset + 1;
+              indices[offset + 2] = index_offset + 3;
+              indices[offset + 3] = index_offset + 2;
+              indices[offset + 4] = index_offset + 3;
+              indices[offset + 5] = index_offset + 1;
             }
             pfx_index = sg_make_buffer(sg_buffer_desc{
                 .type = SG_BUFFERTYPE_INDEXBUFFER,
