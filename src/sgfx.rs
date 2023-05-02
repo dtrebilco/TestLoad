@@ -493,6 +493,63 @@ enum_sequential! {
 const SG_VERTEXFORMAT_NUM: u32 = sg_vertex_format::len() as u32;
 
 enum_sequential! {
+    #[derive(Default, Clone, Copy)]    
+    enum sg_cube_face {
+        #[default]        
+        POS_X,
+        NEG_X,
+        POS_Y,
+        NEG_Y,
+        POS_Z,
+        NEG_Z,
+    }
+}
+const SG_CUBEFACE_NUM: u32 = sg_cube_face::len() as u32;
+
+struct sg_range {
+    ptr : *const ::core::ffi::c_void, // DT_TODO: void or u8?
+    size : usize,
+}
+
+struct sg_image_data {
+    subimage : [[sg_range; SG_MAX_MIPMAPS as usize]; SG_CUBEFACE_NUM as usize],
+}
+
+struct sg_image_desc {
+    type_val : sg_image_type,
+    render_target : bool,
+    width : u32,
+    height : u32,
+    num_slices : u32,
+    num_mipmaps : u32,
+    usage : sg_usage,
+    pixel_format : sg_pixel_format,
+    sample_count : u32,
+    min_filter : sg_filter,
+    mag_filter : sg_filter,
+    wrap_u : sg_wrap,
+    wrap_v : sg_wrap,
+    wrap_w : sg_wrap,
+    border_color : sg_border_color,
+    max_anisotropy : u32,
+    min_lod : f32,
+    max_lod : f32,
+    data : sg_image_data,
+    label : &'static str,
+    /* GL specific */
+    gl_textures : [u32; SG_NUM_INFLIGHT_FRAMES as usize],
+    gl_texture_target : u32,
+    /* Metal specific */
+    //const void* mtl_textures[SG_NUM_INFLIGHT_FRAMES];
+    /* D3D11 specific */
+    //const void* d3d11_texture;
+    //const void* d3d11_shader_resource_view;
+    /* WebGPU specific */
+    //const void* wgpu_texture;
+    //uint32_t _end_canary;
+}
+
+enum_sequential! {
     #[derive(Default, Clone, Copy)]
     enum sg_index_type {
         #[default]
