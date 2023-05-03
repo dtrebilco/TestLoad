@@ -9,6 +9,8 @@ mod sgfx;
 mod timer;
 mod vector;
 
+use std::ffi::c_void;
+
 use base_app::*;
 use game_rand::GameRand;
 use model::*;
@@ -172,9 +174,9 @@ impl AppI for App {
         app.wz = 0.0;
     }
 
-    fn load(&mut self, _app: &mut BaseData, _sapp: &mut SAppData) -> bool {
+    fn load(&mut self, app: &mut BaseData, _sapp: &mut SAppData) -> bool {
         {
-            let indices = vec![0u16; MAX_TOTAL_PARTICLES as usize * 6];
+            let mut indices = vec![0u16; MAX_TOTAL_PARTICLES as usize * 6];
             for i in 0..MAX_TOTAL_PARTICLES {
               let offset = i as usize * 6;
               let index_offset = i as u16 * 4;
@@ -185,16 +187,18 @@ impl AppI for App {
               indices[offset + 4] = index_offset + 3;
               indices[offset + 5] = index_offset + 1;
             }
-            pfx_index = sg_make_buffer(sg_buffer_desc{
-                .type = SG_BUFFERTYPE_INDEXBUFFER,
-                .data = sg_range{.ptr = indices.data(), .size = (indices.size() * sizeof(uint16_t)) } ,
+            self.pfx_index = sg_make_buffer(&mut app.sg, &sg_buffer_desc{
+                type_val : sg_buffer_type::INDEXBUFFER,
+                data : sg_range{ptr : indices.as_ptr() as *const c_void, size : (indices.len() * std::mem::size_of::<u16>()) } ,
+                ..sg_buffer_desc::default()
               });
           }
-          pfx_vertex = sg_make_buffer(sg_buffer_desc{
-              .size = MAX_TOTAL_PARTICLES * PFX_VERTEX_SIZE * 4,
-              .usage = SG_USAGE_STREAM
+          self.pfx_vertex = sg_make_buffer(&mut app.sg, &sg_buffer_desc{
+              size : (MAX_TOTAL_PARTICLES as usize) * (PFX_VERTEX_SIZE as usize) * 4,
+              usage : sg_usage::STREAM,
+              ..sg_buffer_desc::default()
             });
-        
+/*        
           // create an image 
           sg_image_desc imageDesc = {
             .min_filter = SG_FILTER_LINEAR_MIPMAP_NEAREST,
@@ -378,7 +382,7 @@ impl AppI for App {
             //pipDesc.face_winding = SG_FACEWINDING_CCW;
             pfx_pipline = sg_make_pipeline(pipDesc);
           }
-
+*/
         true
     }
 

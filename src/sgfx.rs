@@ -295,7 +295,7 @@ const SG_BLENDOP_NUM: u32 = sg_blend_op::len() as u32;
 
 enum_sequential! {
     #[derive(Default, Clone, Copy)]
-    enum sg_buffer_type {
+    pub enum sg_buffer_type {
         #[default]
         DEFAULT,         /* value 0 reserved for default-init */
         VERTEXBUFFER,
@@ -351,7 +351,7 @@ const SG_FACEWINDING_NUM: u32 = sg_face_winding::len() as u32;
 
 enum_sequential! {
     #[derive(Default, Clone, Copy)]
-    enum sg_usage {
+    pub enum sg_usage {
         #[default]
         DEFAULT,      /* value 0 reserved for default-init */
         IMMUTABLE,
@@ -506,16 +506,20 @@ enum_sequential! {
 }
 const SG_CUBEFACE_NUM: u32 = sg_cube_face::len() as u32;
 
-struct sg_range {
-    ptr : *const ::core::ffi::c_void, // DT_TODO: void or u8?
-    size : usize,
+#[derive(Clone, Copy)]
+pub struct sg_range {
+    pub ptr : *const ::core::ffi::c_void, // DT_TODO: void or u8?
+    pub size : usize,
+}
+impl Default for sg_range {
+    fn default() -> Self { sg_range { ptr : std::ptr::null(), size : 0 } }
 }
 
-struct sg_image_data {
-    subimage : [[sg_range; SG_MAX_MIPMAPS as usize]; SG_CUBEFACE_NUM as usize],
+pub struct sg_image_data {
+    pub subimage : [[sg_range; SG_MAX_MIPMAPS as usize]; SG_CUBEFACE_NUM as usize],
 }
 
-struct sg_image_desc {
+pub struct sg_image_desc {
     type_val : sg_image_type,
     render_target : bool,
     width : u32,
@@ -547,6 +551,23 @@ struct sg_image_desc {
     /* WebGPU specific */
     //const void* wgpu_texture;
     //uint32_t _end_canary;
+}
+
+#[derive(Default, Clone, Copy)]
+pub struct sg_buffer_desc {
+    pub size : usize,
+    pub type_val : sg_buffer_type,
+    pub usage : sg_usage,
+    pub data : sg_range,
+    pub label : &'static str,
+    /* GL specific */
+    pub gl_buffers : [u32; SG_NUM_INFLIGHT_FRAMES as usize],
+    /* Metal specific */
+    //const void* mtl_buffers[SG_NUM_INFLIGHT_FRAMES];
+    /* D3D11 specific */
+    //const void* d3d11_buffer;
+    /* WebGPU specific */
+    //const void* wgpu_buffer;
 }
 
 enum_sequential! {
@@ -2524,6 +2545,113 @@ fn sg_gl_commit(sg: &mut sg_state_t) {
 
 pub fn sg_commit(sg: &mut sg_state_t) {
     sg_gl_commit(sg)
+}
+
+fn sg_buffer_at(p: &sg_pools_t, buf_id: u32) -> &mut sg_buffer_t {
+    debug_assert!(SG_INVALID_ID != buf_id);
+    let slot_index = sg_slot_index(buf_id);
+    debug_assert!((slot_index > SG_INVALID_SLOT_INDEX) && (slot_index < p.buffer_pool.size));
+    &mut p.buffers[slot_index as usize]
+}
+
+fn sg_alloc_buffer_internal(sg: &mut sg_state_t) -> sg_buffer {
+    let mut res = sg_buffer{id:0};
+    let slot_index = sg_pool_alloc_index(&mut sg.pools.buffer_pool);
+    if SG_INVALID_SLOT_INDEX != slot_index {
+        res.id = sg_slot_alloc(&mut sg.pools.buffer_pool, &mut sg.pools.buffers[slot_index as usize].slot, slot_index);
+    }
+    else {
+        res.id = SG_INVALID_ID;
+        //_SG_ERROR(BUFFER_POOL_EXHAUSTED);
+        //_SG_TRACE_NOARGS(err_buffer_pool_exhausted);
+    }
+    res
+}
+
+fn sg_gl_create_buffer(buf:&mut sg_buffer_t, desc:&sg_buffer_desc) -> sg_resource_state {
+    //_SG_GL_CHECK_ERROR();
+    _sg_buffer_common_init(&buf.cmn, desc);
+    buf.gl.ext_buffers = (0 != desc.gl_buffers[0]);
+    GLenum gl_target = _sg_gl_buffer_target(buf.cmn.type_val);
+    GLenum gl_usage  = _sg_gl_usage(buf.cmn.usage);
+    for (int slot = 0; slot < buf.cmn.num_slots; slot++) {
+        let mut gl_buf = 0;
+        if (buf.gl.ext_buffers) {
+            debug_assert!(desc.gl_buffers[slot] != 0);
+            gl_buf = desc.gl_buffers[slot];
+        }
+        else {
+            glGenBuffers(1, &mut gl_buf);
+            debug_assert!(gl_buf != 0);
+            _sg_gl_cache_store_buffer_binding(gl_target);
+            _sg_gl_cache_bind_buffer(gl_target, gl_buf);
+            glBufferData(gl_target, buf.cmn.size, 0, gl_usage);
+            if (buf.cmn.usage == sg_usage::IMMUTABLE) {
+                SOKOL_ASSERT(desc.data.ptr);
+                glBufferSubData(gl_target, 0, buf.cmn.size, desc.data.ptr);
+            }
+            _sg_gl_cache_restore_buffer_binding(gl_target);
+        }
+        buf.gl.buf[slot] = gl_buf;
+    }
+    //_SG_GL_CHECK_ERROR();
+    return sg_resource_state::VALID;
+}
+
+fn sg_create_buffer(buf:&mut sg_buffer_t, desc:&sg_buffer_desc) -> sg_resource_state {
+    return sg_gl_create_buffer(buf, desc);
+}
+
+fn sg_validate_buffer_desc(desc:&sg_buffer_desc) -> bool {
+    //#if !defined(SOKOL_DEBUG)
+        //_SOKOL_UNUSED(desc);
+        return true;
+    //#else
+    //    if (_sg.desc.disable_validation) {
+    //        return true;
+    //    }
+    //    SOKOL_ASSERT(desc);
+    //    _sg_validate_begin();
+    //    _SG_VALIDATE(desc->size > 0, VALIDATE_BUFFERDESC_SIZE);
+    //    bool injected = (0 != desc->gl_buffers[0]) ||
+    //                    (0 != desc->mtl_buffers[0]) ||
+    //                    (0 != desc->d3d11_buffer) ||
+    //                    (0 != desc->wgpu_buffer);
+    //    if (!injected && (desc->usage == SG_USAGE_IMMUTABLE)) {
+    //        _SG_VALIDATE((0 != desc->data.ptr) && (desc->data.size > 0), VALIDATE_BUFFERDESC_DATA);
+    //        _SG_VALIDATE(desc->size == desc->data.size, VALIDATE_BUFFERDESC_DATA_SIZE);
+    //    }
+    //    else {
+    //        _SG_VALIDATE(0 == desc->data.ptr, VALIDATE_BUFFERDESC_NO_DATA);
+    //    }
+    //    return _sg_validate_end();
+    //#endif
+}
+
+fn sg_init_buffer(sg: &mut sg_state_t, buf: &mut sg_buffer_t, desc: &sg_buffer_desc) {
+    debug_assert!(buf.slot.state == sg_resource_state::ALLOC);
+    buf.slot.ctx_id = sg.active_context.id;
+    if sg_validate_buffer_desc(desc) {
+        buf.slot.state = sg_create_buffer(buf, desc);
+    }
+    else {
+        buf.slot.state = sg_resource_state::FAILED;
+    }
+    debug_assert!((buf.slot.state == sg_resource_state::VALID)||(buf.slot.state == sg_resource_state::FAILED));
+}
+
+pub fn sg_make_buffer(sg: &mut sg_state_t, desc : &sg_buffer_desc) -> sg_buffer {
+    debug_assert!(sg.valid);
+    let desc_def = sg_buffer_desc_defaults(desc);
+    let buf_id = sg_alloc_buffer_internal(sg);
+    if buf_id.id != SG_INVALID_ID {
+        let buf = sg_buffer_at(&sg.pools, buf_id.id);
+        debug_assert!(buf.slot.state == sg_resource_state::ALLOC);
+        sg_init_buffer(sg, buf, &desc_def);
+        debug_assert!((buf.slot.state == sg_resource_state::VALID) || (buf.slot.state == sg_resource_state::FAILED));
+    }
+    //_SG_TRACE_ARGS(make_buffer, &desc_def, buf_id);
+    buf_id
 }
 
 /*
